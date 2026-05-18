@@ -182,4 +182,43 @@ if (typeof window !== "undefined") {
   window.__state = state;
   window.__pauseTime = pauseTime;
   window.__resumeTime = resumeTime;
+
+  // SPEC-102 smoke test (= console から手動実行)
+  window.__testBattle = async function __testBattle() {
+    const { initBattle, INITIAL_MASTER_HP, MAX_STONES } = await import("./battle/battle-state.js");
+    const { drawCard, shuffleDeck, isDeckEmpty } = await import("./battle/deck.js");
+    const { getHeroDef } = await import("./battle/cards.js");
+
+    const ids = ["mch_1001", "mch_1002", "mch_1003"];
+    const battle = await initBattle(ids.slice(), ids.slice());
+    console.log("[testBattle] battle:", battle);
+    console.log("[testBattle] player.deck:", battle.player.deck);
+    console.log("[testBattle] cpu.deck:", battle.cpu.deck);
+
+    if (battle.player.deck.length !== 3) throw new Error("player.deck.length !== 3");
+    if (battle.cpu.deck.length !== 3) throw new Error("cpu.deck.length !== 3");
+    if (battle.player.masterHp !== INITIAL_MASTER_HP) throw new Error("masterHp !== 10");
+
+    const drawn = drawCard(battle.player);
+    console.log("[testBattle] drew:", drawn, "→ hand:", battle.player.hand, "deck:", battle.player.deck);
+    if (battle.player.hand.length !== 1) throw new Error("hand.length !== 1 after draw");
+    if (battle.player.deck.length !== 2) throw new Error("deck.length !== 2 after draw");
+
+    const def = getHeroDef(battle.cardDb, drawn);
+    console.log("[testBattle] hero def:", def?.name, "cost:", def?.cost, "hp:", def?.hp, "atk:", def?.atk);
+    if (!def) throw new Error(`hero def not found for ${drawn}`);
+
+    // shuffle 多様性のスポットチェック
+    const seen = new Set();
+    for (let i = 0; i < 30; i++) {
+      const d = ids.slice();
+      shuffleDeck(d);
+      seen.add(d.join(","));
+    }
+    console.log("[testBattle] shuffle permutations seen:", seen.size, "/ 30");
+    if (seen.size < 2) console.warn("[testBattle] shuffle 多様性が低い (= 30 回で 2 種未満)");
+
+    console.log("[testBattle] ok");
+    return battle;
+  };
 }
