@@ -1,4 +1,27 @@
-# mycryptogame-template
+# MyCryptoTCG
+
+**MCH ヒーローで戦う、 64×64 ピクセルアニメ × 高速カードバトル** TCG。
+任天堂 「高速カードバトル カードヒーロー」 (DS, 2007) のターン構造を採用し、
+MyCryptoHeroes (= MCH) 経済圏のヒーロー / エクステンション / スキル を上乗せ
+した、 1 バトル 5〜10 ターンで決着する高速カードゲームです。
+
+- **プロジェクト目的とスコープ**: `docs/charters/PROJECT_CHARTER.md`
+- **3 日リリース計画**: `docs/specs/SPEC-100-three-day-release-plan.md`
+- **企画書 (= kickoff)**: `MYCRYPTOTCG-KICKOFF.md`
+- **Claude Code 開発ガイド**: `CLAUDE.md`
+
+## 技術スタック
+
+- プレーン ES Modules + バニラ JS (= TypeScript / バンドラなし)
+- HTML 単一エントリ (`index.html`)、 静的 host (= Vercel) で `build:` 不要
+- データは `data/*.json` から runtime fetch
+- アセットは `js/constants.js` の `ASSET_BASE = https://raw.githubusercontent.com/bearko/mycryptotcg/main/assets/` から解決
+- localStorage prefix: `mctcg`
+- 多言語: ja / en
+
+---
+
+## 以下は本リポジトリの元になった `mycryptotemplate` のテンプレ説明 (= 派生プロジェクトの参考)
 
 **vanilla JS / 静的 HTML で動く web ゲーム** を Claude Code で開発するためのテンプレート。
 
