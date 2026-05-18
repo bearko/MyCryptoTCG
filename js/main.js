@@ -182,4 +182,110 @@ if (typeof window !== "undefined") {
   window.__state = state;
   window.__pauseTime = pauseTime;
   window.__resumeTime = resumeTime;
+
+  // SPEC-102 smoke test (= console から手動実行)
+  window.__testBattle = async function __testBattle() {
+    const { initBattle, INITIAL_MASTER_HP, MAX_STONES } = await import("./battle/battle-state.js");
+    const { drawCard, shuffleDeck, isDeckEmpty } = await import("./battle/deck.js");
+    const { getHeroDef } = await import("./battle/cards.js");
+
+    const ids = ["mch_1001", "mch_1002", "mch_1003"];
+    const battle = await initBattle(ids.slice(), ids.slice());
+    console.log("[testBattle] battle:", battle);
+    console.log("[testBattle] player.deck:", battle.player.deck);
+    console.log("[testBattle] cpu.deck:", battle.cpu.deck);
+
+    if (battle.player.deck.length !== 3) throw new Error("player.deck.length !== 3");
+    if (battle.cpu.deck.length !== 3) throw new Error("cpu.deck.length !== 3");
+    if (battle.player.masterHp !== INITIAL_MASTER_HP) throw new Error("masterHp !== 10");
+
+    const drawn = drawCard(battle.player);
+    console.log("[testBattle] drew:", drawn, "→ hand:", battle.player.hand, "deck:", battle.player.deck);
+    if (battle.player.hand.length !== 1) throw new Error("hand.length !== 1 after draw");
+    if (battle.player.deck.length !== 2) throw new Error("deck.length !== 2 after draw");
+
+    const def = getHeroDef(battle.cardDb, drawn);
+    console.log("[testBattle] hero def:", def?.name, "cost:", def?.cost, "hp:", def?.hp, "atk:", def?.atk);
+    if (!def) throw new Error(`hero def not found for ${drawn}`);
+
+    // shuffle 多様性のスポットチェック
+    const seen = new Set();
+    for (let i = 0; i < 30; i++) {
+      const d = ids.slice();
+      shuffleDeck(d);
+      seen.add(d.join(","));
+    }
+    console.log("[testBattle] shuffle permutations seen:", seen.size, "/ 30");
+    if (seen.size < 2) console.warn("[testBattle] shuffle 多様性が低い (= 30 回で 2 種未満)");
+
+    console.log("[testBattle] ok");
+    return battle;
+  };
+
+  // SPEC-103 smoke test (= ターン / 召喚 / 攻撃 / 勝敗判定)
+  window.__testBattleLogic = async function __testBattleLogic() {
+    const { initBattle } = await import("./battle/battle-state.js");
+    const {
+      startTurn, endTurn,
+      canSummon, summonHero,
+      canAttack, getValidAttackTargets, performAttack,
+      checkVictory,
+    } = await import("./battle/battle-logic.js");
+
+    const deckIds = ["mch_1001", "mch_1002", "mch_1003"];
+    const battle = await initBattle(deckIds.slice(), deckIds.slice());
+
+    // --- player turn 1 ---
+    let r = startTurn(battle);
+    console.log("[logic] player startTurn:", r, "hand:", battle.player.hand, "stones:", battle.player.stones);
+    if (r.deckEmpty) throw new Error("unexpected deck empty");
+    if (battle.player.stones !== 3) throw new Error(`stones expected 3, got ${battle.player.stones}`);
+
+    // 召喚を試す (= 手札にあって cost ≤ stones のもの)
+    const inHand = battle.player.hand[0];
+    const def = battle.cardDb.heroes.find(h => h.id === inHand);
+    console.log("[logic] hand top:", inHand, "cost:", def.cost, "row:", def.row);
+    if (def.cost <= battle.player.stones) {
+      const check = canSummon(battle.player, inHand, battle.cardDb, def.row);
+      console.log("[logic] canSummon:", check);
+      if (!check.ok) throw new Error("canSummon should be ok");
+      const unit = summonHero(battle.player, inHand, battle.cardDb, def.row);
+      console.log("[logic] summoned:", unit.name.ja, "to", def.row, "summoningSick:", unit.summoningSick);
+      if (!unit.summoningSick) throw new Error("summoningSick should be true");
+      if (canAttack(unit)) throw new Error("canAttack should be false on summoning sick");
+    } else {
+      console.log("[logic] (skip summon: not enough stones)");
+    }
+
+    endTurn(battle);
+    if (battle.turn !== "cpu") throw new Error("turn should be cpu");
+
+    // --- cpu turn 1 (= 何もせず end) ---
+    startTurn(battle);
+    endTurn(battle);
+
+    // --- player turn 2 (= 召喚酔いが解け、 攻撃可能になっているはず) ---
+    startTurn(battle);
+    const front = battle.player.field.front;
+    const back = battle.player.field.back;
+    const myUnit = front || back;
+    if (myUnit) {
+      console.log("[logic] turn 2 unit:", myUnit.name.ja, "summoningSick:", myUnit.summoningSick, "canAttack:", canAttack(myUnit));
+      if (myUnit.summoningSick) throw new Error("summoningSick should be cleared after own turn");
+      if (!canAttack(myUnit)) throw new Error("canAttack should be true after summon sickness clears");
+      const targets = getValidAttackTargets(battle.cpu);
+      console.log("[logic] valid targets:", targets);
+      if (targets.includes("master")) {
+        const before = battle.cpu.masterHp;
+        const result = performAttack(battle.player, battle.cpu, front ? "front" : "back", "master");
+        console.log("[logic] performAttack master:", result, "→ cpu.masterHp:", battle.cpu.masterHp);
+        if (battle.cpu.masterHp !== before - myUnit.atk) throw new Error("masterHp not reduced correctly");
+        if (canAttack(myUnit)) throw new Error("attackedThisTurn should block re-attack");
+      }
+    }
+
+    console.log("[logic] victory check:", checkVictory(battle));
+    console.log("[logic] ok");
+    return battle;
+  };
 }
