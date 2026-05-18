@@ -1,0 +1,49 @@
+/* ============================================================
+   responsive.css — mobile / tablet / pc breakpoints
+   ============================================================ */
+
+/* ---------- Mobile (default = first) ---------- */
+/* base.css / layout.css は mobile を起点に書いている */
+
+/* ---------- Tablet ---------- */
+@media (min-width: 600px) {
+  html, body { font-size: 15px; }
+
+  .header { padding: 0.7rem 1.2rem; }
+  .stage { padding: 1.2rem; }
+}
+
+/* ---------- PC ---------- */
+@media (min-width: 960px) {
+  html, body { font-size: 16px; }
+
+  .header { padding: 0.8rem 1.6rem; }
+  .stage { padding: 1.6rem; }
+
+  .modal { max-width: 560px; }
+
+  /* PC では mobile 想定の section をグリッドに */
+  /* .stage { display: grid; grid-template-columns: 280px 1fr; gap: 1.4rem; } */
+}
+
+/* ---------- Wide ---------- */
+@media (min-width: 1280px) {
+  .stage { padding: 2rem; }
+}
+
+/* ---------- Touch device ---------- */
+@media (hover: none) {
+  /* hover が効かないデバイスでは :active で代替 */
+  .btn:hover { opacity: 1; }
+  .lang-btn:hover { border-color: var(--border); color: var(--muted); }
+}
+
+/* ---------- Safe area (iPhone X 系) ---------- */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .header {
+    padding-top: max(0.6rem, env(safe-area-inset-top));
+  }
+  .stage {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
