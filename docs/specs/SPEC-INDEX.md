@@ -15,6 +15,10 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | ID | タイトル | Status | Phase | 実装 PR |
 |---|---|---|---|---|
 | SPEC-001 | Bootstrap (= MyCryptoSurvivor SPEC-032/035/036/038 の知見を逆輸入) | Implementing | Phase 0 | claude/import-survivor-patterns-D9bql |
+| SPEC-002 | Ranking Backend B (= Upstash Redis + Vercel Function) | Implementing | Phase 0 | docs/spec-002-ranking-backend-b-upstash |
+| SPEC-003 | Ranking Backend デフォルトを B (Upstash+Vercel) に反転 | Implementing | Phase 0 | docs/spec-003-ranking-default-to-b |
+| SPEC-100 | MyCryptoTCG 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分) | Approved | Phase 0 | claude/import-kickoff-document-bQ6rP |
+| SPEC-101 | プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0) | Implementing | Phase 0 | claude/import-kickoff-document-bQ6rP |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則
