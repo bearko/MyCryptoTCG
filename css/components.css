@@ -1,0 +1,301 @@
+/* ============================================================
+   components.css — buttons / cards / modals
+   ============================================================ */
+
+/* ---------- Button ---------- */
+.btn {
+  appearance: none;
+  background: var(--accent);
+  color: #1a1420;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.9rem;
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: opacity 0.18s, transform 0.1s;
+}
+.btn:hover { opacity: 0.9; }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn--secondary {
+  background: rgba(196,163,90,0.12);
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+.btn--ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid transparent;
+}
+.btn--ghost:hover { border-color: var(--accent); }
+
+.btn--danger {
+  background: transparent;
+  color: var(--ifrit);
+  border: 1.5px solid var(--ifrit);
+}
+.btn--danger:hover {
+  background: rgba(231,96,96,0.12);
+}
+
+/* ---------- Card ---------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- Modal ---------- */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 120;
+  animation: modal-fade-in 0.18s ease;
+}
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.4rem;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: modal-pop-in 0.22s cubic-bezier(.2,.8,.4,1);
+}
+.modal__title {
+  margin: 0 0 0.8rem;
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+.modal__body {
+  margin-bottom: 1rem;
+}
+.modal__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modal-pop-in {
+  from { opacity: 0; transform: scale(0.94) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ---------- Help overlay ---------- */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 130;
+}
+.help-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.4rem;
+  max-width: 520px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.help-card h2 {
+  margin-top: 0;
+  color: var(--accent);
+}
+
+/* ---------- Notification tile ---------- */
+.notif-layer {
+  position: fixed;
+  top: 4rem;
+  right: 1rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  pointer-events: none;
+}
+.notification {
+  position: relative;
+  padding: 0.4rem 0.6rem;
+  background: var(--panel-2);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  pointer-events: auto;
+  animation: slide-in 0.3s ease;
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+   Activity Report (= リザルト画面)
+   ------------------------------------------------------------
+   テキスト table ではなく アイコンタイル + 巨大スコア でリザルトを
+   見せるための共通スタイル。 派生プロジェクトでは js/battle/activity-report.js
+   と組み合わせて使う。 MCH 5 派閥 (= SEIRYU / SUZAKU / BYAKKO / GENBU /
+   KOURYU) のカラー変数は派生で `:root` に定義することで色帯が活きる
+   (= 未定義時は `--accent` にフォールバック)。
+   ============================================================ */
+
+/* ヒーロー帯 */
+.report-hero { padding: 0; margin: 0.2rem 0 0.6rem; }
+.report-hero__inner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--panel-2);
+  border: 1.5px solid var(--border);
+  border-top: 3px solid var(--border);
+  border-radius: 10px;
+}
+.report-hero__inner[data-faction="SEIRYU"] { border-top-color: var(--seiryu, var(--accent)); }
+.report-hero__inner[data-faction="SUZAKU"] { border-top-color: var(--suzaku, var(--accent)); }
+.report-hero__inner[data-faction="BYAKKO"] { border-top-color: var(--byakko, var(--accent)); }
+.report-hero__inner[data-faction="GENBU"]  { border-top-color: var(--genbu,  var(--accent)); }
+.report-hero__inner[data-faction="KOURYU"] { border-top-color: var(--kouryu, var(--accent)); }
+.report-hero__portrait {
+  width: 56px; height: 56px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, rgba(196,163,90,0.18), transparent 70%), var(--panel);
+  flex-shrink: 0;
+}
+.report-hero__portrait--missing { opacity: 0.55; }
+.report-hero__name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+/* ステージカード (= ステージごとの 1 ブロック、 旧テキスト table を icon タイル化) */
+.report-stages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+}
+.report-stage {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+}
+.report-stage__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+}
+.report-stage__name { font-weight: 800; color: var(--accent); letter-spacing: 0.04em; }
+.report-stage__stats { color: var(--muted); font-variant-numeric: tabular-nums; }
+.report-stage__exts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+}
+
+/* エクステンション (= 取得装備) タイル */
+.report-ext {
+  position: relative;
+  width: 38px; height: 38px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.report-ext__icon {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.report-ext__icon--missing {
+  background: linear-gradient(135deg, var(--panel-2), var(--panel));
+}
+.report-ext__lv {
+  position: absolute;
+  bottom: 0; right: 0;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 0 3px;
+  border-top-left-radius: 4px;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+.report-ext--empty {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* 総合スタッツ + 巨大スコア */
+.report-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.report-meta { white-space: nowrap; }
+.report-score-big {
+  font-size: clamp(2.6rem, 9vw, 4rem);
+  font-weight: 900;
+  text-align: center;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(196, 163, 90, 0.35);
+  margin: 0.1rem 0 0;
+}
+.report-score-label {
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--muted);
+  letter-spacing: 0.3em;
+  margin-bottom: 0.4rem;
+}
+
+/* ranking 表のスコア列も強調 (= 同じ巨大数字の流儀を ranking でも踏襲) */
+.ranking-table .ranking-score {
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+@media (max-width: 480px) {
+  .report-hero__portrait { width: 48px; height: 48px; }
+  .report-hero__name { font-size: 0.95rem; }
+  .report-ext { width: 34px; height: 34px; }
+  .report-ext__lv { font-size: 0.58rem; }
+  .report-stage__head { font-size: 0.72rem; }
+}

@@ -1,0 +1,35 @@
+{
+  "splash.loading":      { "ja": "読み込み中…",       "en": "Loading…" },
+
+  "lang.toggle.label":   { "ja": "言語 / Language",   "en": "Language / 言語" },
+
+  "title.subtitle":      { "ja": "サブタイトル",      "en": "Subtitle" },
+  "title.press":         { "ja": "Press to Start",   "en": "Press to Start" },
+
+  "stage.placeholder":   { "ja": "ここにゲーム本体を描画する",
+                           "en": "Game stage goes here" },
+
+  "btn.close":           { "ja": "閉じる",            "en": "Close" },
+  "btn.confirm":         { "ja": "確認",              "en": "Confirm" },
+  "btn.cancel":          { "ja": "キャンセル",        "en": "Cancel" },
+  "btn.proceed":         { "ja": "進む",              "en": "Proceed" },
+  "btn.back":            { "ja": "戻る",              "en": "Back" },
+
+  "help.title":          { "ja": "ヘルプ",            "en": "Help" },
+  "help.body":           { "ja": "このゲームの遊び方は…",
+                           "en": "How to play this game…" },
+  "help.timeNote":       { "ja": "ホーム画面で待機している間のみ時間が進行します。",
+                           "en": "Time advances only while you wait on the home screen." },
+
+  "report.title":        { "ja": "活動レポート",      "en": "Activity Report" },
+  "report.scoreLabel":   { "ja": "SCORE",            "en": "SCORE" },
+  "report.emptyExts":    { "ja": "—",                "en": "—" },
+  "gameover.namelabel":  { "ja": "プレイヤー名",      "en": "Player Name" },
+  "gameover.submit":     { "ja": "ランキングに送信",  "en": "Submit to Ranking" },
+  "gameover.submitting": { "ja": "送信中…",          "en": "Submitting…" },
+  "gameover.submitOk":   { "ja": "送信しました",      "en": "Submitted!" },
+  "gameover.submitFail": { "ja": "送信失敗: {err}",   "en": "Submit failed: {err}" },
+  "gameover.noApi":      { "ja": "ランキング API が未設定です",
+                           "en": "Ranking API not configured" },
+  "gameover.retry":      { "ja": "リトライ",          "en": "Retry" }
+}

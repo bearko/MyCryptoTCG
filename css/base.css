@@ -1,0 +1,70 @@
+/* ============================================================
+   base.css — reset + variables + body
+   ============================================================ */
+
+:root {
+  --bg:        #121018;
+  --panel:    #1e1a28;
+  --panel-2:  #2a2438;
+  --border:   #3d3550;
+  --text:     #e6e0f0;
+  --muted:    #8c7fb0;
+  --accent:   #c4a35a;
+
+  /* 元素 / レアリティカラー (= プロジェクトに合わせて調整) */
+  --garuda:    #5ecf8a;
+  --ifrit:     #e76060;
+  --leviathan: #56ccf2;
+  --tiamat:    #bb86fc;
+
+  --rarity-n:  #aaa;
+  --rarity-r:  #56ccf2;
+  --rarity-sr: #bb86fc;
+  --rarity-ssr: #ffd700;
+
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+               "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN",
+               "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+img { max-width: 100%; display: block; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.hidden { display: none !important; }
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

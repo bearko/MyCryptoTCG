@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "items": [
+    { "id": 1, "name": "Sample A", "rarity": "N",  "power": 100 },
+    { "id": 2, "name": "Sample B", "rarity": "R",  "power": 200 },
+    { "id": 3, "name": "Sample C", "rarity": "SR", "power": 500 },
+    { "id": 4, "name": "Sample D", "rarity": "SSR","power": 1000 }
+  ]
+}

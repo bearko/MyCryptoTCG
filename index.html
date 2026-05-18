@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#121018" />
+  <title>ProjectName</title>
+
+  <!-- OGP -->
+  <meta property="og:title" content="ProjectName" />
+  <meta property="og:description" content="ProjectName — a vanilla JS game project from the mycryptotemplate base." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><text y=%2250%22 font-size=%2256%22>🎮</text></svg>" />
+
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/effects.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- 1. Splash (= boot 中)                                          -->
+  <!-- ============================================================ -->
+  <div id="splash" class="splash">
+    <div class="splash__logo">ProjectName</div>
+    <div class="splash__loading" data-i18n="splash.loading">読み込み中…</div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 2. Title screen                                               -->
+  <!-- ============================================================ -->
+  <section id="titleScreen" class="title-screen hidden">
+    <h1 class="title-screen__title">ProjectName</h1>
+    <p class="title-screen__sub" data-i18n="title.subtitle">サブタイトル</p>
+
+    <div class="lang-toggle" id="langToggle">
+      <span class="lang-toggle-label" data-i18n="lang.toggle.label">Language / 言語</span>
+      <div class="lang-toggle-buttons">
+        <button class="lang-btn" data-lang="ja">JP：日本語</button>
+        <button class="lang-btn" data-lang="en">EN：English</button>
+      </div>
+    </div>
+
+    <button id="btnPressStart" class="title-screen__press" data-i18n="title.press">
+      Press to Start
+    </button>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- 3. Main app                                                    -->
+  <!-- ============================================================ -->
+  <main id="app" class="app hidden">
+    <header class="header">
+      <div class="header__left">
+        <span class="header__title">ProjectName</span>
+      </div>
+      <div class="header__center">
+        <span id="dateLabel">2018 年 1 月 1 週</span>
+      </div>
+      <div class="header__right">
+        <button id="btnLangToggle" class="btn btn--ghost" title="Language">JP/EN</button>
+        <button id="btnHelpOpen"   class="btn btn--ghost" title="Help">?</button>
+      </div>
+    </header>
+
+    <section class="stage">
+      <!-- ゲーム本体の描画領域 -->
+      <p data-i18n="stage.placeholder">ここにゲーム本体を描画する</p>
+    </section>
+  </main>
+
+  <!-- ============================================================ -->
+  <!-- 4. Help overlay                                               -->
+  <!-- ============================================================ -->
+  <div id="helpOverlay" class="help-overlay hidden">
+    <div class="help-card">
+      <h2 data-i18n="help.title">ヘルプ</h2>
+      <p data-i18n="help.body">ゲームの遊び方をここに書く。</p>
+      <p data-i18n="help.timeNote">ホーム画面で待機している間のみ時間が進行します。</p>
+      <button id="btnHelpClose" class="btn" data-i18n="btn.close">閉じる</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- 5. Effect layers                                               -->
+  <!-- ============================================================ -->
+  <div id="confettiLayer" class="confetti-layer hidden"></div>
+  <div id="floatLayer"    class="float-layer hidden"></div>
+  <div id="notifLayer"    class="notif-layer"></div>
+
+  <!-- ============================================================ -->
+  <!-- 6. Boot                                                        -->
+  <!-- ============================================================ -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

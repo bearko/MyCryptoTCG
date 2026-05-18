@@ -1,0 +1,81 @@
+/* ============================================================
+   effects.css — confetti / float / shake / pop
+   ============================================================ */
+
+/* ---------- Confetti ---------- */
+.confetti-layer {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 200;
+  overflow: hidden;
+}
+.confetti-layer.hidden { display: none !important; }
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 10px; height: 14px;
+  border-radius: 2px;
+  animation-name: confetti-fall;
+  animation-fill-mode: forwards;
+  animation-timing-function: cubic-bezier(.2,.6,.6,1);
+}
+@keyframes confetti-fall {
+  0%   { transform: translate(0, 0) rotate(0); opacity: 1; }
+  100% { transform: translate(var(--cx, 0), 100vh) rotate(720deg); opacity: 0; }
+}
+
+/* ---------- Sprite Float ---------- */
+.float-layer {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+.sprite-float {
+  position: absolute;
+  font-weight: 800;
+  font-size: 0.95rem;
+  pointer-events: none;
+  animation: float-up 1.4s ease-out forwards;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+@keyframes float-up {
+  0%   { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(-32px); opacity: 0; }
+}
+
+/* ---------- Stat pop (= ダメージ・回復) ---------- */
+.stat-pop {
+  animation: stat-pop 0.7s ease-out forwards;
+}
+@keyframes stat-pop {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { transform: translateY(-18px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-30px) scale(0.85); }
+}
+
+/* ---------- Shake (= ヒット演出) ---------- */
+.shake { animation: shake 0.32s ease; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+/* ---------- Lunge (= 攻撃演出) ---------- */
+.lunge-right { animation: lunge-right 0.18s ease forwards; }
+@keyframes lunge-right { to { transform: translateX(18px); } }
+.lunge-left { animation: lunge-left 0.18s ease forwards; }
+@keyframes lunge-left { to { transform: translateX(-18px); } }
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .confetti-piece,
+  .sprite-float,
+  .shake,
+  .lunge-right,
+  .lunge-left,
+  .stat-pop {
+    animation: none !important;
+    transition: none !important;
+  }
+}
