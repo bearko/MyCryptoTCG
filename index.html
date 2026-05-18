@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/layout.css" />
   <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/battle.css" />
   <link rel="stylesheet" href="css/effects.css" />
   <link rel="stylesheet" href="css/responsive.css" />
 </head>
@@ -70,8 +71,80 @@
     </header>
 
     <section class="stage">
-      <!-- ゲーム本体の描画領域 -->
-      <p data-i18n="stage.placeholder">ここにゲーム本体を描画する</p>
+      <!-- ============================================================ -->
+      <!-- Battle screen (= SPEC-104)                                    -->
+      <!-- ============================================================ -->
+      <div id="battleScreen" class="battle-screen hidden">
+
+        <!-- CPU side (= top) -->
+        <div class="battle-side battle-side--cpu">
+          <div class="battle-side__info">
+            <span class="battle-info-label" data-i18n="battle.label.opponent">対戦相手</span>
+            <span class="battle-info-hp">
+              <span data-i18n="battle.label.hp">HP</span>
+              <span id="cpuHpValue" class="battle-info-num">10</span>
+            </span>
+            <span class="battle-info-stones">
+              <span data-i18n="battle.label.stones">ストーン</span>
+              <span id="cpuStonesValue" class="battle-info-num">0</span>
+            </span>
+            <span class="battle-info-hand">
+              <span data-i18n="battle.label.hand">手札</span>
+              <span id="cpuHandCount" class="battle-info-num">0</span>
+            </span>
+          </div>
+          <div id="cpuHandBack" class="battle-hand battle-hand--back"></div>
+          <div class="battle-field">
+            <div id="cpuFieldBack" class="field-slot field-slot--empty" data-side="cpu" data-row="back">
+              <span class="field-slot__placeholder" data-i18n="battle.slot.empty">(空)</span>
+            </div>
+            <div id="cpuFieldFront" class="field-slot field-slot--empty" data-side="cpu" data-row="front">
+              <span class="field-slot__placeholder" data-i18n="battle.slot.empty">(空)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Battle divider (= middle) -->
+        <div id="battleDivider" class="battle-divider">
+          <div class="battle-divider__left">
+            <span id="battleTurnLabel" class="battle-divider__turn">Turn 1</span>
+            <span id="battlePhaseLabel" class="battle-divider__phase"></span>
+          </div>
+          <div class="battle-divider__right">
+            <button id="btnEndTurn" class="btn btn--ghost" data-i18n="battle.btn.endTurn">ターン終了</button>
+          </div>
+        </div>
+
+        <!-- Player side (= bottom) -->
+        <div class="battle-side battle-side--player">
+          <div class="battle-field">
+            <div id="playerFieldFront" class="field-slot field-slot--empty" data-side="player" data-row="front">
+              <span class="field-slot__placeholder" data-i18n="battle.slot.empty">(空)</span>
+            </div>
+            <div id="playerFieldBack" class="field-slot field-slot--empty" data-side="player" data-row="back">
+              <span class="field-slot__placeholder" data-i18n="battle.slot.empty">(空)</span>
+            </div>
+          </div>
+          <div id="playerHand" class="battle-hand battle-hand--player"></div>
+          <div class="battle-side__info">
+            <span class="battle-info-label" data-i18n="battle.label.you">あなた</span>
+            <span class="battle-info-hp">
+              <span data-i18n="battle.label.hp">HP</span>
+              <span id="playerHpValue" class="battle-info-num">10</span>
+            </span>
+            <span class="battle-info-stones">
+              <span data-i18n="battle.label.stones">ストーン</span>
+              <span id="playerStonesValue" class="battle-info-num">0</span>
+            </span>
+          </div>
+        </div>
+
+        <!-- Hint bar -->
+        <div id="battleHint" class="battle-hint"></div>
+      </div>
+
+      <!-- Placeholder (= バトル外で表示する仮テキスト) -->
+      <p id="stagePlaceholder" data-i18n="stage.placeholder" class="hidden">ここにゲーム本体を描画する</p>
     </section>
   </main>
 
