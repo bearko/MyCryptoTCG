@@ -2,11 +2,9 @@
 // constants.js — 共通定数 / アセット URL ヘルパ
 // ============================================================
 
-// ⚠ プロジェクトごとに上書きすること
-export const ASSET_BASE = "https://raw.githubusercontent.com/<user>/<asset-repo>/main/";
-
-// 同リポジトリ assets/ で済ませる場合:
-// export const ASSET_BASE = "./assets/";
+// 自リポ assets/ をベースとする (= スプライトは bearko/mycryptotcg/main/assets/ に置く)
+// 静的アイコン (= GUM / CE / MCH ヒーロー画像) は MCH 公式 CDN を別途併用する場合あり
+export const ASSET_BASE = "https://raw.githubusercontent.com/bearko/mycryptotcg/main/assets/";
 
 /**
  * 画像 URL を組み立てる
@@ -37,7 +35,7 @@ export const MONTHS_PER_YEAR = 12;
 // ============================================================
 // localStorage キー (= prefix を統一)
 // ============================================================
-export const LS_PREFIX = "<prefix>";   // ⚠ プロジェクトごとに置換
+export const LS_PREFIX = "mctcg";
 export const LS_LANG = `${LS_PREFIX}.lang`;
 export const LS_PLAYER_NAME = `${LS_PREFIX}.playerName`;
 export const LS_RANKING_API_URL = `${LS_PREFIX}.rankingApiUrl`;
