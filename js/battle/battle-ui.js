@@ -14,6 +14,12 @@ import {
   performAttack,
   checkVictory,
 } from "./battle-logic.js";
+import {
+  attachSprite,
+  triggerAttackAnim,
+  triggerHitAnim,
+  triggerSummonAnim,
+} from "./sprite.js";
 
 // ============================================================
 // DOM helpers
@@ -120,6 +126,7 @@ function renderFieldSlot(selector, unit, battle) {
   const def = getHeroDef(battle.cardDb, unit.cardId);
   const portraitUrl = def?.portraitUrl || "";
   const displayName = nameOf(def);
+  const side = el.dataset.side;
 
   el.innerHTML = `
     <div class="field-slot__portrait" style="background-image: url('${portraitUrl}')"></div>
@@ -129,6 +136,8 @@ function renderFieldSlot(selector, unit, battle) {
       <span class="atk">ATK ${unit.atk}</span>
     </div>
   `;
+
+  attachSprite(el.querySelector(".field-slot__portrait"), { side });
 }
 
 function renderPlayerHand(battle) {
@@ -326,15 +335,21 @@ function onPlayerSlotClick(slotEl) {
   if (_uiState === "summoning") {
     const cardId = battle.player.hand[_selectedHandIdx];
     const def = getHeroDef(battle.cardDb, cardId);
+    let summoned = false;
     if (def && def.row === row) {
       try {
         summonHero(battle.player, cardId, battle.cardDb, row);
+        summoned = true;
       } catch (e) {
         console.warn("[battle-ui] summon failed:", e.message);
       }
     }
     resetUiState();
     renderBattle();
+    if (summoned) {
+      const newPortrait = $(`#playerField${capitalize(row)} .field-slot__portrait`);
+      triggerSummonAnim(newPortrait);
+    }
     return;
   }
 
@@ -352,16 +367,30 @@ function onPlayerSlotClick(slotEl) {
   }
 }
 
-function onAttackTargetClick(targetSlot) {
+async function onAttackTargetClick(targetSlot) {
   const battle = state.battle;
+  const attackerSlot = _selectedAttackerSlot;
+
+  const attackerEl = $(`#playerField${capitalize(attackerSlot)} .field-slot__portrait`);
+  const targetEl = targetSlot === "master"
+    ? $(".battle-side--cpu .battle-side__info")
+    : $(`#cpuField${capitalize(targetSlot)} .field-slot__portrait`);
+
+  triggerAttackAnim(attackerEl, "player");
+  await delay(180);
+
   try {
-    performAttack(battle.player, battle.cpu, _selectedAttackerSlot, targetSlot);
+    performAttack(battle.player, battle.cpu, attackerSlot, targetSlot);
   } catch (e) {
     console.warn("[battle-ui] attack failed:", e.message);
     resetUiState();
     renderBattle();
     return;
   }
+
+  if (targetEl) triggerHitAnim(targetEl);
+  await delay(360);
+
   resetUiState();
 
   const winner = checkVictory(battle);
@@ -370,6 +399,10 @@ function onAttackTargetClick(targetSlot) {
     return;
   }
   renderBattle();
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function onEndTurnClick() {
