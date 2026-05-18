@@ -25,12 +25,13 @@ export const state = {
   // 通知タイル
   notifications: [],
 
+  // バトル state (= バトル外は null、 battle-state.js の initBattle() で構築)
+  battle: null,
+
   // ゲーム固有 (= プロジェクトごとに足す)
   // gum: 1000,
   // materials: {},
   // ownedHeroes: [],
-  // activeCraft: null,
-  // pendingSalaryReport: null,
 };
 
 // ============================================================

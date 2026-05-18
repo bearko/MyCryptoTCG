@@ -1,0 +1,71 @@
+[
+  {
+    "id": "mch_1001",
+    "type": "hero",
+    "mchHeroId": 1001,
+    "name": { "ja": "コナン・ドイル", "en": "Arthur Conan Doyle" },
+    "faction": "GENBU",
+    "rarity": "Common",
+    "cost": 2,
+    "hp": 2,
+    "atk": 2,
+    "row": "back",
+    "skills": [
+      {
+        "id": "sherlock_holmes",
+        "name": { "ja": "シャーロック・ホームズ", "en": "Sherlock Holmes" },
+        "mchPassiveId": 1104,
+        "cost": 1,
+        "effect": "ally_atk_plus_1"
+      }
+    ],
+    "sprite": "1001",
+    "portraitUrl": "https://raw.githubusercontent.com/bearko/mycryptoheroes/main/Image/Heroes/1001.png"
+  },
+  {
+    "id": "mch_1002",
+    "type": "hero",
+    "mchHeroId": 1002,
+    "name": { "ja": "甲斐姫", "en": "Kaihime" },
+    "faction": "SUZAKU",
+    "rarity": "Common",
+    "cost": 3,
+    "hp": 3,
+    "atk": 3,
+    "row": "front",
+    "skills": [
+      {
+        "id": "namikiri",
+        "name": { "ja": "浪切", "en": "Namikiri" },
+        "mchPassiveId": 1106,
+        "cost": 2,
+        "effect": "damage_plus_1"
+      }
+    ],
+    "sprite": "1002",
+    "portraitUrl": "https://raw.githubusercontent.com/bearko/mycryptoheroes/main/Image/Heroes/1002.png"
+  },
+  {
+    "id": "mch_1003",
+    "type": "hero",
+    "mchHeroId": 1003,
+    "name": { "ja": "張遼", "en": "Zhang Liao" },
+    "faction": "BYAKKO",
+    "rarity": "Common",
+    "cost": 4,
+    "hp": 5,
+    "atk": 2,
+    "row": "front",
+    "skills": [
+      {
+        "id": "ryorai_ryorai",
+        "name": { "ja": "遼来遼来", "en": "Ryorai-Ryorai" },
+        "mchPassiveId": 1159,
+        "cost": 2,
+        "effect": "self_def_plus_1"
+      }
+    ],
+    "sprite": "1003",
+    "portraitUrl": "https://raw.githubusercontent.com/bearko/mycryptoheroes/main/Image/Heroes/1003.png"
+  }
+]
