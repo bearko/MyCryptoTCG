@@ -3,8 +3,9 @@
 
   "lang.toggle.label":   { "ja": "言語 / Language",   "en": "Language / 言語" },
 
-  "title.subtitle":      { "ja": "サブタイトル",      "en": "Subtitle" },
-  "title.press":         { "ja": "Press to Start",   "en": "Press to Start" },
+  "title.subtitle":      { "ja": "MCH ヒーローで戦う高速カードバトル",
+                           "en": "Fast card battle with MCH heroes" },
+  "title.press":         { "ja": "バトル開始",        "en": "Start Battle" },
 
   "stage.placeholder":   { "ja": "ここにゲーム本体を描画する",
                            "en": "Game stage goes here" },
@@ -31,5 +32,34 @@
   "gameover.submitFail": { "ja": "送信失敗: {err}",   "en": "Submit failed: {err}" },
   "gameover.noApi":      { "ja": "ランキング API が未設定です",
                            "en": "Ranking API not configured" },
-  "gameover.retry":      { "ja": "リトライ",          "en": "Retry" }
+  "gameover.retry":      { "ja": "リトライ",          "en": "Retry" },
+
+  "battle.label.you":        { "ja": "あなた",           "en": "You" },
+  "battle.label.opponent":   { "ja": "相手",             "en": "Opponent" },
+  "battle.label.hp":         { "ja": "HP",              "en": "HP" },
+  "battle.label.stones":     { "ja": "ストーン",         "en": "Stones" },
+  "battle.label.hand":       { "ja": "手札",            "en": "Hand" },
+  "battle.label.turn":       { "ja": "ターン",          "en": "Turn" },
+  "battle.btn.endTurn":      { "ja": "ターン終了",      "en": "End Turn" },
+  "battle.slot.empty":       { "ja": "(空)",            "en": "(empty)" },
+  "battle.turn.player":      { "ja": "あなたのターン",   "en": "Your Turn" },
+  "battle.turn.cpu":         { "ja": "相手のターン",     "en": "Opponent Turn" },
+  "battle.phase.action":     { "ja": "アクション",       "en": "Action" },
+  "battle.phase.cpuThinking":{ "ja": "相手 思考中…",     "en": "Opponent thinking…" },
+  "battle.phase.gameOver":   { "ja": "決着",            "en": "Game Over" },
+  "battle.hint.idle":        { "ja": "手札をタップして配置、 自分のヒーローをタップして攻撃。",
+                               "en": "Tap a hand card to summon, tap your hero to attack." },
+  "battle.hint.summoning":   { "ja": "{row} に配置できます。 もう一度タップでキャンセル。",
+                               "en": "Place to {row}. Tap again to cancel." },
+  "battle.hint.attacking":   { "ja": "対象をタップして攻撃。 もう一度タップでキャンセル。",
+                               "en": "Tap a target to attack. Tap again to cancel." },
+  "battle.hint.cpuTurn":     { "ja": "相手が考えています…",
+                               "en": "Opponent is thinking…" },
+  "battle.hint.victory":     { "ja": "勝利！ タイトルに戻るには PR レビュー後の SPEC-107 で実装します。",
+                               "en": "Victory! Return-to-title will be added in SPEC-107." },
+  "battle.hint.defeat":      { "ja": "敗北… タイトルに戻るには PR レビュー後の SPEC-107 で実装します。",
+                               "en": "Defeat… Return-to-title will be added in SPEC-107." },
+  "battle.row.front":        { "ja": "前衛",            "en": "Front" },
+  "battle.row.back":         { "ja": "後衛",            "en": "Back" },
+  "battle.attackTarget.master": { "ja": "相手マスター", "en": "Opponent Master" }
 }

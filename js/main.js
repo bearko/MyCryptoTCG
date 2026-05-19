@@ -46,11 +46,34 @@ function setupTitleScreen() {
   $("#btnPressStart")?.addEventListener("click", dismissTitle);
 }
 
-function dismissTitle() {
+async function dismissTitle() {
   $("#titleScreen")?.classList.add("hidden");
   $("#app")?.classList.remove("hidden");
   // BGM 開始は audio.js の startBgm をここで呼ぶ
   // import("./audio.js").then(({ startBgm }) => startBgm("Audio/bgm_home.mp3"));
+
+  await triggerDemoBattle();
+}
+
+// ============================================================
+// Demo battle entry (= SPEC-104)
+// ============================================================
+const DEMO_DECK = [
+  "mch_1001", "mch_1002", "mch_1003",
+  "mch_1001", "mch_1002", "mch_1003",
+];
+
+async function triggerDemoBattle() {
+  const { initBattle } = await import("./battle/battle-state.js");
+  const { startTurn } = await import("./battle/battle-logic.js");
+  const { enterBattleScreen, renderBattle } = await import("./battle/battle-ui.js");
+
+  await initBattle(DEMO_DECK.slice(), DEMO_DECK.slice());
+  enterBattleScreen();
+
+  // player turn 1 を自動開始
+  startTurn(state.battle);
+  renderBattle();
 }
 
 // ============================================================

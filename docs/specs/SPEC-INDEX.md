@@ -21,6 +21,8 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | SPEC-101 | プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0) | Implementing | Phase 0 | claude/import-kickoff-document-bQ6rP |
 | SPEC-102 | カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A) | Implementing | Phase 1A | claude/import-kickoff-document-bQ6rP |
 | SPEC-103 | ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B) | Implementing | Phase 1B | claude/import-kickoff-document-bQ6rP |
+| SPEC-104 | バトル画面 UI + 手札/場/マスター枠のタップ操作 (Day 2 Phase 1C) | Implementing | Phase 1C | claude/day2-battle-ui-and-sprites |
+| SPEC-105 | スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D) | Implementing | Phase 1D | claude/day2-battle-ui-and-sprites |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則
