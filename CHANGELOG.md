@@ -10,6 +10,43 @@ bullet fragment) + 対応 SPEC の YAML frontmatter から再生成する。
 **この区間を直接編集しないこと** (= SPEC-001 で確立した運用)。
 
 <!-- BEGIN AUTO-UNRELEASED -->
+### Added — SPEC-107 (= 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F))
+**Added — 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F)**
+
+- `index.html`: `#gameOverOverlay` modal を追加 (= helpOverlay と同じ z-index 階層、 半透明 backdrop + 中央パネル)
+- `css/battle.css`: 勝敗オーバーレイ用クラス追加
+  - `.game-over-overlay` / `.game-over-card` / `.game-over__title` (is-victory: garuda 緑 / is-defeat: ifrit 赤)
+  - `.game-over__score` (= clamp(2.6rem, 9vw, 4rem) の巨大スコア)
+  - `.game-over__stats` (= turn / 自軍 HP 残 / 敵軍 HP 残)
+  - `.game-over__submit` (= 名前入力 + 送信ボタン + status エリア) / `.game-over__status` (is-ok / is-fail カラー)
+- `js/battle/game-over.js` 新規:
+  - `computeScore(battle, winner)` (= 純粋関数、 勝利: 2000 + HP×100 - turns×50、 敗北: turns×30 + 与ダメ×50 上限 800)
+  - `showGameOverScreen(battle, winner)` (= DOM 更新 + pauseTime + overlay 表示)
+  - `triggerSubmitRanking()` (= setPlayerName + submitScore + status 表示)
+  - `triggerReturnToTitle()` (= state.battle = null + title へ復帰)
+  - submit ボタンは getRankingApiUrl() が null なら disabled + 「未設定」 status を表示 (= Backend B 本実装は SPEC-013)
+- `js/battle/battle-ui.js`: `finishBattle(winner)` から showGameOverScreen を呼ぶ
+- `js/main.js`: Press to Start → 既存の `dismissTitle` で `triggerDemoBattle` が新規バトルを起こす (= 復帰後の再戦が動作)
+- `data/i18n/ui.json`: 勝敗画面用 8 キー追加 (= gameover.title.victory / .defeat / .statMyHp / .statOppHp / .returnToTitle / .submit / .submitting / .submitOk / .submitFail / .noApi 等)
+- Node 側 computeScore 5 ケース PASS (= 勝利フロア / 上限なし、 敗北 0〜800)
+- ランキングバックエンド本実装は本 SPEC のスコープ外 (= SPEC-013 Backend B Upstash + Vercel で別途)
+
+### Added — SPEC-106 (= CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E))
+**Added — CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E)**
+
+- `js/battle/cpu-ai.js` 新規。 `chooseCpuAction(battle)` (= 純粋関数) で次の 1 アクションを `{type, ...}` で返す
+  - 召喚: 召喚可能なカードのうち **最高コスト** を選ぶ (= ストーンを使い切る単純貪欲)
+  - 攻撃: front → back の順で行動可能ユニットを 1 体選び、 `getValidAttackTargets` 先頭を狙う
+  - それ以外: `{type: "end"}`
+- `js/battle/cpu-turn.js` 改修。 旧 auto-pass を捨て `chooseCpuAction` ループで実行
+  - 召喚: `summonHero` → render → `triggerSummonAnim` → 700ms delay
+  - 攻撃: `triggerAttackAnim(side:"cpu")` → 180ms → `performAttack` → `triggerHitAnim` → 360ms → render
+  - 各アクション後に `checkVictory` で player 撃破を検知し finishBattle で early-exit
+  - end action 後に `endTurn(battle)` で player に turn を戻し、 player の startTurn を呼ぶ
+- 既存の startTurn / endTurn / delay は同居のため重複定義を解消 (= delay は cpu-turn.js 内 1 箇所に集約)
+- 「弱め」 定義: 最善手なし、 評価関数なし、 単純貪欲。 難易度オプションは Phase 2 以降の議論
+- スキル発動 / 撤退 / レベルアップ は本 SPEC のスコープ外 (= Phase 2)
+
 ### Added — SPEC-105 (= スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D))
 **Added — スプライトアニメ パイプライン (= attach + trigger\*) + 3 体結線 (Day 2 Phase 1D)**
 
