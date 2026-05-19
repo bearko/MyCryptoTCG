@@ -161,6 +161,38 @@
   </div>
 
   <!-- ============================================================ -->
+  <!-- 4-2. Game over overlay (= SPEC-107)                           -->
+  <!-- ============================================================ -->
+  <div id="gameOverOverlay" class="game-over-overlay hidden">
+    <div class="game-over-card">
+      <h2 id="gameOverTitle" class="game-over__title"></h2>
+      <div class="game-over__score-label" data-i18n="report.scoreLabel">SCORE</div>
+      <div id="gameOverScore" class="game-over__score">0</div>
+      <ul class="game-over__stats">
+        <li>
+          <span data-i18n="battle.label.turn">ターン</span>
+          <span id="goStatTurns" class="battle-info-num">0</span>
+        </li>
+        <li>
+          <span data-i18n="gameover.statMyHp">自軍 HP 残</span>
+          <span id="goStatMyHp" class="battle-info-num">0</span>
+        </li>
+        <li>
+          <span data-i18n="gameover.statOppHp">敵軍 HP 残</span>
+          <span id="goStatOppHp" class="battle-info-num">0</span>
+        </li>
+      </ul>
+      <div class="game-over__submit">
+        <label data-i18n="gameover.namelabel">プレイヤー名</label>
+        <input type="text" id="goNameInput" maxlength="30" />
+        <button id="btnSubmitRanking" class="btn" data-i18n="gameover.submit">ランキングに送信</button>
+        <div id="goSubmitStatus" class="game-over__status"></div>
+      </div>
+      <button id="btnReturnToTitle" class="btn btn--ghost" data-i18n="gameover.returnToTitle">タイトルに戻る</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
   <!-- 5. Effect layers                                               -->
   <!-- ============================================================ -->
   <div id="confettiLayer" class="confetti-layer hidden"></div>
