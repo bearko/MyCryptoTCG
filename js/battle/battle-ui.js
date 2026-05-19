@@ -423,6 +423,10 @@ function finishBattle(winner) {
   battle.phase = "gameOver";
   battle.winner = winner;
   renderBattle();
+  // 勝敗オーバーレイを表示 (= SPEC-107)
+  import("./game-over.js").then(({ showGameOverScreen }) => {
+    showGameOverScreen(battle, winner);
+  });
 }
 
 // ============================================================

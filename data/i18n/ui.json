@@ -61,5 +61,11 @@
                                "en": "Defeat… Return-to-title will be added in SPEC-107." },
   "battle.row.front":        { "ja": "前衛",            "en": "Front" },
   "battle.row.back":         { "ja": "後衛",            "en": "Back" },
-  "battle.attackTarget.master": { "ja": "相手マスター", "en": "Opponent Master" }
+  "battle.attackTarget.master": { "ja": "相手マスター", "en": "Opponent Master" },
+
+  "gameover.title.victory":   { "ja": "勝利！",          "en": "Victory!" },
+  "gameover.title.defeat":    { "ja": "敗北...",        "en": "Defeat..." },
+  "gameover.statMyHp":        { "ja": "自軍 HP 残量",   "en": "Your HP remaining" },
+  "gameover.statOppHp":       { "ja": "敵軍 HP 残量",   "en": "Opponent HP remaining" },
+  "gameover.returnToTitle":   { "ja": "タイトルに戻る", "en": "Return to Title" }
 }
