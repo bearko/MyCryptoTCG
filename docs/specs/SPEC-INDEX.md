@@ -25,6 +25,7 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | SPEC-105 | スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D) | Implementing | Phase 1D | claude/day2-battle-ui-and-sprites |
 | SPEC-106 | CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E) | Implementing | Phase 1E | claude/day3-cpu-ai-and-gameover |
 | SPEC-107 | 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F) | Implementing | Phase 1F | claude/day3-cpu-ai-and-gameover |
+| SPEC-108 | バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2) | Implementing | Phase 2A | claude/battle-ux-redesign |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則
