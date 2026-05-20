@@ -10,6 +10,31 @@ bullet fragment) + 対応 SPEC の YAML frontmatter から再生成する。
 **この区間を直接編集しないこと** (= SPEC-001 で確立した運用)。
 
 <!-- BEGIN AUTO-UNRELEASED -->
+### Changed — SPEC-108 (= バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2))
+**Changed — バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2A)**
+
+- レイアウト全面書き換え: 「盤面 (= 上半分) + 指示エリア (= 下半分) + 手札フッター」 の 3 ゾーン構成
+  - 旧 SPEC-104 の field-slot 中央配置 + 手札下部 layout は廃止
+- 指示エリア: 敵ゾーン (上段) + 味方ゾーン (下段) × 3 枠 (back / front / master) の合計 6 枠
+  - 各枠は portrait + HP + status をアイコンカード形式で表示 (= 枠線つき)
+  - master 枠は HP + stones を専用デザインで表示
+- 動詞型操作フロー: 「誰が」 → 「何を」 → 「誰に」
+  - ally hero タップ → skill chooser 出現 + board に詳細
+  - skill タップ → 範囲プレビュー (= 有効 target がハイライト)
+  - target タップ 1 回目 → board に HP before/after preview
+  - 同じ target タップ 2 回目 → 即実行
+- view-only モード: 敵 / 自軍 master / sick ユニット タップ → board 詳細のみ更新、 chooser は出ない
+- friendly fire 許可: ally hero も target に選べる (= ユーザー仕様、 戦略上必要)
+- js/battle/skill-registry.js 新規: スキル metadata (= id / name / cost / targetType / effectKind / description / implemented)
+  - 通常攻撃 (basic_attack): cost 0, single_enemy, damage, **実装済**
+  - シャーロック・ホームズ / 浪切 / 遼来遼来 の 3 件は chooser に表示するが disabled (= Phase 2 SPEC-109 で actuation)
+- js/battle/battle-ui.js 全面書き換え: 新 state machine (= idle / summoning / actorSelected / skillSelected / targetPreview / gameOver) + render 分離
+- js/battle/cpu-turn.js: DOM 参照 selector を新 layout (= `#instrCpu*` / `#instrPlayer*`) に追従
+- data/i18n/ui.json: 約 15 キー追加 (= board.* / skill.* / instr.* / hint.*)
+- sprite アニメ: 既存 trigger\* を新 layout の instr-slot portrait 上で発火 (= 全面書き換えなし)
+- ドラッグアンドドロップ (= ユーザー仕様の OR タップ) はタップで先行実装、 DnD は Phase 2 後半で別 SPEC
+- AoE / random ターゲット型スキルは Phase 2 で別途
+
 ### Added — SPEC-107 (= 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F))
 **Added — 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F)**
 
