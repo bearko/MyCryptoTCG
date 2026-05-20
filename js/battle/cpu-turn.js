@@ -106,7 +106,8 @@ async function doSummon(action, renderBattle, finishBattle) {
   }
   renderBattle();
 
-  const newPortrait = $(`#cpuField${capitalize(action.position)} .field-slot__portrait`);
+  // SPEC-108: instr-slot 上の portrait に変更
+  const newPortrait = $(`#instrCpu${capitalize(action.position)} .instr-slot__portrait`);
   triggerSummonAnim(newPortrait);
   await delay(700);
   return false;
@@ -119,10 +120,11 @@ async function doSummon(action, renderBattle, finishBattle) {
 async function doAttack(action, renderBattle, finishBattle) {
   const battle = state.battle;
 
-  const attackerEl = $(`#cpuField${capitalize(action.attackerSlot)} .field-slot__portrait`);
+  // SPEC-108: instr-slot 上の portrait に変更
+  const attackerEl = $(`#instrCpu${capitalize(action.attackerSlot)} .instr-slot__portrait`);
   const targetEl = action.targetSlot === "master"
-    ? $(".battle-side--player .battle-side__info")
-    : $(`#playerField${capitalize(action.targetSlot)} .field-slot__portrait`);
+    ? $(`#instrPlayerMaster`)
+    : $(`#instrPlayer${capitalize(action.targetSlot)} .instr-slot__portrait`);
 
   triggerAttackAnim(attackerEl, "cpu");
   await delay(180);
