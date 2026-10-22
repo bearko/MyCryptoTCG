@@ -16,6 +16,26 @@
 7. **`docs/patterns/*.md`** — 個別実装パターン (= 該当する作業のときだけ参照)
 8. **`docs/specs/SPEC-INDEX.md`** — プロジェクト固有の SPEC 一覧
 
+## このプロジェクト — MyCryptoWars (= 旧 MyCryptoTCG を作り直した)
+
+MCH のヒーロー・ランド・エネミーで遊ぶ、 ヘックスマップのターン制シミュレーション。
+画面はスマホ 1 台（MCH Map / Chat / Calendar / Drive / Photo）。 詳しくは:
+
+- `docs/concept.md` — 原案（企画構想）
+- `docs/specs/SPEC-109-mycryptowars-mvp.md` — MVP の仕様（作るもの・作らないもの）
+- `docs/specs/SPEC-110-engine-contract.md` — **モジュール間の契約**。 state の形・関数の名前と引数は勝手に変えない
+- `docs/specs/SPEC-111-phone-ui.md` — スマホ UI
+
+このプロジェクトで特に守ること:
+
+- **`js/engine/*` は DOM に触れない純粋関数**。 `document` / `window` / `localStorage` / `Math.random` / `Date.now` を使わない。 乱数は引数の `rng`
+- **テストは `node --test tests/*.test.mjs`**（Node 標準）。 無人シミュレーションは `node tools/sim.mjs`
+- **画像・音声はリポジトリに置かない**。 `js/constants.js` の `ASSET_BASE`（`bearko/mycryptoheroes` の raw URL）を `img()` で引く
+- **用語**: 通貨は **GUM**（「金銭」「ゴールド」と書かない）。 ヒーローが率いる兵は **部隊**（コードでは `squad`。 「ユニット」と書かない）。 施設は MCH に無い概念なので日本語名のまま
+- **実在のゲーム名・製品名・人の実名を書かない**。 参考にした作品は「参考作」と書く（原案からの置き換え済み）
+- `package.json` を置かない（ローカルの確認は `python3 -m http.server`）
+- localStorage prefix は `mcw`
+
 ## 技術スタック (= 不変、 変更には合議が必要)
 
 - **プレーン ES Modules + バニラ JS** — TypeScript / バンドラ / フレームワーク **なし**

@@ -1,7 +1,7 @@
 ---
 id: SPEC-100
 title: MyCryptoTCG 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分)
-status: Approved
+status: Cancelled
 pr: claude/import-kickoff-document-bQ6rP
 phase: Phase 0
 kind: Added

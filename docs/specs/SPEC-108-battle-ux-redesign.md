@@ -1,7 +1,7 @@
 ---
 id: SPEC-108
 title: バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2)
-status: Implementing
+status: Cancelled
 pr: claude/battle-ux-redesign
 phase: Phase 2A
 kind: Changed

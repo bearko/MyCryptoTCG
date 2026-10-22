@@ -1,7 +1,7 @@
 ---
 id: SPEC-102
 title: カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A)
-status: Implementing
+status: Cancelled
 pr: claude/import-kickoff-document-bQ6rP
 phase: Phase 1A
 kind: Added

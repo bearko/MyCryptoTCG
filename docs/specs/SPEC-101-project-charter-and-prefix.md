@@ -1,7 +1,7 @@
 ---
 id: SPEC-101
 title: プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0)
-status: Implementing
+status: Cancelled
 pr: claude/import-kickoff-document-bQ6rP
 phase: Phase 0
 kind: Changed
