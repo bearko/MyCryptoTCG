@@ -29,6 +29,7 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | SPEC-109 | MyCryptoWars への作り直し（原案の整理と MVP の仕様） (Phase 0) | Implementing | Phase 0 | ccr-3032454b-n1cx4z |
 | SPEC-110 | エンジンの契約（state の形・純粋関数・ファイルの持ち主） (Phase 1) | Implementing | Phase 1 | ccr-3032454b-n1cx4z |
 | SPEC-111 | スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）と実行フェーズの演出 (Phase 2) | Implementing | Phase 2 | ccr-3032454b-n1cx4z |
+| SPEC-112 | UI の作り込み（手触り・質感・動き・色の優先度）と分かりやすさ (Phase 2B) | Implementing | Phase 2B | ccr-3032454b-n1cx4z |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則
