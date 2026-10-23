@@ -16,7 +16,7 @@ import { toPixel, fromPixel, wrapC } from '../engine/hex.js';
 import { findPath, reachable, stepCost } from '../engine/pathfind.js';
 import { queue, validate, apMax, projectedTile } from '../engine/orders.js';
 import { rangeOf } from '../engine/heroes.js';
-import { targetAt, noticesFrom } from '../engine/turn.js';
+import { targetAt, noticesFrom, isShielded } from '../engine/turn.js';
 import { terrainYield } from '../engine/economy.js';
 import { save } from '../state.js';
 import { endTurn, STEP_MS } from '../main.js';
@@ -729,7 +729,9 @@ function makePlan(app, sq, tile) {
   if (target) {
     const v = validate(st, db, sq, { type: 'attack', target: tile });
     const siege = !!(target.home || typeof target.rank === 'string');
-    return { kind: 'attack', squad: sq.id, tile, from, ok: v.ok, reason: v.reason, siege, name: targetName(app, target), range: rangeOf(hero) };
+    // 落ちたばかりの砦は実行時に止まるので、ここで先に知らせる（判定は engine の isShielded）
+    const shielded = typeof target.rank === 'string' && isShielded(st, target);
+    return { kind: 'attack', squad: sq.id, tile, from, ok: v.ok && !shielded, reason: shielded ? 'shield' : v.reason, siege, name: targetName(app, target), range: rangeOf(hero) };
   }
   const at = from === sq.tile ? sq : { ...sq, tile: from };
   const p = findPath(st, db, at, hero, tile);
@@ -845,7 +847,8 @@ function planBlock(app, plan) {
     const label = t(app, plan.siege ? 'map.siege' : 'map.attack');
     const note = plan.ok ? null
       : plan.reason === 'range' ? fmt(t(app, 'map.outOfRange'), { n: plan.range })
-        : rejectText(app, sq, plan.reason);
+        : plan.reason === 'shield' ? t(app, 'map.shielded')
+          : rejectText(app, sq, plan.reason);
     return h('div', { class: 'map-plan' },
       h('p', { class: 'map-plan__target' }, plan.name),
       note ? h('p', { class: 'map-plan__note' }, note) : null,
@@ -1232,8 +1235,14 @@ export function onEvent(app, ev) {
     }
     default:
       if (BAND_EVENTS.has(ev.t)) {
+        // 通知の文があればそれを使う（自分が落とした砦は通知が battle 側に付くので、ここで文を組む）
         const n = noticesFrom(st, app.db, [ev]);
-        const fallback = ev.t === 'clear' ? t(app, 'end.clear') : ev.t === 'home_fallen' ? t(app, 'end.home_fallen') : t(app, 'map.fort');
+        let fallback = ev.t === 'clear' ? t(app, 'end.clear') : ev.t === 'home_fallen' ? t(app, 'end.home_fallen') : t(app, 'map.fort');
+        if (ev.t === 'fort_fallen') {
+          const f = st.forts[ev.fort];
+          const fname = f ? (f.name || t(app, `fort.${f.rank}`)) : t(app, 'map.fort');
+          fallback = ev.by === st.playerLand ? `${fname}を落としました` : `${landName(app, ev.by)}が${fname}を落としました`;
+        }
         band(n[0] ? n[0].text : fallback);
       } else if (ev.t === 'claim') {
         if (ev.land === st.playerLand) {

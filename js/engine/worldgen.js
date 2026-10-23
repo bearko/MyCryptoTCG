@@ -307,8 +307,11 @@ function placeHomes(rng, db, tiles, w, h, landIds) {
   const order = shuffle(rng, pool).sort((a, b) => colDistFrom(col(a, w), 0, w) - colDistFrom(col(b, w), 0, w));
   const chosen = pickApart(order, landIds.length, HOME_MIN_DIST, w, h, 60000);
   if (!chosen) return null;
+  // 候補は経度 0 に近い順なので、そのまま並びどおりに渡すと一覧の先頭のランド（ocean）が
+  // いつも砦から遠い位置になる。どのランドを選んでも条件が同じになるよう rng で混ぜる
+  const slots = shuffle(rng, chosen);
   const homes = {};
-  landIds.forEach((id, k) => { homes[id] = chosen[k]; });
+  landIds.forEach((id, k) => { homes[id] = slots[k]; });
   return { homes, comp: bestComp };
 }
 

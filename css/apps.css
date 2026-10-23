@@ -158,7 +158,8 @@ button.cal-item__btn:hover { background: color-mix(in srgb, var(--accent) 10%, v
 .soul-card__cls { font-size: .66rem; }
 .soul-card__skill { font-size: .66rem; color: var(--tiamat); }
 .soul-card .param-bars { grid-template-columns: 1fr; width: 100%; gap: 1px; }
-.soul-card .param-bar { grid-template-columns: 2.6em 1fr; font-size: .6rem; }
+.soul-card .param-bar { grid-template-columns: 3.1em 1fr; gap: .2rem; font-size: .6rem; }
+.soul-card .param-bar dt { white-space: nowrap; }
 .soul-card .param-bar dd { grid-template-columns: 1fr 1.8em; }
 
 /* ================= Photo ================= */

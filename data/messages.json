@@ -344,6 +344,7 @@
     "map.pickHint": "行き先のタイルをタップ",
     "map.queued": "指示を積みました",
     "map.reject": "この指示は積めません",
+    "map.shielded": "落ちたばかりの砦です。翌日まで攻められません",
     "map.routed": "敗走中",
     "map.homeDurability": "耐久",
     "map.mapLabel": "ヘックスマップ。ドラッグで移動、ピンチかホイールで拡大縮小、タップでタイルを選ぶ",

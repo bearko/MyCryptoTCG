@@ -83,8 +83,8 @@ export function reducedMotion() {
 // ------------------------------------------------------------
 
 /**
- * lands.json の icon / cryptid は "assets/lands/..." "assets/cryptids/..." と書かれている。
- * MCH リポジトリでは Image/LandSectors/ と Image/Cryptids/ にあるので読み替える。
+ * lands.json の icon / cryptid は "Image/LandSectors/..." "Image/Cryptids/..."（SPEC-110 §1.3）。
+ * 古い書き方 "assets/lands/..." "assets/cryptids/..." が来ても MCH リポジトリのパスに読み替える。
  * すでに "Image/..." ならそのまま。
  */
 export function landAssetPath(p) {

@@ -1,11 +1,11 @@
 [
-  { "id": "ocean",      "name": "Ocean",      "nameJa": "オーシャン",   "color": "#00d9d5", "icon": "assets/lands/01_Ocean_3_Rare.png",      "cryptid": "assets/cryptids/01_Ocean.png" },
-  { "id": "strawberry", "name": "Strawberry", "nameJa": "ストロベリー", "color": "#ff80b5", "icon": "assets/lands/02_Strawberry_3_Rare.png", "cryptid": "assets/cryptids/02_Strawberry.png" },
-  { "id": "tangerine",  "name": "Tangerine",  "nameJa": "タンジェリン", "color": "#ff9407", "icon": "assets/lands/03_Tangerine_3_Rare.png",  "cryptid": "assets/cryptids/03_Tangerine.png" },
-  { "id": "lime",       "name": "Lime",       "nameJa": "ライム",       "color": "#7fbf00", "icon": "assets/lands/04_Lime_3_Rare.png",       "cryptid": "assets/cryptids/04_Lime.png" },
-  { "id": "graphite",   "name": "Graphite",   "nameJa": "グラファイト", "color": "#737373", "icon": "assets/lands/05_Graphite_3_Rare.png",   "cryptid": "assets/cryptids/05_Graphite.png" },
-  { "id": "grape",      "name": "Grape",      "nameJa": "グレープ",     "color": "#7e2ebd", "icon": "assets/lands/06_Grape_3_Rare.png",      "cryptid": "assets/cryptids/06_Grape.png" },
-  { "id": "sage",       "name": "Sage",       "nameJa": "セージ",       "color": "#00735a", "icon": "assets/lands/07_Sage_3_Rare.png",       "cryptid": "assets/cryptids/07_Sage.png" },
-  { "id": "blueberry",  "name": "Blueberry",  "nameJa": "ブルーベリー", "color": "#3071f2", "icon": "assets/lands/08_Blueberry_3_Rare.png",  "cryptid": "assets/cryptids/08_Blueberry.png" },
-  { "id": "ruby",       "name": "Ruby",       "nameJa": "ルビー",       "color": "#d00013", "icon": "assets/lands/09_Ruby_3_Rare.png",       "cryptid": "assets/cryptids/09_ruby.png" }
+  { "id": "ocean",      "name": "Ocean",      "nameJa": "オーシャン",   "color": "#00d9d5", "icon": "Image/LandSectors/01_Ocean_3_Rare.png",      "cryptid": "Image/Cryptids/01_Ocean.png" },
+  { "id": "strawberry", "name": "Strawberry", "nameJa": "ストロベリー", "color": "#ff80b5", "icon": "Image/LandSectors/02_Strawberry_3_Rare.png", "cryptid": "Image/Cryptids/02_Strawberry.png" },
+  { "id": "tangerine",  "name": "Tangerine",  "nameJa": "タンジェリン", "color": "#ff9407", "icon": "Image/LandSectors/03_Tangerine_3_Rare.png",  "cryptid": "Image/Cryptids/03_Tangerine.png" },
+  { "id": "lime",       "name": "Lime",       "nameJa": "ライム",       "color": "#7fbf00", "icon": "Image/LandSectors/04_Lime_3_Rare.png",       "cryptid": "Image/Cryptids/04_Lime.png" },
+  { "id": "graphite",   "name": "Graphite",   "nameJa": "グラファイト", "color": "#737373", "icon": "Image/LandSectors/05_Graphite_3_Rare.png",   "cryptid": "Image/Cryptids/05_Graphite.png" },
+  { "id": "grape",      "name": "Grape",      "nameJa": "グレープ",     "color": "#7e2ebd", "icon": "Image/LandSectors/06_Grape_3_Rare.png",      "cryptid": "Image/Cryptids/06_Grape.png" },
+  { "id": "sage",       "name": "Sage",       "nameJa": "セージ",       "color": "#00735a", "icon": "Image/LandSectors/07_Sage_3_Rare.png",       "cryptid": "Image/Cryptids/07_Sage.png" },
+  { "id": "blueberry",  "name": "Blueberry",  "nameJa": "ブルーベリー", "color": "#3071f2", "icon": "Image/LandSectors/08_Blueberry_3_Rare.png",  "cryptid": "Image/Cryptids/08_Blueberry.png" },
+  { "id": "ruby",       "name": "Ruby",       "nameJa": "ルビー",       "color": "#d00013", "icon": "Image/LandSectors/09_Ruby_3_Rare.png",       "cryptid": "Image/Cryptids/09_ruby.png" }
 ]

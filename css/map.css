@@ -34,6 +34,8 @@
   pointer-events: none;
 }
 .map-app[data-executing="1"] .map-app__chip { display: none; }
+/* Map を開いている間は、トースト（右上）を札の下へずらす（重ならないように。実行中は札が無いので元の位置） */
+body:has(.phone[data-app="map"]:not(.is-executing)) .toast-stack { top: 96px; }
 .map-chip {
   pointer-events: auto;
   display: flex; align-items: center; gap: .5rem;

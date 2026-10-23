@@ -44,6 +44,14 @@ function realLands(state) {
  * mutates。指示フェーズの始まり。
  * 敗走中の部隊は、この日 AP 0 で兵を lead × 3 に戻して復帰する。奇襲された部隊は AP 半分を消費する。
  */
+/** 落ちた砦を攻められない日数（落ちた日の翌日から数えて）。0 ならその日だけ */
+export const FORT_SHIELD_DAYS = 1;
+
+/** 落ちたばかりで、まだ攻められない砦か（fort.fallenDay から FORT_SHIELD_DAYS 日） */
+export function isShielded(state, fort) {
+  return typeof fort.fallenDay === 'number' && state.day - fort.fallenDay <= FORT_SHIELD_DAYS;
+}
+
 export function beginTurn(state, db) {
   state.phase = state.ended ? 'ended' : 'orders';
   state.log = [];
@@ -135,10 +143,15 @@ export function* execute(state, db, rng) {
     s.ap = Math.max(0, Math.min(cap, (s.ap || 0) + back));
   }
   const fought = new Set();
-  // その日に落ちた砦は、その日のうちはもう攻められない（同じ日に持ち主が何度も入れ替わらないように）
-  const fallenToday = new Set();
+  // 落ちた砦は、その日と翌日はもう攻められない（fort.fallenDay。持ち主がすぐ入れ替わらないように）
+  const fallenToday = {
+    has: (id) => {
+      const f = state.forts[id];
+      return !!f && isShielded(state, f);
+    },
+  };
   const noteFallen = (events) => {
-    for (const e of events) if (e.t === 'fort_fallen') fallenToday.add(e.fort);
+    for (const e of events) if (e.t === 'fort_fallen' && state.forts[e.fort]) state.forts[e.fort].fallenDay = state.day;
   };
 
   // 1 歩ぶんの処理。出したイベントを配列で返す

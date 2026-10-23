@@ -348,6 +348,14 @@ function step() {
     finishExecute();
     return;
   }
+  // 霧の向こうの CPU の動きなど、プレイヤーに見えないイベントは待たずに進める
+  // （1 歩 350ms を全部待つと、自分の部隊が 10 秒に 1 回しか動かないように見えるため）
+  let guard = 0;
+  while (!r.done && !isVisibleEvent(r.value) && guard < 500) {
+    exec.events.push(r.value);
+    guard += 1;
+    try { r = exec.gen.next(); } catch (e) { console.error(e); finishExecute(); return; }
+  }
   if (r.done) {
     finishExecute();
     return;
@@ -355,6 +363,29 @@ function step() {
   exec.events.push(r.value);
   dispatchEvent(r.value);
   scheduleStep();
+}
+
+const ALWAYS_VISIBLE = new Set(['fort_fallen', 'home_fallen', 'clear', 'week_end', 'season_end', 'soul', 'extension_offer']);
+
+/** 演出として見せるイベントか（自ランドに関わるもの・探索済みのタイルで起きたもの） */
+function isVisibleEvent(ev) {
+  if (ALWAYS_VISIBLE.has(ev.t)) return true;
+  const st = app.state;
+  const me = st.playerLand;
+  if (ev.land) return ev.land === me && ev.t !== 'yield';
+  const ids = [ev.squad, ev.attacker, ev.defender].filter(Boolean);
+  if (ids.some((id) => st.squads[id] && st.squads[id].land === me)) return true;
+  const explored = exploredSet(st, me);
+  const tiles = [ev.to, ev.from, ev.at, ev.tile].filter((x) => typeof x === 'number');
+  return tiles.some((i) => explored.has(i));
+}
+
+let exploredCache = { day: -1, set: new Set() };
+function exploredSet(st, me) {
+  if (exploredCache.day !== st.day || exploredCache.land !== me) {
+    exploredCache = { day: st.day, land: me, set: new Set(st.lands[me].explored) };
+  }
+  return exploredCache.set;
 }
 
 function drain() {
@@ -408,6 +439,8 @@ function finishExecute() {
   st.notices.push(...fresh);
   if (st.notices.length > MAX_NOTICES) st.notices.splice(0, st.notices.length - MAX_NOTICES);
   app.ui.lastBatch = fresh.length ? fresh[0].id : maxNoticeId() + 1;
+  // Chat がヒーローの報告（守り切った・敗走した など）を吹き出しにする
+  app.ui.lastEvents = events;
   playBgm('land');
   if (st.ended) {
     st.phase = 'ended';

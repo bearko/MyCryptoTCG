@@ -49,6 +49,7 @@ for f in js/*.js js/engine/*.js js/ui/*.js; do node --check "$f"; done   # 構�
 node --test tests/*.test.mjs                                               # テスト
 node tools/sim.mjs 7 10                                                    # 28 日の無人シミュレーション（seed 7 から 10 回）
 node tools/build-data.mjs --repo ../mycryptoheroes                         # data/heroes.json と data/enemies.json を作り直す
+npx --yes -p playwright-core node tools/smoke.mjs --shots /tmp/shots       # 通しテスト（Chromium で 5 ターン押して回る。playwright-core は npx で一時取得、package.json 不要。Chromium は PLAYWRIGHT_CHROMIUM か /opt/pw-browsers）
 ```
 
 CI（`.github/workflows/ci.yml`）は push / PR ごとに 構文 → JSON → テスト を走らせます。

@@ -187,7 +187,8 @@ Order = { type: "move", path: tileIdx[] }           // path[0] は今いるタ�
 
 Fort = { id: "f1", rank: "rare"|"epic"|"legendary", tile: tileIdx, owner: landId|"enemy",
          troops: 60, durability: 40, maxDurability: 40, enemyId: 310, name: "Rare砦 ○○",
-         stance: "intercept"|"defend" }        // 砦に立っている味方部隊の守備方針。既定 "defend"
+         stance: "intercept"|"defend",         // 砦に立っている味方部隊の守備方針。既定 "defend"
+         fallenDay?: number }                  // 最後に落ちた日（turn.js が付ける。§7.4）。その日と翌日は攻められない
 
 Build = { tileIdx, kind: facilityId, land: landId, daysLeft: 2, toRank: 1|2|3 }
 
@@ -432,7 +433,8 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
   ignore は進む（塞がれていれば blocked(enemy)）。fight は `battle.resolve`（同じ相手とは 1 日 1 回。射程外なら blocked(enemy)）。ask は残りの指示を捨てて `ask` イベント
 - 実行時の再検査で失敗した指示は、その指示だけを捨てる（claim / target / range / home / build）か、残りを全部捨てる（ap / enemy / terrain）
 - `targetAt(state, landId, tile)`（追加の export）：攻撃の対象を 本拠地 → 砦 → 部隊（兵の多い順）で探す。本拠地に立つ部隊を狙っても、本拠地への攻撃として解決する
-- **その日に落ちた砦は、その日のうちはもう攻められない**（blocked(target)）。陥落直後の砦は守備兵 30 なので、同じ日に持ち主が何度も入れ替わっていた
+- **落ちた砦は、落ちた日と翌日は攻められない**（blocked(target)。fight の接敵でも戦わない）。陥落直後の砦は守備兵 30 なので、持ち主が毎日入れ替わっていた（1 シードで 100 回前後）。
+  陥落したとき turn.js が `Fort.fallenDay = state.day`（任意の項目。無ければ一度も落ちていない）を付け、`isShielded(state, fort)`（`state.day − fallenDay ≤ FORT_SHIELD_DAYS`、`FORT_SHIELD_DAYS = 1`）で見る。どちらも turn.js の追加の export。砦を狙う UI もこれで見分けられる
 - 体力減の地形に入ると兵が減る：季節が合えば −3%、always は −1%（兵が 1 以上なら 1 は残す）
 - battle の `followups` は、battle イベントのあとに 1 つずつ yield し、`state.log` にも積む（battle イベントの中にも残る）
 - Legendary の攻略・プレイヤーの本拠地の陥落で、ラウンドの途中でも止めて `season_end` を出す（finishDay はしない）
@@ -447,8 +449,13 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - 追加の export：`tileCount` `seasonWinner`
 
 ### 7.6 ai
-- 兵と攻撃力の上位（3 体以上なら半分、それ未満は 1 体）を攻め手にし、いちばん近い（経路のコスト）未所有の砦へ向かい、射程内なら攻める。
-  Epic・Legendary は距離を割り引いて選び（`FORT_BONUS`）、兵が下限（`FORT_MIN_TROOPS`：Epic 200 / Legendary 450）に満たなければ狙わない。他ランドの砦は 12 遠く見る
-- 守り手のいない自ランドの砦があれば、攻め手でない部隊が向かって立つ
+- **留守番**：食料の収支（産出 − 消費。今日の休息・徴兵で増える兵も見込む）が足りなければ、本拠地に近い部隊（AP 4 以上。同じ距離なら攻撃力の低いもの）から、明日の不足を農作で埋められるまで留守番にする。最低 1 体は外に残す。
+  留守番は戦わず、本拠地へ戻って農作（食料の上限まで）→ GUM・素材が乏しければ商業・工作 → 本拠地の隣に農地（ランクの上がるもの・草原を先に）か、上限が足りなければ食料庫を建てて、そのタイルで夜を越す。
+  本拠地で夜を越すと兵が lead 回復して消費が増えるため（兵が上限の 3 割未満のときだけ本拠地に残る）。SPEC-109 §4 の数値は変えていない
+- **砦の守り**：自ランドの砦に立っている部隊は動かない（1 砦 1 体）。守り手のいない砦には、4 以内の部隊が入る（砦を落とした攻め手がそのまま入る）。全員が張り付いたら、いちばん兵の多い守り手を攻めに出す
+- **攻め手**：残りの上位（3 体以上なら半分、それ未満は 1 体）。いちばん近い（経路のコスト）未所有の砦へ向かい、射程内なら攻める。
+  Epic・Legendary は距離を割り引いて選び（`FORT_BONUS`：Epic 6 / Legendary 10）、兵が下限（`FORT_MIN_TROOPS`：Epic 200 / Legendary 550）に満たなければ、本拠地に戻って休息で兵を増やしてから向かう（1 日に 1 体まで。増える兵の消費が食料の上限に収まるときだけ）。
+  他ランドの砦は 12 遠く見て、落ちたばかりのもの（`isShielded`）と、守り手の兵が自分の 1/1.5 を超えるものは狙わない
+- 砦に立っている部隊は「射程内の弱い敵」として撃たない（撃つと砦への攻撃になるため。砦は上の基準で選ぶ）
 - CPU は本拠地に立っている部隊を攻めない（本拠地の攻略になり、ランドを脱落させてしまうため）。MVP では CPU が本拠地を狙うことは無い
 

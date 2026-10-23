@@ -188,7 +188,7 @@ let live = null;
 function swipeState(app, p) {
   let s = app.ui.swipe;
   if (!s || s.fort !== p.fort || s.done) {
-    s = { fort: p.fort, i: 0, liked: [], deadline: null, done: false };
+    s = { fort: p.fort, i: 0, liked: [], deadline: null, done: false, drag: null };
     app.ui.swipe = s;
   }
   return s;
@@ -320,6 +320,18 @@ function mountSwipe(app, el, p) {
     try { card.setPointerCapture(e.pointerId); } catch { /* 取れなくても動く */ }
     card.classList.add('is-dragging');
   };
+  // render() で DOM が差し替わっても、指が触れたままなら新しいいちばん上のカードで続ける
+  // （move / up は document で受けるので、古いカードが消えても届く）
+  const resumeDrag = () => {
+    const c = s.drag;
+    s.drag = null;
+    if (!c) return;
+    const card = stack.querySelector('.swipe-card.is-top');
+    if (!card) return;
+    L.drag = { id: c.id, x0: c.x0, dx: c.dx, card };
+    card.classList.add('is-dragging');
+    setLean(card, c.dx);
+  };
   const onMove = (e) => {
     const d = L.drag;
     if (!d || d.id !== e.pointerId) return;
@@ -329,6 +341,8 @@ function mountSwipe(app, el, p) {
   const onUp = (e) => {
     const d = L.drag;
     if (!d || d.id !== e.pointerId) return;
+    // 差し替えで外れたカードの lostpointercapture は無視する（指はまだ触れている）
+    if (e.type === 'lostpointercapture' && !d.card.isConnected) return;
     L.drag = null;
     d.card.classList.remove('is-dragging');
     if (e.type === 'pointerup' && Math.abs(d.dx) >= SWIPE_THRESHOLD) {
@@ -353,9 +367,9 @@ function mountSwipe(app, el, p) {
     L.offs.push(() => target.removeEventListener(type, fn, opts));
   };
   add(stack, 'pointerdown', onDown);
-  add(stack, 'pointermove', onMove);
-  add(stack, 'pointerup', onUp);
-  add(stack, 'pointercancel', onUp);
+  add(document, 'pointermove', onMove);
+  add(document, 'pointerup', onUp);
+  add(document, 'pointercancel', onUp);
   add(stack, 'lostpointercapture', onUp);
   add(el, 'click', onBtn);
   add(document, 'keydown', onKey);
@@ -374,11 +388,31 @@ function mountSwipe(app, el, p) {
     L.timers.push(setTimeout(tick, 100));
   };
   drawStack();
+  // 飛んでいく途中で描き直されて、最後の 1 枚の後始末が流れたときは、ここで確定する
+  if (s.i >= cands.length) {
+    L.timers.push(setTimeout(finish, 0));
+    return;
+  }
+  resumeDrag();
   tick();
 }
 
 function unmountSwipe() {
   if (!live) return;
+  // 指が触れたままの途中状態は app.ui.swipe に預け、次の mount で拾い直す
+  const d = live.drag;
+  const sw = live.s;
+  sw.drag = d && !sw.done ? { id: d.id, x0: d.x0, dx: d.dx } : null;
+  if (sw.drag) {
+    // 描き直しまでの間に指が離れたら、預けた途中状態は捨てる（戻ったカードが傾いたまま残らないように）
+    const drop = (e) => {
+      if (sw.drag && e.pointerId === sw.drag.id) sw.drag = null;
+      document.removeEventListener('pointerup', drop, true);
+      document.removeEventListener('pointercancel', drop, true);
+    };
+    document.addEventListener('pointerup', drop, true);
+    document.addEventListener('pointercancel', drop, true);
+  }
   for (const off of live.offs) off();
   for (const id of live.timers) clearTimeout(id);
   live = null;

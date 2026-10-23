@@ -15,7 +15,7 @@ import { queue, validate, clearOrders, apMax, apCost, projectedTile } from '../e
 import { canBuild, DOMESTIC_KINDS } from '../engine/economy.js';
 import { within } from '../engine/hex.js';
 import { rangeOf } from '../engine/heroes.js';
-import { targetAt } from '../engine/turn.js';
+import { targetAt, isShielded } from '../engine/turn.js';
 import { save } from '../state.js';
 import { go, render as rerender, pendingApp } from '../main.js';
 
@@ -26,7 +26,7 @@ const MAI_NOTICES = 30;
 const POLICIES = ['ignore', 'fight', 'ask'];
 const MENU = ['move', 'claim', 'build', 'attack', 'domestic', 'rest', 'policy', 'clear'];
 /** 引数つきのセリフが無い reject.* の理由（ui の chat.reject.* で出す） */
-const LINE_REJECTS = new Set(['ap', 'home', 'range', 'build']);
+const SPEECH_REJECTS = new Set(['ap', 'home', 'range', 'build']);
 
 const t = (app, key) => uiText(app.db, key);
 
@@ -407,7 +407,7 @@ function attackMenu(app, squad) {
   const targets = findTargets(app, squad);
   const buttons = targets.length
     ? targets.map((x) => h('button', {
-      class: 'chat-opt', type: 'button', dataset: { target: x.tile },
+      class: 'chat-opt', type: 'button', dataset: { target: x.tile }, disabled: !!x.shielded,
       onClick: () => {
         chatUi(app).menu = null;
         sendOrder(app, squad, { type: 'attack', target: x.tile }, `${t(app, 'cmd.attack')} ${x.name}`, { target: x.name });
@@ -431,7 +431,10 @@ function findTargets(app, squad) {
     if (!target) continue;
     const v = validate(st, app.db, squad, { type: 'attack', target: tile });
     if (!v.ok && v.reason !== 'ap') continue;
-    out.push({ tile, ...describeTarget(app, target) });
+    const d = describeTarget(app, target);
+    // 落ちたばかりの砦は実行時に止まるので、押せないようにして理由を出す（判定は engine の isShielded）
+    if (target.rank && isShielded(st, target)) out.push({ tile, ...d, meta: t(app, 'map.shielded'), shielded: true });
+    else out.push({ tile, ...d });
   }
   return out;
 }
@@ -497,7 +500,7 @@ function sendOrder(app, squad, order, myText, vars = {}) {
   if (r.ok) {
     pushMsg(app, squad.id, 'hero', say(app.db, hero, `order.${order.type}.ack`, vars));
     persist(app);
-  } else if (LINE_REJECTS.has(r.reason)) {
+  } else if (SPEECH_REJECTS.has(r.reason)) {
     const rv = r.reason === 'ap' ? { ap: squad.ap } : r.reason === 'build' ? { kind: vars.kind } : {};
     pushMsg(app, squad.id, 'hero', say(app.db, hero, `order.reject.${r.reason}`, rv));
   } else {
