@@ -1,19 +1,19 @@
-/* map.css — MCH Map（SPEC-111 §3）
-   canvas が画面いっぱい。上に選択中の部隊の札、右下に「ターン終了」、下に情報シート（画面の 40% まで）。
-   z-index: canvas 0 / 上の札・ボタン 20〜30（実行フェーズの「スキップ」は phone.css の 60）。
-   @media は使わない（中間は clamp()）。 */
+/* map.css — MCH Map（SPEC-111 §3、手触りは SPEC-112 §3）
+   canvas が画面いっぱい。上に選択中の部隊の札、右上に凡例の「?」、右下に「ターン終了」、下に情報シート（画面の 40% まで。地図の上に重なる）。
+   z-index: canvas 0 / 周辺減光 5 / 上の札・ボタン 20〜30 / 案内 32 / 凡例 34 / シート 40（実行フェーズの「スキップ」は phone.css の 60）。
+   色の優先度（SPEC-112 D）: 地形（canvas）は沈めてあるので、UI は彩度を上げて手前に見せる。
+   動きは var(--t-*) で書く（動きを減らすときは 1ms になって止まる）。@media は「動きを減らす」だけ（中間は clamp()）。 */
 
 .map-app {
+  --sheet-h: 0px;
   position: relative;
   height: 100%;
-  display: flex; flex-direction: column;
   overflow: hidden;
-  background: var(--bg);
+  background: #0d0b13;
 }
 
 .map-app__stage {
-  position: relative;
-  flex: 1 1 auto; min-height: 120px;
+  position: absolute; inset: 0;
   overflow: hidden;
 }
 
@@ -27,38 +27,86 @@
 .map-app__canvas:active { cursor: grabbing; }
 .map-app__canvas:focus-visible { outline: 2px solid var(--tiamat); outline-offset: -2px; }
 
+/* 周辺減光（レンズの縁。UI が地図から浮いて見える） */
+.map-app__vignette {
+  position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(5, 4, 9, .55) 100%),
+    linear-gradient(180deg, rgba(5, 4, 9, .45) 0, transparent 70px);
+}
+
 /* ---------- 上の札（選択中の部隊） ---------- */
 .map-app__chip {
   position: absolute; z-index: 20; top: 8px; left: 8px;
-  max-width: calc(100% - 16px);
+  max-width: calc(100% - 68px);
   pointer-events: none;
 }
 .map-app[data-executing="1"] .map-app__chip { display: none; }
 /* Map を開いている間は、トースト（右上）を札の下へずらす（重ならないように。実行中は札が無いので元の位置） */
 body:has(.phone[data-app="map"]:not(.is-executing)) .toast-stack { top: 96px; }
+/* 案内がシートの上（画面の上）に出ている間は、さらにその下へ */
+body:has(.map-app.has-sheet .map-guide:not(.is-out)) .toast-stack { top: 200px; }
 .map-chip {
   pointer-events: auto;
-  display: flex; align-items: center; gap: .5rem;
-  background: rgba(30, 26, 40, .92); border: 1px solid var(--accent); border-radius: 999px;
-  padding: 3px 4px 3px 4px;
-  box-shadow: 0 3px 12px rgba(0, 0, 0, .5);
+  display: flex; align-items: center; gap: .55rem;
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  padding: 4px 4px 4px 4px;
+  box-shadow: var(--sh-edge), var(--sh-2), 0 0 0 1px rgba(0, 0, 0, .35), 0 0 22px rgba(226, 189, 98, .18);
 }
-.map-chip__img { width: 32px; height: 32px; border-radius: 50%; background: var(--panel-2); object-fit: cover; flex: none; }
-.map-chip__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
-.map-chip__name { font-weight: 800; font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.map-chip__sub { font-size: .7rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-chip.is-new { animation: map-chip-in var(--t-flip) var(--ease-spring) both; }
+.map-chip__face {
+  position: relative; flex: none;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, var(--panel-3), var(--bg-0));
+  box-shadow: 0 0 0 2px var(--land), 0 0 0 4px rgba(0, 0, 0, .5), 0 0 14px color-mix(in srgb, var(--land) 55%, transparent);
+  display: grid; place-items: center; overflow: hidden;
+}
+.map-chip__img { width: 36px; height: 36px; object-fit: contain; }
+.map-chip__text { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; gap: 1px; }
+.map-chip__name { font-weight: 800; font-size: .86rem; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-chip__orders {
+  margin-left: .45em; padding: 0 .45em; border-radius: 999px;
+  font-size: .64rem; font-weight: 800; color: var(--accent-ink); background: var(--accent-hi);
+  vertical-align: 1px;
+}
+.map-chip__ap { display: flex; align-items: center; gap: .4rem; font-size: .7rem; color: var(--accent-hi); white-space: nowrap; }
+.map-chip__ap b { font-weight: 800; }
+.map-chip__pips { display: inline-flex; gap: 2px; }
+.map-chip__pips i {
+  width: 7px; height: 7px; border-radius: 2px; transform: skewX(-12deg);
+  background: rgba(255, 255, 255, .12); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1);
+}
+.map-chip__pips i.is-on { background: linear-gradient(180deg, var(--accent-hi), var(--accent)); box-shadow: 0 0 6px rgba(236, 208, 138, .55); }
+.map-chip__sub { font-size: .66rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-chip__x { min-width: 36px; min-height: 36px; font-size: 1.2rem; padding: 0; flex: none; }
 .map-hint {
-  margin: 0; display: inline-block;
-  background: rgba(30, 26, 40, .82); border: 1px solid var(--border); border-radius: 999px;
-  padding: .25rem .7rem; font-size: .75rem; color: var(--muted);
+  margin: 0; display: inline-flex; align-items: center; gap: .45rem;
+  border-radius: 999px;
+  padding: .3rem .8rem .3rem .6rem; font-size: .75rem; color: var(--text);
+  animation: map-chip-in var(--t-flip) var(--ease-spring) both;
+}
+.map-hint__dot {
+  width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--accent-hi); box-shadow: 0 0 0 0 rgba(236, 208, 138, .6);
+  animation: map-dot 1.8s var(--ease-out) infinite;
 }
 
-/* ---------- 表示の切り替え（?debug=1 のときだけ） ---------- */
+/* ---------- 右上: 凡例の「?」と、表示の切り替え（?debug=1 のときだけ） ---------- */
 .map-app__tools {
-  position: absolute; z-index: 25; top: 54px; right: 8px;
+  position: absolute; z-index: 25; top: 8px; right: 8px;
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
 }
+.map-app__legend-btn {
+  width: 44px; height: 44px; padding: 0; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 1.15rem; font-weight: 900; color: var(--accent-hi);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: var(--sh-edge), var(--sh-2);
+  transition: transform var(--t-tap) var(--ease-out), border-color var(--t-ui), color var(--t-ui), box-shadow var(--t-ui);
+}
+.map-app__legend-btn:active { transform: scale(.92); }
+.map-app__legend-btn.is-on { color: var(--accent-ink); background: linear-gradient(180deg, var(--accent-hi), var(--accent)); border-color: var(--accent-hi); box-shadow: var(--sh-edge), var(--glow-accent); }
 .map-tools__btn { min-height: 36px; padding: .25rem .8rem; font-size: .8rem; background: rgba(30, 26, 40, .9); }
 .map-tools__menu {
   display: flex; flex-direction: column; gap: 4px;
@@ -70,71 +118,254 @@ body:has(.phone[data-app="map"]:not(.is-executing)) .toast-stack { top: 96px; }
 }
 .map-tools__opt.is-on { border-color: var(--accent); color: var(--accent); background: rgba(196, 163, 90, .12); }
 
-/* ---------- ターン終了（右下） ---------- */
+/* ---------- 凡例 ---------- */
+.map-legend {
+  position: absolute; z-index: 45; top: 58px; right: 8px;
+  width: min(300px, calc(100% - 16px)); max-height: calc(100% - 66px);
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: .55rem .75rem .75rem;
+  border-radius: var(--r-l);
+  transform-origin: calc(100% - 22px) -14px;
+  animation: map-pop-in var(--t-flip) var(--ease-spring) both;
+}
+.map-legend.is-out { animation: map-pop-out var(--t-ui) var(--ease-in) both; pointer-events: none; }
+.map-legend__head { display: flex; align-items: center; justify-content: space-between; }
+.map-legend__title { margin: 0; font-size: .95rem; font-weight: 800; color: var(--text-hi); }
+.map-legend__x { min-width: 40px; min-height: 40px; padding: 0; font-size: 1.25rem; }
+.map-legend__sub { margin: .55rem 0 .3rem; font-size: .7rem; font-weight: 800; letter-spacing: .08em; color: var(--accent-hi); }
+.map-legend__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px .6rem; font-size: .76rem; }
+.map-legend__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: .76rem; }
+.map-legend__item { display: flex; align-items: center; gap: .55rem; min-height: 22px; color: var(--text); }
+.map-legend__hex {
+  flex: none; width: 18px; height: 20px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--sw, var(--panel-3));
+}
+.map-legend__hex.is-terr { background: color-mix(in srgb, var(--c) 30%, #3a3448); box-shadow: inset 0 0 0 2px var(--c); outline: 2px solid var(--c); outline-offset: -2px; }
+.map-legend__hex.is-fort, .map-legend__hex.is-home { background: var(--c); position: relative; }
+.map-legend__hex.is-fort::after, .map-legend__hex.is-home::after {
+  content: ""; position: absolute; inset: 3px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: #1a1622;
+}
+.map-legend__hex.is-home::after { inset: 4px; background: color-mix(in srgb, var(--c) 35%, #1a1622); }
+.map-legend__forts { display: inline-flex; gap: 2px; flex: none; }
+.map-legend__forts .map-legend__hex { width: 14px; height: 16px; }
+.map-legend__hex.is-reach { background: #6d6352; box-shadow: none; position: relative; }
+.map-legend__hex.is-reach::after { content: ""; position: absolute; inset: 0; background: rgba(255, 236, 190, .28); }
+.map-legend__hex.is-fog {
+  background:
+    repeating-linear-gradient(170deg, rgba(150, 138, 196, .22) 0 1px, transparent 1px 5px),
+    #0d0b16;
+}
+.map-legend__unit {
+  flex: none; width: 18px; height: 18px; border-radius: 4px;
+  background: linear-gradient(180deg, #2e2840, #100e16);
+  box-shadow: inset 0 0 0 2px var(--c), 0 0 8px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.map-legend__fac {
+  flex: none; min-width: 26px; padding: 0 3px; height: 17px; border-radius: 3px;
+  display: inline-grid; place-items: center;
+  font-size: .62rem; font-weight: 800; color: #f2ecfa;
+  background: rgba(14, 12, 20, .9); border: 1px solid var(--accent);
+}
+.map-legend__fac.is-build { background: rgba(42, 36, 56, .8); border-style: dashed; }
+
+/* ---------- ターン終了（右下。シートが開いたらその上へ） ---------- */
 .map-app__end {
-  position: absolute; z-index: 30; right: 12px; bottom: 12px;
-  min-height: 50px; padding: .5rem 1.3rem; font-size: 1rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, .55);
+  position: absolute; z-index: 30; right: 12px; bottom: calc(12px + var(--sheet-h));
+  min-height: 52px; padding: .5rem 1.4rem; font-size: 1rem; font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -2px 0 rgba(90, 64, 20, .45), 0 6px 18px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .35);
+  transition: bottom var(--t-flip) var(--ease-out), transform var(--t-tap) var(--ease-out), box-shadow var(--t-ui);
+  overflow: visible;
 }
 .map-app__end[hidden] { display: none; }
+.map-app__end-label { position: relative; z-index: 1; }
+/* 全員に指示を出したら、押す番だと分かるように光が脈打つ */
+.map-app__end.is-ready { animation: map-end-ready 1.8s var(--ease-inout) infinite; }
+.map-app__end-badge {
+  position: absolute; z-index: 2; top: -7px; right: -5px;
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
+  display: grid; place-items: center;
+  font-size: .72rem; font-weight: 900; color: #fff;
+  background: linear-gradient(180deg, #ff7d7d, #d94848);
+  border: 2px solid #0d0b13;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .5);
+  animation: map-badge-in var(--t-flip) var(--ease-spring) both;
+}
 
-/* ---------- 情報シート（下から。画面の 40% まで） ---------- */
+/* ---------- 初回だけの案内（ナビゲーター） ---------- */
+.map-guide {
+  position: absolute; z-index: 32; left: 6px; right: 140px; bottom: calc(8px + var(--sheet-h));
+  display: flex; align-items: flex-end; gap: 2px;
+  pointer-events: none;
+  transition: bottom var(--t-flip) var(--ease-out);
+  animation: map-guide-in var(--t-flip) var(--ease-spring) both;
+}
+.map-guide.is-out { animation: map-guide-out var(--t-ui) var(--ease-in) both; }
+.map-guide__navi {
+  flex: none; width: 96px; height: 128px; margin-bottom: -8px;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .55));
+  animation: map-navi-bob 2.6s var(--ease-inout) infinite;
+}
+.map-guide__bubble {
+  pointer-events: auto;
+  position: relative; margin-bottom: 26px;
+  width: fit-content; max-width: 100%;
+  padding: .5rem .7rem .45rem; border-radius: var(--r-m);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  display: flex; flex-direction: column; gap: .25rem;
+}
+.map-guide__bubble::before {
+  content: ""; position: absolute; left: -7px; bottom: 16px;
+  width: 12px; height: 12px; transform: rotate(45deg);
+  background: var(--panel-1); border-left: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border)); border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
+}
+.map-guide__name { font-size: .64rem; font-weight: 800; letter-spacing: .06em; color: var(--accent-hi); }
+.map-guide__text { margin: 0; font-size: .8rem; line-height: 1.5; color: var(--text-hi); min-height: 1.5em; }
+/* シートが開いている間は上へ（シートと地図の真ん中を空ける）。ナビゲーターは小さく */
+.map-app.has-sheet .map-guide { top: 58px; bottom: auto; left: 8px; right: 64px; align-items: flex-start; }
+.map-app.has-sheet .map-guide__navi { width: 48px; height: 64px; margin: 0; }
+.map-app.has-sheet .map-guide__bubble { margin: 6px 0 0; }
+.map-app.has-sheet .map-guide__bubble::before { bottom: auto; top: 18px; }
+.map-guide__ok { align-self: flex-end; min-height: 32px; padding: .1rem .7rem; font-size: .72rem; color: var(--muted); }
+
+/* ---------- 情報シート（下から。地図の上に重なる。画面の 40% まで） ---------- */
 .map-sheet {
-  flex: 0 0 auto; max-height: 40%;
+  position: absolute; z-index: 40; left: 0; right: 0; bottom: 0;
+  max-height: 40%;
   overflow-y: auto; overscroll-behavior: contain;
-  background: var(--panel);
-  border-top: 2px solid var(--accent);
-  border-radius: var(--radius) var(--radius) 0 0;
-  padding: .5rem clamp(10px, 3vw, 16px) .8rem;
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, .5);
-  animation: map-sheet-in 200ms var(--ease);
+  border-radius: var(--r-l) var(--r-l) 0 0;
+  border-width: 1px 0 0;
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+  padding: .2rem clamp(10px, 3vw, 16px) .8rem;
+  box-shadow: var(--sh-edge), 0 -10px 30px rgba(0, 0, 0, .55), 0 -1px 0 rgba(236, 208, 138, .15);
+  animation: map-sheet-in var(--t-flip) var(--ease-spring) both;
   display: flex; flex-direction: column; gap: .5rem;
 }
+.map-sheet.panel--glass { background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 60px), rgba(22, 19, 31, .86); }
 .map-sheet[hidden] { display: none; }
-.map-sheet__head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.map-sheet__title { margin: 0; font-size: 1rem; font-weight: 800; }
+.map-sheet--ghost { animation: map-sheet-out var(--t-flip) var(--ease-in) both; pointer-events: none; }
+.map-sheet__grip { flex: none; align-self: center; width: 40px; height: 4px; margin: .2rem 0 0; border-radius: 999px; background: rgba(255, 255, 255, .22); }
+.map-sheet__head { display: flex; align-items: center; gap: .55rem; }
+.map-sheet__swatch {
+  flex: none; width: 18px; height: 20px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--sw);
+}
+.map-sheet__title { margin: 0; flex: 1; min-width: 0; font-size: 1.02rem; font-weight: 800; color: var(--text-hi); }
 .map-sheet__x { min-width: 44px; min-height: 44px; font-size: 1.4rem; padding: 0; }
 .map-sheet__fog, .map-sheet__empty { margin: 0; font-size: .85rem; }
 
-.map-sheet__facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px .8rem; font-size: .85rem; }
+.map-sheet__facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px .8rem; font-size: .85rem; }
 .map-sheet__row { display: contents; }
 .map-sheet__row dt { color: var(--muted); }
-.map-sheet__row dd { margin: 0; }
+.map-sheet__row dd { margin: 0; color: var(--text); }
+.map-sheet__yield { display: inline-flex; gap: .8em; }
+.map-sheet__yield b { color: var(--text-hi); font-weight: 800; }
 .map-sheet__land { font-weight: 700; padding-left: .5em; border-left: 4px solid var(--land); }
-.map-sheet__fort { font-weight: 800; color: var(--rank); }
+.map-sheet__fort { font-weight: 800; color: var(--rank); text-shadow: 0 0 10px color-mix(in srgb, var(--rank) 50%, transparent); }
+.map-sheet__meter { display: inline-flex; align-items: center; gap: .55rem; width: 100%; }
+.map-sheet__meter i {
+  flex: 1; max-width: 140px; height: 6px; border-radius: 999px; position: relative; overflow: hidden;
+  background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 1px rgba(0, 0, 0, .5);
+}
+.map-sheet__meter i::after {
+  content: ""; position: absolute; inset: 0; right: auto; width: calc(var(--v) * 100%);
+  border-radius: inherit; background: linear-gradient(180deg, color-mix(in srgb, var(--rank) 60%, #fff), var(--rank));
+  transform-origin: left; animation: map-meter var(--t-page) var(--ease-out) both;
+}
 
 /* 経路のプレビュー */
 .map-plan {
-  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-s);
-  padding: .5rem .6rem; display: flex; flex-direction: column; gap: .4rem;
+  position: relative;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, var(--panel-2)), var(--panel-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); border-radius: var(--r-m);
+  padding: .5rem .6rem; display: flex; flex-direction: column; gap: .45rem;
+  animation: map-plan-in var(--t-ui) var(--ease-out) both;
 }
+.map-plan.is-ng { background: var(--panel-2); border-color: var(--border); }
+.map-plan--attack { background: linear-gradient(180deg, rgba(255, 90, 90, .16), var(--panel-2)); border-color: rgba(255, 106, 106, .55); }
 .map-plan__facts { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; text-align: center; }
-.map-plan__facts dt { font-size: .68rem; color: var(--muted); }
-.map-plan__facts dd { margin: 0; font-weight: 800; font-size: 1.05rem; }
-.map-plan__target { margin: 0; font-weight: 800; }
-.map-plan__note { margin: 0; font-size: .8rem; color: var(--ifrit); }
-.map-plan__go { width: 100%; }
+.map-plan__fact { padding: .2rem 0; border-radius: var(--r-s); background: rgba(0, 0, 0, .22); }
+.map-plan__facts dt { font-size: .66rem; color: var(--muted); }
+.map-plan__facts dd { margin: 0; font-weight: 800; font-size: 1.1rem; color: var(--text-hi); }
+.map-plan__fact.is-today dd { color: var(--accent-hi); }
+.map-plan__fact.is-later dd { color: #c8bdf0; }
+.map-plan__fact.is-over dd { color: var(--warn); }
+.map-plan__key { display: flex; align-items: center; gap: .4rem; font-size: .68rem; color: var(--muted); }
+.map-plan__key .map-plan__line + * { margin-right: .2rem; }
+.map-plan__line { display: inline-block; flex: none; width: 22px; height: 4px; border-radius: 999px; }
+.map-plan__line--today { background: #e2bd62; box-shadow: 0 0 6px rgba(226, 189, 98, .6); }
+.map-plan__line--later { background: repeating-linear-gradient(90deg, #b5a8e0 0 5px, transparent 5px 9px); }
+.map-plan__who { display: flex; align-items: center; gap: .45rem; }
+.map-plan__hero { width: 28px; height: 28px; flex: none; border-radius: var(--r-s); background: var(--panel-3); }
+.map-plan__arrow { flex: none; width: 18px; height: 2px; background: #ff6a6a; position: relative; }
+.map-plan__arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid #ff6a6a; border-right: 0; }
+.map-plan__by { flex: none; font-weight: 800; font-size: .85rem; color: var(--text-hi); }
+.map-plan__target { margin: 0; min-width: 0; font-weight: 800; font-size: .85rem; color: #ffb3b3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-plan__note { margin: 0; font-size: .8rem; color: var(--bad); }
+.map-plan__go { width: 100%; min-height: 48px; font-size: 1rem; }
+.map-plan__go--attack:not([disabled]) {
+  background: linear-gradient(180deg, #ff9a8a 0%, #e75a5a 50%, #b33a3a 100%);
+  border-color: rgba(255, 200, 190, .55); color: #fff;
+  text-shadow: 0 1px 0 rgba(80, 10, 10, .6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -2px 0 rgba(90, 20, 20, .45), 0 3px 12px rgba(231, 96, 96, .35);
+}
 
 /* そこにいる部隊 */
-.map-squads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.map-squads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .map-squad { display: flex; align-items: center; gap: .5rem; border-radius: var(--radius-s); }
-.map-squad.is-enemy { padding: .3rem .4rem; border-left: 3px solid var(--ifrit); background: rgba(231, 96, 96, .08); }
+.map-squad.is-enemy { padding: .3rem .4rem; border-left: 3px solid var(--bad); background: rgba(255, 106, 106, .08); }
 .map-squad__btn {
   width: 100%; display: flex; align-items: center; gap: .5rem; text-align: left;
-  min-height: 48px; padding: .3rem .4rem; cursor: pointer;
-  background: transparent; border: 1px solid var(--border); border-radius: var(--radius-s);
+  min-height: 52px; padding: .3rem .5rem .3rem .4rem; cursor: pointer; color: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, 0)), rgba(0, 0, 0, .18);
+  border: 1px solid var(--border); border-radius: var(--r-m);
+  box-shadow: var(--sh-edge);
 }
-.map-squad__btn:hover { background: rgba(196, 163, 90, .08); }
-.map-squad__btn.is-selected { border-color: var(--accent); background: rgba(196, 163, 90, .14); }
-.map-squad__img { width: 40px; height: 40px; flex: none; background: var(--panel-2); border-radius: var(--radius-s); image-rendering: pixelated; }
+.map-squad__btn:hover { border-color: var(--border-hi); }
+.map-squad__btn.is-selected {
+  border-color: var(--accent-hi);
+  background: linear-gradient(90deg, rgba(226, 189, 98, .22), rgba(226, 189, 98, .05));
+  box-shadow: var(--sh-edge), 0 0 0 1px rgba(236, 208, 138, .25), 0 0 16px rgba(226, 189, 98, .18);
+}
+.map-squad__img { width: 40px; height: 40px; flex: none; background: radial-gradient(circle at 50% 35%, var(--panel-3), var(--bg-0)); border-radius: var(--radius-s); image-rendering: pixelated; }
 .map-squad__text { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.3; }
-.map-squad__name { font-weight: 800; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-squad__name { font-weight: 800; font-size: .88rem; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .map-squad__sub { font-size: .72rem; color: var(--muted); white-space: pre-wrap; }
 .map-squad__land { color: var(--text); font-weight: 700; border-left: 3px solid var(--land); padding-left: .35em; margin-right: .5em; }
-.map-squad__tag { margin-left: .5em; color: var(--ifrit); font-weight: 700; }
-.map-squad__pick { font-size: .72rem; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.map-squad__tag { margin-left: .5em; color: var(--bad); font-weight: 700; }
+.map-squad__pick { font-size: .72rem; font-weight: 800; color: var(--accent-hi); white-space: nowrap; }
 
-@keyframes map-sheet-in { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* ---------- 動き ---------- */
+@keyframes map-sheet-in { from { transform: translateY(105%); } to { transform: none; } }
+@keyframes map-sheet-out { from { transform: none; opacity: 1; } to { transform: translateY(105%); opacity: .4; } }
+@keyframes map-chip-in { from { transform: translateX(-14px) scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes map-pop-in { from { transform: scale(.82); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes map-pop-out { from { transform: none; opacity: 1; } to { transform: scale(.9); opacity: 0; } }
+@keyframes map-plan-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes map-badge-in { from { transform: scale(0); } to { transform: none; } }
+@keyframes map-meter { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes map-guide-in { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes map-guide-out { from { transform: none; opacity: 1; } to { transform: translateY(20px); opacity: 0; } }
+@keyframes map-navi-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes map-dot {
+  0% { box-shadow: 0 0 0 0 rgba(236, 208, 138, .6); }
+  70%, 100% { box-shadow: 0 0 0 8px rgba(236, 208, 138, 0); }
+}
+@keyframes map-end-ready {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -2px 0 rgba(90, 64, 20, .45), 0 6px 18px rgba(0, 0, 0, .55), 0 0 0 0 rgba(236, 208, 138, .55); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), inset 0 -2px 0 rgba(90, 64, 20, .45), 0 6px 18px rgba(0, 0, 0, .55), 0 0 0 8px rgba(236, 208, 138, 0), 0 0 26px rgba(236, 208, 138, .55); }
+}
+
+/* 動きを減らす: 繰り返しの動きを止める（出入りは時間のトークンが 1ms になるので止まる） */
+:root[data-motion="reduce"] .map-app__end.is-ready,
+:root[data-motion="reduce"] .map-guide__navi,
+:root[data-motion="reduce"] .map-hint__dot { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .map-app__end.is-ready, .map-guide__navi, .map-hint__dot { animation: none; }
+}
 
 /* 地図の画面は画面領域をはみ出さない（phone.css の .phone__screen は縦スクロール） */
 .phone[data-app="map"] .phone__screen { overflow: hidden; }

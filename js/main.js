@@ -24,6 +24,8 @@ import * as calendarView from './ui/calendar-view.js';
 import * as driveView from './ui/drive-view.js';
 import * as photoView from './ui/photo-view.js';
 import { playBgm, playSe } from './ui/audio.js';
+import * as fx from './ui/fx.js';
+import * as ambient from './ui/ambient.js';
 
 /** 実行フェーズの 1 歩（ms） */
 export const STEP_MS = 350;
@@ -128,6 +130,8 @@ export async function boot() {
     return;
   }
   document.addEventListener('keydown', onKeydown);
+  fx.install();
+  document.addEventListener('pointerdown', rememberPress, { capture: true, passive: true });
   const saved = load();
   if (saved) {
     app.state = saved;
@@ -139,7 +143,10 @@ export async function boot() {
     go('land');
   }
   const bootEl = document.querySelector('.boot');
-  if (bootEl) bootEl.remove();
+  if (bootEl) {
+    if (reducedMotion() || !bootEl.animate) bootEl.remove();
+    else bootEl.animate([{ opacity: 1 }, { opacity: 0, filter: 'blur(4px)' }], { duration: 360, easing: 'ease-out', fill: 'forwards' }).finished.then(() => bootEl.remove(), () => bootEl.remove());
+  }
   playBgm('land');
 }
 
@@ -187,18 +194,24 @@ export function go(appName, opts = {}) {
   render();
 }
 
-/** 現在のアプリを描き直す（ステータスバー・ホームボタンも） */
+/** 現在のアプリを描き直す（ステータスバー・ホームボタンも）。アプリが変わったときは切り替えの動きを付ける */
 export function render() {
   const root = document.getElementById('app');
   if (!root) return;
   const shell = phone.ensureShell(root);
+  ambient.attach(shell.phone);
   phone.renderStatusBar(app, shell.status);
   phone.renderHomeBar(app, shell.homebar);
   shell.phone.dataset.app = app.ui.app;
   shell.phone.classList.toggle('is-executing', !!app.ui.executing);
+  ambient.setScene({ app: app.ui.app, color: sceneColor() });
+  // 机（880px 以上の端末の周り）も自ランドの色で照らす
+  document.documentElement.style.setProperty('--scene', sceneColor());
 
-  if (current && current.view.unmount) {
-    try { current.view.unmount(app, current.el); } catch (e) { console.error(e); }
+  const prev = current;
+  const changed = !!prev && prev.name !== app.ui.app;
+  if (prev && prev.view.unmount) {
+    try { prev.view.unmount(app, prev.el); } catch (e) { console.error(e); }
   }
   const view = VIEWS[app.ui.app];
   let el;
@@ -208,13 +221,117 @@ export function render() {
     console.error(e);
     el = h('section', { class: 'app-screen' }, h('p', { class: 'muted' }, 'この画面を描けませんでした。'));
   }
+  // 切り替えの準備: 消える画面を写しとして残す（押した場所を先に測る）
+  const plan = changed ? planTransition(shell, prev, app.ui.app) : null;
   clear(shell.screen);
   if (el) shell.screen.appendChild(el);
+  if (changed) shell.screen.scrollTop = 0;
   current = { name: app.ui.app, view, el };
   if (view.mount) {
     try { view.mount(app, el); } catch (e) { console.error(e); }
   }
   phone.renderExecuteBar(app, shell.execbar);
+  if (plan) runTransition(shell, plan, el);
+}
+
+// ------------------------------------------------------------
+// 画面の切り替えの動き（SPEC-112 §1 C）
+//   ホーム → アプリ: アイコン（押したもの）の位置から広がって開く
+//   アプリ → ホーム: 消える画面がそのアプリのアイコンへ縮んで戻る
+//   そのほか: 押した場所から広がる（押した場所が無ければ横にすべって入る）
+// 大きさと位置は変えない（clip-path だけ）ので、動いている最中も押せる・寸法を測れる。
+// ------------------------------------------------------------
+
+/** 直近に押したもの（押した場所からアプリを開くため） */
+let lastPress = null;
+/** 今残っている写し */
+let activeGhost = null;
+
+function rememberPress(e) {
+  const t = e.target instanceof Element ? e.target.closest('button, [role="button"], a[href]') : null;
+  lastPress = t ? { el: t, at: performance.now() } : null;
+}
+
+function sceneColor() {
+  if (!app.state || !app.db) return '#c4a35a';
+  const def = (app.db.lands || []).find((l) => l.id === app.state.playerLand);
+  return (def && def.color) || '#c4a35a';
+}
+
+function dropGhost() {
+  if (activeGhost) {
+    activeGhost.getAnimations?.().forEach((a) => a.cancel());
+    activeGhost.remove();
+    activeGhost = null;
+  }
+}
+
+/** 消える画面を、画面領域と同じ位置の写しに移す */
+function makeGhost(shell, el, below) {
+  const scr = shell.screen;
+  const g = h('div', { class: ['phone__ghost', below ? 'phone__ghost--plain' : null], 'aria-hidden': 'true', inert: true });
+  g.style.left = `${scr.offsetLeft}px`;
+  g.style.top = `${scr.offsetTop}px`;
+  g.style.width = `${scr.offsetWidth}px`;
+  g.style.height = `${scr.offsetHeight}px`;
+  if (below) g.style.zIndex = '1';
+  const top = scr.scrollTop;
+  g.appendChild(el);
+  shell.phone.insertBefore(g, below ? scr : shell.execbar);
+  g.scrollTop = top;
+  activeGhost = g;
+  return g;
+}
+
+function planTransition(shell, prev, next) {
+  dropGhost();
+  if (!prev || !prev.el || !prev.el.isConnected || reducedMotion()) return { next, ghost: null };
+  let fromRect = null;
+  if (prev.name === 'home') {
+    const icon = prev.el.querySelector(`.app-icon[data-app="${next}"] .app-icon__tile`);
+    if (icon) fromRect = icon.getBoundingClientRect();
+  }
+  if (!fromRect && lastPress && performance.now() - lastPress.at < 900 && prev.el.contains(lastPress.el)) {
+    fromRect = lastPress.el.getBoundingClientRect();
+  }
+  const toHome = next === 'home' && prev.name !== 'land' && prev.name !== 'result';
+  const mode = toHome ? 'close' : fromRect ? 'open' : 'slide';
+  const ghost = makeGhost(shell, prev.el, mode === 'open');
+  return { next, from: prev.name, mode, fromRect, ghost };
+}
+
+function runTransition(shell, plan, el) {
+  lastPress = null;
+  if (!plan.ghost) return;
+  const ghost = plan.ghost;
+  const done = () => { if (activeGhost === ghost) activeGhost = null; ghost.remove(); };
+  playSe(plan.mode === 'close' ? 'close' : 'open');
+  if (plan.mode === 'open') {
+    // 奥の画面は少し沈んで消え、新しい画面が押した場所から広がる
+    const ms = fx.token('--t-flip', 380);
+    ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.96)', filter: 'blur(2px)' }],
+      { duration: ms, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'forwards' }).finished.then(done, done);
+    fx.flipOpen(shell.screen, plan.fromRect, { radius: 16 });
+    return;
+  }
+  if (plan.mode === 'close') {
+    // 消える画面はアイコンへ縮む。ホームは少し奥から手前へ
+    const icon = el && el.querySelector(`.app-icon[data-app="${plan.from}"] .app-icon__tile`);
+    const toRect = icon ? icon.getBoundingClientRect() : null;
+    if (toRect) {
+      fx.flipClose(ghost, toRect, { radius: 16 }).then(done, done);
+      if (icon) icon.animate([{ transform: 'scale(1.18)', filter: 'brightness(1.6)' }, { transform: 'none', filter: 'none' }],
+        { duration: 420, delay: fx.token('--t-flip', 380) * 0.6, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+    } else {
+      ghost.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }).finished.then(done, done);
+    }
+    if (el && el.animate) el.animate([{ transform: 'scale(1.04)', opacity: 0.6 }, { transform: 'none', opacity: 1 }], { duration: fx.token('--t-flip', 380), easing: 'cubic-bezier(.16, 1, .3, 1)' });
+    return;
+  }
+  // すべって入れ替わる
+  ghost.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateX(-24px)' }],
+    { duration: fx.token('--t-ui', 240), easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'forwards' }).finished.then(done, done);
+  if (el) fx.slideIn(el, 1, { distance: 32 });
 }
 
 // ------------------------------------------------------------
@@ -227,7 +344,9 @@ export function render() {
  * @param {{title?:string, onClose?:Function, closable?:boolean}} [opts]
  */
 export function openPopup(content, opts = {}) {
-  closePopup();
+  // 前のポップアップは退場の動きを待たずにすぐ外す（閉じかけの写しが新しいものの奥に透けないように）
+  closePopup({ instant: true });
+  for (const g of document.querySelectorAll('body > .popup-ghost')) g.remove();
   const closable = opts.closable !== false;
   const titleId = 'popup-title-' + Date.now();
   const card = h('div', { class: 'popup__card', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': opts.title ? titleId : null },
@@ -240,16 +359,34 @@ export function openPopup(content, opts = {}) {
   backdrop._closable = closable;
   document.body.appendChild(backdrop);
   app.ui.popup = backdrop;
-  const focusable = card.querySelector('button:not(.popup__x), [href], input, select, [tabindex]') || card.querySelector('button');
-  if (focusable) focusable.focus();
+  // 初めの手元は主役のボタン（OK など）。危ない操作（ギブアップ）は誤って Enter で決めないよう、
+  // どのボタンにも置かずダイアログそのものへ。どちらでもなければ最初の入力・ボタン
+  let focusable = null;
+  if (opts.focus === 'dialog' || card.querySelector('.btn-danger')) {
+    card.tabIndex = -1;
+    focusable = card;
+  } else {
+    focusable = card.querySelector('.btn-primary:not(:disabled)')
+      || card.querySelector('input, select, textarea')
+      || card.querySelector('button:not(.popup__x), [href], [tabindex]')
+      || card.querySelector('button');
+  }
+  if (focusable) focusable.focus({ preventScroll: true });
   return backdrop;
 }
 
-export function closePopup() {
+/** @param {{instant?:boolean}} [opts] instant なら退場の動きを付けずにすぐ外す */
+export function closePopup(opts = {}) {
   const p = app.ui.popup;
   if (!p) return;
   app.ui.popup = null;
-  p.remove();
+  // 閉じる動き: 写し（.popup-ghost。押せない）に変えて、沈みながら消す
+  if (opts.instant || reducedMotion()) p.remove();
+  else {
+    p.classList.replace('popup', 'popup-ghost');
+    p.setAttribute('aria-hidden', 'true');
+    setTimeout(() => p.remove(), 190);
+  }
   if (p._onClose) {
     try { p._onClose(); } catch (e) { console.error(e); }
   }
@@ -267,7 +404,7 @@ export function confirmPopup(text, onOk, opts = {}) {
   const body = h('div', { class: 'confirm' },
     h('p', null, text),
     h('div', { class: 'btn-row' },
-      h('button', { class: 'btn-secondary', type: 'button', onClick: () => closePopup() }, t('common.cancel')),
+      h('button', { class: 'btn-secondary btn-secondary--quiet', type: 'button', onClick: () => closePopup() }, t('common.cancel')),
       h('button', { class: opts.danger ? 'btn-danger' : 'btn-primary', type: 'button', onClick: () => { closePopup(); onOk(); } }, opts.okText || t('common.ok'))));
   return openPopup(body, { title: opts.title || t('common.confirm') });
 }
@@ -402,11 +539,25 @@ function dispatchEvent(ev) {
   if (ev.t === 'battle') playSe('hit');
   else if (ev.t === 'fort_fallen') playSe('fort');
   const view = current && current.view;
-  if (view && typeof view.onEvent === 'function') {
-    try { view.onEvent(app, ev); } catch (e) { console.error(e); }
-    return;
+  // 陥落: 全画面のカットインはプレイヤーのランドが関わるときだけ（敵どうしは細い帯。fx.cutin）
+  const scoped = ev.t === 'fort_fallen' || ev.t === 'home_fallen';
+  if (scoped) fx.pushCutinScope(involvesPlayer(ev));
+  try {
+    if (view && typeof view.onEvent === 'function') {
+      try { view.onEvent(app, ev); } catch (e) { console.error(e); }
+      return;
+    }
+    fallbackEvent(ev);
+  } finally {
+    if (scoped) fx.settleCutinScope();
   }
-  fallbackEvent(ev);
+}
+
+/** 陥落がプレイヤーのランドに関わるか（自分が落とした / 自分の砦・本拠地が落とされた） */
+function involvesPlayer(ev) {
+  const me = app.state && app.state.playerLand;
+  if (!me) return true;
+  return ev.by === me || ev.from === me || ev.land === me;
 }
 
 const BAND_EVENTS = new Set(['fort_fallen', 'home_fallen', 'clear']);
@@ -430,6 +581,7 @@ function finishExecute() {
   const view = current && current.view;
   exec = null;
   app.ui.executing = false;
+  fx.clearCutinScopes();
   if (view && typeof view.onExecuteEnd === 'function') {
     try { view.onExecuteEnd(app); } catch (e) { console.error(e); }
   }

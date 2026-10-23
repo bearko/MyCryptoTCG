@@ -158,7 +158,8 @@ async function handlePending(page, tag) {
     }
     results.pendingSeen.add(pa);
     if (pa === 'drive') {
-      await waitFor(page, '.soul-card');
+      // 裏向きの 3 枚が順にめくれ終わってから選ぶ（SPEC-112 §5。裏向きのうちに押すと全部めくれるだけ）
+      await waitFor(page, '.soul.is-ready .soul-card');
       await shot(page, `${tag}-drive-soul`);
       await screenOk(page, 'Drive SOUL');
       await page.click('.soul-card');

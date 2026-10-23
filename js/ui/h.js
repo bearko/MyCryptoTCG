@@ -5,6 +5,7 @@
 // ゲームのルールはここに書かない（UI の部品だけ）。
 
 import { img } from '../constants.js';
+import { reducedMotion, toast, band } from './fx.js';
 
 /**
  * 要素を作る。
@@ -69,17 +70,11 @@ export function on(el, type, fn, opts) {
   return () => el.removeEventListener(type, fn, opts);
 }
 
-/** 動きを減らす設定か */
-export function reducedMotion() {
-  try {
-    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-  } catch {
-    return false;
-  }
-}
+/** 動きを減らす設定か（OS の prefers-reduced-motion か、設定の「動きを減らす」。実体は fx.js） */
+export { reducedMotion };
 
 // ------------------------------------------------------------
-// 画像（MCH リポジトリの相対パス → URL。alt 必須・失敗時は代替）
+// 画像（MCH リポジトリの相対パス → URL。alt 必須・失敗時は代替。読めたらふわっと出す）
 // ------------------------------------------------------------
 
 /**
@@ -106,6 +101,8 @@ export function imgEl(relPath, alt, attrs = {}) {
     const fb = h('span', { class: ['img-fallback', attrs.class], role: 'img', 'aria-label': alt || '' }, (alt || '?').slice(0, 1));
     if (el.parentNode) el.parentNode.replaceChild(fb, el);
   }, { once: true });
+  // 読めたらふわっと出す（読み込み前は何も描かれないので、隠す必要はない）
+  el.addEventListener('load', () => el.classList.add('fx-img-in'), { once: true });
   return el;
 }
 
@@ -116,50 +113,7 @@ export function heroImg(hero, attrs = {}) {
 }
 
 // ------------------------------------------------------------
-// トースト（右上に小さく。連続する同じ key は 1 つにまとめる）
+// トースト・帯（実体は fx.js。以前からの呼び方 toast(text, {key}) / band(text, ms) のまま使える）
 // ------------------------------------------------------------
 
-let toastStack = null;
-
-function stack() {
-  if (toastStack && document.body.contains(toastStack)) return toastStack;
-  toastStack = h('div', { class: 'toast-stack', role: 'status', 'aria-live': 'polite' });
-  document.body.appendChild(toastStack);
-  return toastStack;
-}
-
-/**
- * トーストを出す。
- * @param {string} text
- * @param {{key?:string, ms?:number, kind?:string}} [opts] key が直前のトーストと同じなら、そのトーストの文を差し替える
- */
-export function toast(text, opts = {}) {
-  if (typeof document === 'undefined') return null;
-  const s = stack();
-  const ms = opts.ms ?? 2200;
-  const last = s.lastElementChild;
-  if (opts.key && last && last.dataset.key === opts.key) {
-    last.textContent = text;
-    clearTimeout(last._timer);
-    last._timer = setTimeout(() => last.remove(), ms);
-    return last;
-  }
-  const el = h('div', { class: ['toast', opts.kind ? `toast--${opts.kind}` : null], dataset: { key: opts.key || '' } }, text);
-  s.appendChild(el);
-  while (s.children.length > 4) s.firstElementChild.remove();
-  el._timer = setTimeout(() => el.remove(), ms);
-  return el;
-}
-
-/**
- * 画面中央の帯（砦の陥落など）。ms 後に消える。
- * @param {string} text
- * @param {number} [ms]
- */
-export function band(text, ms = 1200) {
-  if (typeof document === 'undefined') return null;
-  const el = h('div', { class: 'band', role: 'status', 'aria-live': 'assertive' }, h('span', { class: 'band__text' }, text));
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), ms);
-  return el;
-}
+export { toast, band };

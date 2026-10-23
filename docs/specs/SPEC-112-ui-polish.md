@@ -139,3 +139,94 @@ SPEC-111 で「遊び切れる」スマホ UI はできた。ここでは **完�
 - `tools/smoke.mjs`（Console エラー 0）
 - 画面ごとのスクリーンショットを並べ、上の原則 A〜E ごとに「どこで満たしているか」を一覧にする（レビュー班）
 - `prefers-reduced-motion` をエミュレートして、動きが止まり操作は変わらないこと
+
+## 付録: fx の API（基盤班。後の班はこれを使う）
+
+基盤は `css/theme.css`（トークンと共通部品）・`js/ui/fx.js`（手触りの部品）・`js/ui/ambient.js`（常時の背景）・
+`js/main.js`（画面の切り替え）。**ルールは書かない**。どの関数も DOM が無い環境（`node --test`）では何もしない。
+どの関数も「動きを減らす」（OS の `prefers-reduced-motion` か、設定の「動きを減らす」）のときは、動かさずに結果だけを出す。
+
+```js
+import * as fx from './fx.js';          // まとめて: import { fx } from './fx.js' でも同じ
+import { toast, band, reducedMotion } from './h.js';   // h.js からも今までどおり取れる（実体は fx.js）
+```
+
+### A. トークン（`css/theme.css` の `:root`）
+
+| 種類 | 名前 |
+|---|---|
+| 背景 3 段 | `--bg-0`（一番奥）`--bg-1`（= 旧 `--bg`）`--bg-2` |
+| パネル 3 段 | `--panel-1`（= 旧 `--panel`）`--panel-2` `--panel-3`、線 `--border` `--border-hi` |
+| 文字 | `--text` `--text-hi` `--muted` `--muted-2` |
+| アクセント金 | `--accent` `--accent-hi` `--accent-lo` `--accent-ink`（金の上の文字） |
+| ランド色 | `--garuda` `--ifrit` `--leviathan` `--tiamat`、各ランドは style で `--land` |
+| 状態色 | `--ok` `--warn` `--bad` `--info` `--danger` |
+| 角丸 | `--r-xs 4` `--r-s 8`（= `--radius-s`）`--r-m 12`（= `--radius`）`--r-l 18` `--r-xl 28` |
+| 影 | `--sh-1`（置いてある）`--sh-2`（浮いている）`--sh-3`（ポップアップ）、`--sh-edge`（上辺の光 + 下辺の暗線。`box-shadow: var(--sh-edge), var(--sh-1)` のように重ねる）、`--glow-accent` |
+| 質感 | `--noise`（薄いノイズの背景画像。`background: var(--noise) 0 0 / 120px 120px, ...`） |
+| 時間 | `--t-tap 120ms`（押した反応）`--t-ui 240ms`（部品の出入り）`--t-flip 380ms`（アプリの開閉）`--t-page 600ms`（めくり・カメラ） |
+| イージング | `--ease-out`（減速。ほとんどこれ）`--ease-in`（消える）`--ease-inout` `--ease-spring`（行き過ぎて戻る）、旧 `--ease` |
+
+時間のトークンは「動きを減らす」のとき 1ms になる。CSS の動きは `var(--t-*)` で書けば自動で止まる。
+JS で時間が要るときは `fx.token('--t-page', 600)`（ms の数が返る）。
+
+### B. 共通のクラス
+
+| クラス | 見た目 |
+|---|---|
+| `.panel` | 面の基本。上辺のエッジ光・下辺の暗線・薄いノイズ・影 |
+| `.panel--raised` | 一段浮かせる（影が深い） |
+| `.panel--glass` | すりガラス（後ろがぼけて透ける。地図の上に重ねる UI など） |
+| `.panel--press`（または `button.panel`） | 押せる面。押すと 2px 沈む |
+| `.btn-primary` | 金のボタン。数秒に 1 回、光が横切る。押すと縮む |
+| `.btn-secondary` `.btn-ghost` `.btn-danger` | 従来どおり（押すと縮む） |
+| `.sr-only` | 読み上げにだけ渡す文字 |
+| `.toast--good/bad/warn/info` `.band--good/bad/info` | 色違い（fx.toast / fx.band の kind） |
+
+押せるもの（`button`・`[role="button"]`・`a[href]`・`.panel--press`・`[data-ripple]`）は、**何もしなくても押した場所から波紋が出る**
+（`fx.install()` を main.js が起動時に 1 度呼ぶ）。金の波紋にしたいときは `data-ripple="accent"`、出したくない所は `data-ripple="off"`。
+音が ON のときは押すとタップの SE（`.btn-primary` は確定の SE）も鳴る。
+
+### C. 関数
+
+| 関数 | 使い方 |
+|---|---|
+| `fx.ripple(el, clientX?, clientY?, {accent?})` | 波紋を手で出す（キーボードで決めたときなど）。要素の中には何も足さない（fixed の箱を重ねる） |
+| `fx.rollNumber(el, to, {key?, from?, ms?, format?, flash?})` | 数を転がして表示。増えたら緑・減ったら赤で一瞬光る。**描き直しで要素が作り直されるので `key`（例 `'res.gum'`）を渡す**と前回の値から転がる。初回（前の値が無い）はそのまま出す。`format: (n) => Math.round(n).toLocaleString()` |
+| `fx.toast(text, {kind?, icon?, key?, ms?})` | 右上のトースト（端末の中）。`icon` は MCH の相対パス（`'Image/Icons/gum.png'`）。同じ `key` が続くと文を差し替えて弾む。残り時間の細い線つき |
+| `fx.band(text, {kind?, sub?, ms?})` | 画面中央の帯。2 行目に `sub`。`band(text, 1200)` の古い書き方も可 |
+| `fx.cutin({image, title, sub?, side?, ms?, pixel?, se?})` → `Promise` | カットイン。`side: 'ally'`（青。左から）/ `'opponent'`（赤。右から）/ `'gold'`。`image` はヒーローの相対パス。絵の下側が文字の **手前** に重なる。タップで早送り。陥落の SE が鳴る（`se: null` で鳴らさない） |
+| `fx.typeText(el, text, {cps?, delay?, skipOn?, caret?, onDone?})` → `{skip, cancel, done}` | 1 文字ずつ（既定 40 文字/秒。句読点で少しためる）。`el` か `skipOn` をタップで全文。読み上げには最初から全文を渡す。吹き出しを `display:inline-block`（か `width: fit-content`）にしておくと文字数に合わせて伸びる。描き直しで `el` が外れたら止まる |
+| `fx.flipOpen(el, fromRect, {ms?, radius?})` → `Promise` | `el` を `fromRect`（`getBoundingClientRect()` の値）から広がるように見せる。`el` の寸法は変えない（clip-path だけ）ので最中も押せる。手前を光の枠が広がる |
+| `fx.flipClose(ghostEl, toRect, {ms?, radius?, remove?})` → `Promise` | 消える要素（押せない写し）を `toRect` へ縮めて消す。終わったら外す（`remove:false` で残す） |
+| `fx.slideIn(el, dir?, {ms?, distance?})` | 横にすべって入る（`dir` 1: 右から / -1: 左から）。**アプリ内のタブの切り替えはこれ**（タブの順で dir を決める） |
+| `fx.stagger(nodes, {step?, delay?, ms?, from?, distance?})` → `Promise` | 要素を順に出す。`from`: `'up'`（既定）`'down'` `'left'` `'right'` `'scale'` `'flip'`（裏返しからめくれる）。`step` は 1 つずつのずれ（既定 45ms） |
+| `fx.spriteOnce(name, at, {size?, fps?, grid?, frames?, blend?})` → `Promise` | MCH の `Image/Effects/Battle/*.png`（100px 四方のコマが並んだ絵）を 1 回再生。`name` は `'01_single_damage'` `'02_area_damage'` `'03_heal_resurrection'` `'04_buff'` `'05_debuff_status_effect'` `'06_effect_06'`〜`'12_effect_12'`（コマ数は `fx.SPRITES` に入っている）。`at` は要素（その中心）か `{x, y}`（clientX/Y）。`size` 既定 160px、`fps` 既定 50 |
+| `fx.reducedMotion()` | 動きを減らすか（OS か設定） |
+| `fx.setReduceMotion(on)` / `fx.getReduceMotionSetting()` / `fx.onMotionChange(fn)` | 設定の「動きを減らす」（`mcw.settings` の `reduceMotion`）。変わると `<html data-motion="reduce">` が付く。設定画面に切り替えがある |
+| `fx.token(name, def)` | CSS の時間トークンを ms で |
+| `fx.wait(ms)` | `await fx.wait(300)` |
+
+### D. 常時の背景（`js/ui/ambient.js`）
+
+端末の一番奥に canvas を 1 枚。ランドの色の光だまり・斜めの光の帯・浮かぶ粒子・薄いヘックスの格子・走査線。
+30fps 上限、タブが隠れた・画面外・地図（全面を自前で塗るアプリ）では止まる。動きを減らすときは 1 枚だけ描いて止まる。
+
+- main.js が描くたびに `ambient.setScene({ app, color })` を呼ぶ（色は自ランドの色）
+- **背景を見せたい画面は、画面の一番外側の要素に不透明な背景を塗らない**（ホームは透明。`.chat--talk` のように `var(--bg)` を塗ると隠れる）
+- `ambient.pulse(color?)` で一瞬明るくできる（ランドを選んだ・ターンが明けた など）
+
+### E. 画面の切り替え（main.js の `render()`）
+
+アプリが変わったときだけ動く。各班は何もしなくてよい。
+
+- ホーム → アプリ: そのアプリのアイコンの位置から広がって開く（奥のホームは沈んで消える）
+- アプリ → ホーム: 消える画面がそのアプリのアイコンへ縮んで戻り、アイコンが弾む
+- そのほか: 直前に押したもの（ボタン・カード）の位置から広がる。押したものが無ければ横にすべって入る
+- 消える画面は `.phone__ghost`（押せない写し）として切り替えの間だけ残る。新しい画面は寸法・位置を変えない
+- 開く / 閉じるの SE（音が ON のとき）。ポップアップも、ばねで出て沈んで消える（閉じた瞬間に `.popup` ではなくなる）
+
+### F. 効果音（`js/ui/audio.js` の `playSe(name)`。既定 OFF）
+
+`tap`（押した）・`open`（アプリを開く）・`close`（閉じる）・`confirm`（主要ボタン）・`attack`（攻撃）・`fall`（陥落）。
+以前からの `hit` `build` `fort` `win` `lose` もそのまま。同じ SE は 250ms 以内に重ねない。
