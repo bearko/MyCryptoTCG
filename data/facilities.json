@@ -1,0 +1,8 @@
+[
+  { "id": "town",    "name": "街",     "terrains": ["plain", "grass", "desert", "beach"], "needsWater": true,  "cost": { "gum": 60, "mat": 30 }, "days": 3, "effect": { "popCap": 40, "gum": 4 }, "adjacentBonus": 1 },
+  { "id": "farm",    "name": "農地",   "terrains": ["plain", "grass", "beach", "desert"], "needsWater": false, "cost": { "gum": 20, "mat": 10 }, "days": 2, "effect": { "food": 4 }, "terrainAdj": { "grass": 1, "desert": -2 } },
+  { "id": "mine",    "name": "採掘場", "terrains": ["plain", "grass", "desert", "ice"],   "needsWater": false, "cost": { "gum": 30, "mat": 20 }, "days": 2, "effect": { "mat": 3 }, "mountainAdj": 1 },
+  { "id": "lodge",   "name": "宿舎",   "terrains": ["plain", "grass", "beach"],           "needsWater": false, "cost": { "gum": 30, "mat": 20 }, "days": 2, "effect": { "popCap": 30 } },
+  { "id": "granary", "name": "食料庫", "terrains": ["plain", "grass", "beach", "desert"], "needsWater": false, "cost": { "gum": 20, "mat": 20 }, "days": 2, "effect": { "foodCap": 100 } },
+  { "id": "storage", "name": "倉庫",   "terrains": ["plain", "grass", "desert", "ice"],   "needsWater": false, "cost": { "gum": 20, "mat": 20 }, "days": 2, "effect": { "matCap": 80 } }
+]

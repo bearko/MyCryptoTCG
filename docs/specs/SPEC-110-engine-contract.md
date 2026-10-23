@@ -96,8 +96,8 @@ docs/
   "image": "Image/Heroes/1001.png", "rarity": 1, "faction": 3,
   "attributes": ["文系学問","イギリス","謎"],
   "stats": { "hp": 192, "phy": 25, "int": 69, "agi": 138 },
-  "params": { "act": 13, "lead": 57, "str": 7, "int": 38, "gov": 35, "pol": 28 },
-  "cls": { "main": "back", "sub": "sniper" },
+  "params": { "act": 13, "lead": 56, "str": 7, "int": 38, "gov": 35, "pol": 28 },
+  "cls": { "main": "mid", "sub": "gunner" },
   "skill": { "name": "シャーロック・ホームズ", "kind": "buff", "text": "..." },
   "tone": "scholar" }
 ```
@@ -117,7 +117,7 @@ docs/
 ### 1.6 `extensions.json`（手書き・12 種）
 
 ```json
-{ "id": "ext_boots", "name": "大西部のブーツ", "image": "Image/Extensions/3025.png",
+{ "id": "ext_boots", "name": "大西部のブーツ", "image": "Image/Extensions/4031.png",
   "effect": { "act": 1 }, "text": "行動力 +1" }
 ```
 `effect` のキー：`act` `lead` `str` `int` `gov` `pol`（パラメーターへの加算）、`troopCap`（兵の上限 +n）、`vision`（視界 +n）。
@@ -170,7 +170,7 @@ Land = { id, cpu: boolean, alive: boolean,
 
 Soul = { role: "front"|"mid"|"back", rarity: 3|4|5, from: fortId }
 
-Squad = { id: "u1", heroId: 1001, land: landId, tile: tileIdx,
+Squad = { id: "s1", heroId: 1001, land: landId, tile: tileIdx,
          troops: 50, ap: 7,                     // ap は今ターンの残り
          orders: Order[], policy: "ignore"|"fight"|"ask",
          status: "ok"|"routed",                // routed: 敗走中（翌ターン AP 0）
@@ -183,6 +183,7 @@ Order = { type: "move", path: tileIdx[] }           // path[0] は今いるタ�
       | { type: "attack", target: tileIdx }
       | { type: "domestic", kind: "conscript"|"farm"|"trade"|"craft" }
       | { type: "rest" }
+// queue は積んだ指示に、実際に引いた AP を `ap` として書き添える（{ ...order, ap }）
 
 Fort = { id: "f1", rank: "rare"|"epic"|"legendary", tile: tileIdx, owner: landId|"enemy",
          troops: 60, durability: 40, maxDurability: 40, enemyId: 310, name: "Rare砦 ○○",
@@ -191,13 +192,15 @@ Fort = { id: "f1", rank: "rare"|"epic"|"legendary", tile: tileIdx, owner: landId
 Build = { tileIdx, kind: facilityId, land: landId, daysLeft: 2, toRank: 1|2|3 }
 
 Event = { t: "move", squad: squadId, from: tileIdx, to: tileIdx }
-      | { t: "blocked", squad, at: tileIdx, reason: "ap"|"enemy"|"terrain" }
+      | { t: "blocked", squad, at: tileIdx, reason: "ap"|"enemy"|"terrain"|"build"|"home"|"claim"|"target"|"range" }
       | { t: "claim", squad, tile: tileIdx, land }
       | { t: "build_start", squad, tile, kind, days }
       | { t: "build_done", tile, kind, rank, land }
-      | { t: "battle", attacker: squadId, defender: squadId|fortId, at: tileIdx,
+      | { t: "battle", attacker: squadId, defender: squadId|fortId|landId, target: "squad"|"fort"|"home", at: tileIdx,
           ambush: boolean, evaded: boolean, dmg: number, skill: null|{ name, kind, value },
-          counter: null|{ evaded, dmg }, result: "hit"|"routed"|"fort_damaged"|"fort_fallen" }
+          counter: null|{ evaded, dmg, skill? },
+          result: "hit"|"routed"|"fort_damaged"|"fort_fallen"|"home_damaged"|"home_fallen",
+          followups: Event[] }
       | { t: "routed", squad, home: tileIdx }
       | { t: "fort_fallen", fort: fortId, by: landId, from: landId|"enemy" }
       | { t: "home_fallen", land: landId, by: landId, heroes: squadId[] }
@@ -278,7 +281,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - `yields(state, db, landId) → { pop, food, gum, mat }`（占領タイル + 施設 + 街の隣接補正 + 自然増）
 - `upkeep(state, db, landId) → { food }`（人口÷10 + 兵÷5）
 - `applyDaily(state, db, landId) → Event[]`（**mutates**。産出 → 消費 → 上限 → 飢え。`yield` と `starve` のイベント）
-- `canBuild(state, db, landId, tileIdx, kind) → { ok: boolean, reason: string|null, cost: { gum, mat }, days: number, toRank: 1|2|3 }`
+- `canBuild(state, db, landId, tileIdx, kind, squad = null) → { ok: boolean, reason: string|null, cost: { gum, mat }, days: number, toRank: 1|2|3 }`
 - `startBuild(state, db, squad, kind, rush) → Event`（**mutates**。費用を引き、`state.builds` に積む）
 - `tickBuilds(state, db) → Event[]`（**mutates**。daysLeft を減らし、0 で施設に）
 - `domestic(state, db, squad, kind) → Event`（**mutates**。§spec 6.5）
@@ -395,3 +398,57 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 | `idle` | AP が余ったままターンを終えた | ap |
 
 口調は 5 つ全部に文言を書く（抜けていたら `plain` を使う）。
+
+---
+
+## 7. 実装で決めたこと（各班の報告から。ここに書いたものは契約に含める）
+
+### 7.1 state・データ
+- Squad の id は `"s" + state.nextId++`（s1, s2, ...）。砦の id は worldgen が付ける `f1`〜`f10`。接頭辞が違うので `nextId` は 1 から始める
+- `lands.enemy` は `{ id: "enemy", cpu: true, alive: true, home: null, res: すべて 0, ... }`。産出・霧・集計の対象にしない
+- `Land.homeDurability`（任意。無ければ 100）。本拠地の耐久。落ちると 0
+- 開始時の部隊の policy は、プレイヤーが `"ask"`、CPU が `"fight"`（CPU は ai.plan が毎ターン fight にする）
+- `data/terrain.json` `facilities.json` の通貨のキーは `"gum"`
+- `db` は `js/data.js` の `buildDb`：terrain・facilities・heroes・extensions は配列から id の辞書にする。`loadDb(base)`（fetch）と `loadDbFromFs(dir)`（node:fs を動的 import）
+
+### 7.2 orders / economy
+- `canBuild` の第 6 引数 `squad`（任意）。渡すと日数は `max(1, days − floor(統治力 / 10))`。reason：tile / kind / owner / fort / terrain / water / other / rank / building / gum / mat
+- `queue` は指示を `{ ...order, ap }` で積む（`ap` は実際に引いた AP。clearOrders がこれで戻す）
+- `startBuild` は、実行時に建てられなくなっていれば state を変えず `{ t: "blocked", reason: "build" }` を返す
+
+### 7.3 battle
+- CPU のランドが砦を落としたときは `state.pending` を作らず、その場で受け取る（SOUL は候補の先頭、エクステンションはおまかせ）。`soul` / `extension_offer` のイベントは followups に入る
+- 本拠地を攻めたとき、守備部隊がいなければ `defender` は landId（`target: "home"` で見分ける）
+- Legendary が落ちると followups に `clear` が入る。`state.ended` を付けるのは turn.js（season.checkEnd）
+- 追加の export：`ENEMY_LAND` `FORT_LEAD` `HOME_MAX_DURABILITY` `HOME_LEAD` `homePower`
+
+### 7.4 turn（実行フェーズ）
+- `beginTurn`：全部隊の `orders = []`、`ap = apMax`。routed の部隊はこの日 AP 0 で、`status = "ok"`・兵 lead × 3 に戻る。`ambushed` はこの日の AP を半分にして消す
+- `execute` の始めに全部隊の `ap` を **その日の AP**（残りの `ap` ＋ 積んだ指示の `ap` の合計。`apMax` で頭打ち）に戻し、実行中は実際のコストを引く（AP が足りなければ blocked(ap) で残りの指示を捨てる）。
+  `apMax` を呼び直してはいけない：beginTurn が `ambushed` と `routed` をもう消しているので、奇襲された部隊（AP 半分）と敗走明けの部隊（AP 0）が満タンで動いてしまう（検証班が修正。`tests/verify.test.mjs`）
+- ラウンドごとに部隊の順番を rng で混ぜ、各部隊の `orders[0]` を 1 歩進める。move は 1 タイル、ほかの指示は 1 回で終わる。上限は `MAX_ROUNDS = 120`。最後に残った指示は捨てる
+- move の path は書き換えず、`orders[0]` を残りの path で作り直す（呼ぶ側の配列を共有していることがあるため）
+- 接敵：次のタイルに敵（部隊・砦・本拠地）がいるとき、または途中の歩み（最後の 1 歩を除く）で敵ランドの部隊と隣り合ったとき。
+  ignore は進む（塞がれていれば blocked(enemy)）。fight は `battle.resolve`（同じ相手とは 1 日 1 回。射程外なら blocked(enemy)）。ask は残りの指示を捨てて `ask` イベント
+- 実行時の再検査で失敗した指示は、その指示だけを捨てる（claim / target / range / home / build）か、残りを全部捨てる（ap / enemy / terrain）
+- `targetAt(state, landId, tile)`（追加の export）：攻撃の対象を 本拠地 → 砦 → 部隊（兵の多い順）で探す。本拠地に立つ部隊を狙っても、本拠地への攻撃として解決する
+- **その日に落ちた砦は、その日のうちはもう攻められない**（blocked(target)）。陥落直後の砦は守備兵 30 なので、同じ日に持ち主が何度も入れ替わっていた
+- 体力減の地形に入ると兵が減る：季節が合えば −3%、always は −1%（兵が 1 以上なら 1 は残す）
+- battle の `followups` は、battle イベントのあとに 1 つずつ yield し、`state.log` にも積む（battle イベントの中にも残る）
+- Legendary の攻略・プレイヤーの本拠地の陥落で、ラウンドの途中でも止めて `season_end` を出す（finishDay はしない）
+- `finishDay`：applyDaily（各ランド）→ tickBuilds → 回復（support / healer の隣の同じランドの部隊は 兵の上限 × healAdj、本拠地にいる部隊は +lead。上限まで）→ revealFog → 日曜なら tallyWeek → `day += 1` → checkEnd。終わったら `state.ended`・`phase = "ended"`・`day` は 28 に留める
+- `noticesFrom` は battle の followups を見ない（execute が別に流すので二重になる）。占領はまとめて「n タイルを占領しました」。Notice の id は `state.notices` の最大 + 1 から
+
+### 7.5 season
+- `checkEnd` は `state.ended` があればそれを返す（ギブアップは UI が `state.ended = { reason: "giveup", winner: null }` を付ける）。
+  次に Legendary の持ち主 → プレイヤーの alive → `day > 28`（= 28 日目の集計後）の順。home_fallen の winner は null。season の同点（砦ポイントも占領数も同じ）も null
+- `score` の breakdown は各項目の点（足すと total）。元の数は `counts` に入れる
+- `battery(day)` は その日を含む残り日数 ÷ 28（1 日目 100、28 日目 4、29 日目 0）
+- 追加の export：`tileCount` `seasonWinner`
+
+### 7.6 ai
+- 兵と攻撃力の上位（3 体以上なら半分、それ未満は 1 体）を攻め手にし、いちばん近い（経路のコスト）未所有の砦へ向かい、射程内なら攻める。
+  Epic・Legendary は距離を割り引いて選び（`FORT_BONUS`）、兵が下限（`FORT_MIN_TROOPS`：Epic 200 / Legendary 450）に満たなければ狙わない。他ランドの砦は 12 遠く見る
+- 守り手のいない自ランドの砦があれば、攻め手でない部隊が向かって立つ
+- CPU は本拠地に立っている部隊を攻めない（本拠地の攻略になり、ランドを脱落させてしまうため）。MVP では CPU が本拠地を狙うことは無い
+

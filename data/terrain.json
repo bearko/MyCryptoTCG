@@ -1,0 +1,16 @@
+[
+  { "id": "plain",    "name": "土",   "moveCost": 1, "passable": true,  "yield": { "food": 1, "gum": 1, "mat": 0 }, "buildable": true,  "hpLoss": null,     "color": "#b8a06a", "land": true },
+  { "id": "grass",    "name": "草原", "moveCost": 1, "passable": true,  "yield": { "food": 2, "gum": 1, "mat": 0 }, "buildable": true,  "hpLoss": null,     "color": "#7cb342", "land": true, "nonFrontCost": 1.5 },
+  { "id": "desert",   "name": "砂漠", "moveCost": 2, "passable": true,  "yield": { "food": 0, "gum": 1, "mat": 1 }, "buildable": true,  "hpLoss": "summer", "color": "#e6c87a", "land": true },
+  { "id": "beach",    "name": "砂浜", "moveCost": 2, "passable": true,  "yield": { "food": 1, "gum": 1, "mat": 0 }, "buildable": true,  "hpLoss": null,     "color": "#f0e3b0", "land": true },
+  { "id": "swamp",    "name": "沼地", "moveCost": 2, "passable": true,  "yield": { "food": 1, "gum": 0, "mat": 1 }, "buildable": false, "hpLoss": "always", "color": "#5e7a4a", "land": true },
+  { "id": "ice",      "name": "氷原", "moveCost": 1, "passable": true,  "yield": { "food": 0, "gum": 0, "mat": 1 }, "buildable": false, "hpLoss": "winter", "color": "#e8f1f7", "land": true },
+  { "id": "mountain", "name": "山岳", "moveCost": 99, "passable": false, "scoutCost": 3, "yield": { "food": 0, "gum": 0, "mat": 3 }, "buildable": false, "hpLoss": null, "color": "#8d8d8d", "land": true },
+  { "id": "volcano",  "name": "火山", "moveCost": 99, "passable": false, "scoutCost": 3, "yield": { "food": 0, "gum": 0, "mat": 3 }, "buildable": false, "hpLoss": null, "color": "#6b3e3e", "land": true },
+  { "id": "cliff",    "name": "崖",   "moveCost": 99, "passable": false, "yield": { "food": 0, "gum": 0, "mat": 0 }, "buildable": false, "hpLoss": null,     "color": "#5a5248", "land": true },
+  { "id": "river",    "name": "河川", "moveCost": 3, "passable": true,  "yield": { "food": 2, "gum": 1, "mat": 0 }, "buildable": false, "hpLoss": "winter", "color": "#5aa7d6", "land": true, "water": true },
+  { "id": "bigriver", "name": "大河", "moveCost": 99, "passable": false, "yield": { "food": 0, "gum": 0, "mat": 0 }, "buildable": false, "hpLoss": null,   "color": "#3f8ac2", "land": false, "water": true },
+  { "id": "lake",     "name": "湖",   "moveCost": 99, "passable": false, "yield": { "food": 0, "gum": 0, "mat": 0 }, "buildable": false, "hpLoss": null,   "color": "#4b9ad8", "land": false, "water": true },
+  { "id": "shallow",  "name": "浅海", "moveCost": 99, "passable": false, "yield": { "food": 0, "gum": 0, "mat": 0 }, "buildable": false, "hpLoss": null,   "color": "#3d7fc4", "land": false, "water": true },
+  { "id": "deep",     "name": "深海", "moveCost": 99, "passable": false, "yield": { "food": 0, "gum": 0, "mat": 0 }, "buildable": false, "hpLoss": null,   "color": "#1f4f8f", "land": false, "water": true }
+]
