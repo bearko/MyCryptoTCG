@@ -319,6 +319,15 @@ export function settleCutinScope() {
   scopeMark = null;
 }
 
+/** 出ているカットインを今すぐ終える（画面を移ったとき。次の画面の上に帯が残って押す邪魔をしないように） */
+export function dismissCutins() {
+  if (!HAS_DOM) return;
+  for (const c of document.querySelectorAll('.fx-cutin')) {
+    if (typeof c._finish === 'function') c._finish();
+    else c.remove();
+  }
+}
+
 /** 実行フェーズが終わったら（スキップも含む）積み残しを捨てる */
 export function clearCutinScopes() {
   cutinScopes.length = 0;
@@ -328,7 +337,7 @@ export function clearCutinScopes() {
 /**
  * カットイン（斜めの帯に、左右から絵が滑り込む。絵の下側は文字の手前にも重なる）。タップで早送り。
  * 全面を覆うが押すのは邪魔しない（受け口は斜めの帯だけ）。「スキップ」はいつもこれより手前にある。
- * @param {{image?:string, title:string, sub?:string, side?:'ally'|'opponent'|'gold', ms?:number, pixel?:boolean, se?:string, major?:boolean}} opts
+ * @param {{image?:string, title:string, sub?:string, side?:'ally'|'opponent'|'accent', ms?:number, pixel?:boolean, se?:string, major?:boolean}} opts
  *   image は MCH の相対パス（"Image/Heroes/1001.png"）。major:false なら細い帯に格下げ（side:'opponent' は
  *   main.js が積んだ印でプレイヤーに関わると分かったときだけ全画面）
  * @returns {Promise<void>} 終わったら解決
@@ -386,6 +395,7 @@ export function cutin(opts = {}) {
       resolve();
     };
     const timer = setTimeout(finish, ms);
+    root._finish = () => { clearTimeout(timer); finish(); };
     bandEl.addEventListener('pointerdown', () => { clearTimeout(timer); finish(); }, { once: true });
   });
 }
@@ -659,7 +669,7 @@ export function spriteOnce(name, at, opts = {}) {
 
 export const fx = {
   install, reducedMotion, setReduceMotion, getReduceMotionSetting, onMotionChange, token,
-  ripple, rollNumber, toast, band, cutin, pushCutinScope, settleCutinScope, clearCutinScopes, typeText, flipOpen, flipClose, slideIn, stagger, spriteOnce, wait, SPRITES,
+  ripple, rollNumber, toast, band, cutin, pushCutinScope, settleCutinScope, clearCutinScopes, dismissCutins, typeText, flipOpen, flipClose, slideIn, stagger, spriteOnce, wait, SPRITES,
 };
 export { wait };
 export default fx;

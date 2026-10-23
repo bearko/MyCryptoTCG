@@ -195,7 +195,7 @@ JS で時間が要るときは `fx.token('--t-page', 600)`（ms の数が返る�
 | `fx.rollNumber(el, to, {key?, from?, ms?, format?, flash?})` | 数を転がして表示。増えたら緑・減ったら赤で一瞬光る。**描き直しで要素が作り直されるので `key`（例 `'res.gum'`）を渡す**と前回の値から転がる。初回（前の値が無い）はそのまま出す。`format: (n) => Math.round(n).toLocaleString()` |
 | `fx.toast(text, {kind?, icon?, key?, ms?})` | 右上のトースト（端末の中）。`icon` は MCH の相対パス（`'Image/Icons/gum.png'`）。同じ `key` が続くと文を差し替えて弾む。残り時間の細い線つき |
 | `fx.band(text, {kind?, sub?, ms?})` | 画面中央の帯。2 行目に `sub`。`band(text, 1200)` の古い書き方も可 |
-| `fx.cutin({image, title, sub?, side?, ms?, pixel?, se?})` → `Promise` | カットイン。`side: 'ally'`（青。左から）/ `'opponent'`（赤。右から）/ `'gold'`。`image` はヒーローの相対パス。絵の下側が文字の **手前** に重なる。タップで早送り。陥落の SE が鳴る（`se: null` で鳴らさない） |
+| `fx.cutin({image, title, sub?, side?, ms?, pixel?, se?})` → `Promise` | カットイン。`side: 'ally'`（青。左から）/ `'opponent'`（赤。右から）/ `'accent'`（金色。仲間に加わるとき）。`image` はヒーローの相対パス。絵の下側が文字の **手前** に重なる。タップで早送り。陥落の SE が鳴る（`se: null` で鳴らさない） |
 | `fx.typeText(el, text, {cps?, delay?, skipOn?, caret?, onDone?})` → `{skip, cancel, done}` | 1 文字ずつ（既定 40 文字/秒。句読点で少しためる）。`el` か `skipOn` をタップで全文。読み上げには最初から全文を渡す。吹き出しを `display:inline-block`（か `width: fit-content`）にしておくと文字数に合わせて伸びる。描き直しで `el` が外れたら止まる |
 | `fx.flipOpen(el, fromRect, {ms?, radius?})` → `Promise` | `el` を `fromRect`（`getBoundingClientRect()` の値）から広がるように見せる。`el` の寸法は変えない（clip-path だけ）ので最中も押せる。手前を光の枠が広がる |
 | `fx.flipClose(ghostEl, toRect, {ms?, radius?, remove?})` → `Promise` | 消える要素（押せない写し）を `toRect` へ縮めて消す。終わったら外す（`remove:false` で残す） |

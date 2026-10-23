@@ -1,11 +1,13 @@
 // calendar-view.js — MCH Calendar（SPEC-111 §5・SPEC-112 §5）
 //
 // 4 週 × 7 日の 28 日。1 週が 1 つの季節なので、行の頭に季節を出す。今日のマスは光り、過ぎた日はグレー。
-// 日ごとの予定は種類ごとの色のピン:
+// 日ごとの予定は、マスの下端に並ぶ種類ごとの色の棒（高さ 4px・幅 14px）:
 //   建築の完成（state.builds の daysLeft と、積んだ build の日数）・移動の到着（積んだ move）・
 //   日曜の集計・季節の変わり目・最終日のバッテリー切れ。
 // 日付・季節・曜日・バッテリーは season.js に聞く。建築の日数は economy.canBuild、AP の上限は orders.apMax に聞く。
-// 日をタップすると、そのマスが広がって下の詳細になる（app.ui.calDay）。
+// 日をタップすると、そのマスが広がって下の詳細になる（app.ui.calDay）。選んだ日は白い 2px の縁で 1.06 倍に浮く。
+// 予定の無い日の詳細は 1 行に畳む。バッテリーの見込みは、その日にバッテリーの予定があるときだけ出す。
+// 見出しの下の線はシーズンの進み具合（右端に Day n / 28、季節の区切りに目盛り）。
 
 import { h } from './h.js';
 import { uiText } from '../engine/lines.js';
@@ -147,6 +149,18 @@ function dayCell(app, d, items, selected) {
 function dayList(app, d, items) {
   const today = Math.min(app.state.day, SEASON_DAYS);
   const rel = d === today ? t(app, 'calendar.today') : d > today ? fill(tx(app, 'calendar.inDays', 'あと {n} 日'), { n: d - today }) : fill(tx(app, 'calendar.daysAgo', '{n} 日前'), { n: today - d });
+  // 予定の無い日は 1 行に畳む（日付・季節・何日後・「予定はありません」）
+  if (!items.length) {
+    return h('section', { class: ['cal-list', 'is-empty', d === today ? 'is-today' : null], 'aria-labelledby': 'cal-list-title', dataset: { day: d } },
+      h('header', { class: 'cal-list__row' },
+        h('span', { class: 'cal-list__chip num' }, h('b', null, String(d)), h('small', null, t(app, `dow.${dayOfWeek(d)}`))),
+        h('h2', { class: 'cal-list__title cal-list__title--row', id: 'cal-list-title' },
+          h('span', null, `${t(app, 'status.day')} ${d}`),
+          h('span', { class: 'cal-list__sub' }, `${t(app, `season.${seasonOf(d)}`)} ・ ${rel}`)),
+        h('span', { class: 'cal-list__empty muted' }, t(app, 'calendar.empty'))));
+  }
+  // バッテリーの見込みは、バッテリーの予定がある日だけ
+  const showBattery = items.some((it) => it.kind === 'battery');
   const head = h('header', { class: 'cal-list__head' },
     h('span', { class: 'cal-list__date' },
       h('span', { class: 'cal-list__no num' }, String(d)),
@@ -154,10 +168,9 @@ function dayList(app, d, items) {
     h('h2', { class: 'cal-list__title', id: 'cal-list-title' },
       h('span', null, `${t(app, 'status.day')} ${d}`),
       h('span', { class: 'cal-list__sub' }, `${t(app, `season.${seasonOf(d)}`)} ・ ${rel}`)),
-    h('span', { class: 'cal-list__battery num', dataset: { low: battery(d) <= 20 ? '1' : null } },
-      h('span', { class: 'cal-list__battery-icon', style: { '--b': String(battery(d) / 100) }, 'aria-hidden': 'true' }), `${battery(d)}%`));
+    showBattery ? h('span', { class: 'cal-list__battery num', dataset: { low: battery(d) <= 20 ? '1' : null } },
+      h('span', { class: 'cal-list__battery-icon', style: { '--b': String(battery(d) / 100) }, 'aria-hidden': 'true' }), `${battery(d)}%`) : h('span'));
   const sec = (body) => h('section', { class: ['cal-list', d === today ? 'is-today' : null], 'aria-labelledby': 'cal-list-title', dataset: { day: d } }, head, body);
-  if (!items.length) return sec(h('p', { class: 'empty muted cal-list__empty' }, t(app, 'calendar.empty')));
   return sec(h('ul', { class: 'cal-items' }, items.map((it) => h('li', { class: `cal-item cal-item--${it.kind}` },
     it.tile != null
       ? h('button', { class: 'cal-item__btn', type: 'button', onClick: () => go('map', { tile: it.tile }) },
@@ -224,11 +237,32 @@ function build(app) {
       cells));
   }
   const prog = (today - 1) / (SEASON_DAYS - 1);
+  // 季節の区切り（各季節の最初の日）に目盛りと季節の名前
+  const ticks = [];
+  for (let d = 1; d <= SEASON_DAYS; d++) {
+    if (d === 1 || seasonOf(d) !== seasonOf(d - 1)) ticks.push({ d, season: seasonOf(d) });
+  }
 
   return h('section', { class: 'app-screen app-screen--calendar cal' },
-    appHead(app, { title: t(app, 'app.calendar'), sub: h('span', { class: 'num' }, `${t(app, 'calendar.today')} ${t(app, 'status.day')} ${today} / ${SEASON_DAYS}`), help: () => openHelp(app), back: () => go('home') }),
-    h('div', { class: 'cal-progress', 'aria-hidden': 'true', style: { '--p': String(prog) } },
-      h('span', { class: 'cal-progress__fill' }), h('span', { class: 'cal-progress__head' })),
+    appHead(app, { title: t(app, 'app.calendar'), sub: `${t(app, `season.${seasonOf(today)}`)} ・ ${fill(t(app, 'calendar.week'), { n: weekOf(today) })}`, help: () => openHelp(app), back: () => go('home') }),
+    h('div', {
+      class: 'cal-progress', role: 'progressbar', 'aria-label': tx(app, 'calendar.progress', 'シーズンの進み具合'),
+      'aria-valuemin': '1', 'aria-valuemax': String(SEASON_DAYS), 'aria-valuenow': String(today), style: { '--p': String(prog) },
+    },
+    h('span', { class: 'cal-progress__track', 'aria-hidden': 'true' },
+      h('span', { class: 'cal-progress__fill' }),
+      ticks.map((k, i) => {
+        const x = (k.d - 1) / (SEASON_DAYS - 1);
+        const next = i + 1 < ticks.length ? (ticks[i + 1].d - 1) / (SEASON_DAYS - 1) : 1;
+        const on = today >= k.d;
+        return [
+          h('span', { class: ['cal-progress__tick', on ? 'is-past' : null], dataset: { season: k.season }, style: { '--x': String(x) } }),
+          // 季節の名前は、その季節の区間の真ん中に
+          h('span', { class: ['cal-progress__tick-name', on ? 'is-past' : null, weekOf(today) === i + 1 ? 'is-now' : null], dataset: { season: k.season }, style: { '--x': String((x + next) / 2) } }, t(app, `season.${k.season}`)),
+        ];
+      }),
+      h('span', { class: 'cal-progress__head' })),
+    h('span', { class: 'cal-progress__label num' }, h('b', null, `${t(app, 'status.day')} ${today}`), h('small', null, ` / ${SEASON_DAYS}`))),
     h('div', { class: 'cal-grid-wrap' },
       head,
       h('div', { class: 'cal-grid', role: 'grid', 'aria-label': t(app, 'calendar.title') }, weeks)),
@@ -267,7 +301,8 @@ function expandFrom(root, from) {
   const list = root.querySelector('.cal-list');
   const cell = root.querySelector('.cal-day.is-selected');
   if (cell && cell.animate && !fx.reducedMotion()) {
-    cell.animate([{ transform: 'scale(.86)' }, { transform: 'scale(1.08)', offset: 0.55 }, { transform: 'none' }], { duration: 360, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+    // 終わりは選んだ日の浮き（1.06 倍）にそろえる（アニメーションが切れた瞬間に跳ねない）
+    cell.animate([{ transform: 'scale(.86)' }, { transform: 'scale(1.12)', offset: 0.55 }, { transform: 'scale(1.06)' }], { duration: 360, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
   }
   if (!list || fx.reducedMotion() || !list.animate) return;
   const to = list.getBoundingClientRect();
@@ -286,7 +321,7 @@ function expandFrom(root, from) {
     { transform: 'none', opacity: 0 },
   ], { duration: ms, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'forwards' }).finished.then(() => plate.remove(), () => plate.remove());
   list.animate([{ opacity: 0, transform: 'translateY(-6px) scale(.97)' }, { opacity: 0, offset: 0.35 }, { opacity: 1, transform: 'none' }], { duration: ms, easing: 'cubic-bezier(.16, 1, .3, 1)' });
-  fx.stagger(list.querySelectorAll('.cal-item, .cal-list__empty'), { step: 55, delay: ms * 0.45, from: 'left', distance: 12 });
+  fx.stagger(list.querySelectorAll('.cal-item'), { step: 55, delay: ms * 0.45, from: 'left', distance: 12 });
 }
 
 export function render(app) {

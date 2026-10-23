@@ -6,7 +6,9 @@
 // ・スワイプ選択（pending.kind === "extension"）: 8 枚が重なって出る。右へはらう = アリ、左 = ナシ。
 //   指でもマウスでも矢印キーでも。カードは指に追従して傾き、影が深くなり、はらう側の光が強くなる。
 //   56px 未満で放せば戻る。56px 以上で放すと、その勢い（速さ・向き）のまま飛んでいく。
-//   上に 10 秒の円形タイマー（setTimeout / rAF は UI 側。残り時間は演出だけで報酬を変えない）。
+//   上に 10 秒の円形タイマー（setTimeout / rAF は UI 側。残り時間は演出だけで報酬を変えない）。下に「残り n 秒」。
+//   操作中に配置を動かさない: ナビの案内パネルは出さず、見出しの横に小さな顔と 1 行の案内だけ（全文は「?」）。
+//   左右の縦タブは置かない。ドラッグ中は、はらう側の下のボタンが光る。アリの数はカードの束の右上のバッジ。
 //   時間切れか 8 枚終わったら souls.acceptExtension(liked) → 手に入ったものを大きく出す（フラッシュ）
 // 装備の付け替えは souls.equip、獲得は souls.acceptExtension に任せる（ここでは選ぶだけ）。
 
@@ -15,7 +17,8 @@ import { uiText } from '../engine/lines.js';
 import { acceptExtension, equip } from '../engine/souls.js';
 import { save } from '../state.js';
 import { render as renderApp, openPopup, closePopup, confirmPopup, go } from '../main.js';
-import { appHead, helpPopup, firstGuide, markGuideSeen, entering, leave, tx } from './app-kit.js';
+import { appHead, helpPopup, entering, leave, tx } from './app-kit.js';
+import { naviPath } from './phone.js';
 import * as fx from './fx.js';
 
 /** スワイプを確定する距離（px） */
@@ -56,7 +59,9 @@ function extImg(ext, cls, size) {
 
 export function openHelp(app, focus) {
   const items = ['swipe', 'timer', 'got', 'equip', 'discard'].map((k) => ({ id: k, term: t(app, `help.photo.${k}.term`), text: t(app, `help.photo.${k}`) }));
-  helpPopup(app, { title: tx(app, 'help.photoTitle', 'Photo の使い方'), items, focus });
+  // 初回の案内（ナビの吹き出し）は出さないので、その全文をここの頭に置く
+  const lead = tx(app, 'photo.guide', '届いたエクステンションは、ほしいなら右（アリ）、いらないなら左（ナシ）へはらってね。アリにした中から 1 つ手に入るよ');
+  helpPopup(app, { title: tx(app, 'help.photoTitle', 'Photo の使い方'), lead, items, focus });
 }
 
 // ------------------------------------------------------------
@@ -148,8 +153,20 @@ function openEquipped(app, squad) {
 function gallery(app) {
   const db = app.db;
   const land = myLand(app);
-  const equipped = mySquads(app).filter((s) => s.equip && db.extensions[s.equip]);
+  const squads = mySquads(app);
+  const equipped = squads.filter((s) => s.equip && db.extensions[s.equip]);
   const owned = (land.extensions || []).filter((id) => db.extensions[id]);
+  const equipLabel = tx(app, 'photo.equipCta', '装備する');
+  // 装備していないときは、何のためのものか（1 行）と、ヒーローを見に行く道を出す
+  const bare = squads.filter((s) => !s.equip);
+  const emptyEquipped = h('div', { class: 'photo-empty' },
+    h('span', { class: 'photo-empty__heroes', 'aria-hidden': 'true' }, bare.slice(0, 4).map((sq, i) => {
+      const hero = heroOf(db, sq.heroId);
+      return hero ? h('span', { class: 'photo-empty__hero', dataset: { rarity: hero.rarity }, style: { '--k': String(i) } }, heroImg(hero, { class: 'photo-empty__img', width: 48, height: 48, alt: '' })) : null;
+    })),
+    h('p', { class: 'photo-empty__text' }, tx(app, 'photo.equipWhy', 'ヒーローに持たせると能力が上がる')),
+    h('button', { class: 'photo-empty__go', type: 'button', onClick: () => go('drive') },
+      h('span', null, tx(app, 'photo.toDrive', 'ヒーローを見る')), h('span', { class: 'photo-empty__chev', 'aria-hidden': 'true' })));
   return [
     h('section', { class: 'photo-sec', 'aria-labelledby': 'photo-eq-title' },
       h('h2', { class: 'section-title', id: 'photo-eq-title' }, t(app, 'photo.equipped'), h('span', { class: 'section-title__n num' }, String(equipped.length))),
@@ -164,21 +181,24 @@ function gallery(app) {
               h('span', { class: 'photo-equipped__fx' }, ext.text),
               h('span', { class: 'photo-equipped__hero' }, hero ? heroImg(hero, { class: 'photo-equipped__hero-img', width: 20, height: 20 }) : null, hero ? hero.name : sq.id))));
         }))
-        : h('p', { class: 'empty muted' }, t(app, 'photo.noEquipped'))),
+        : emptyEquipped),
     h('section', { class: 'photo-sec', 'aria-labelledby': 'photo-own-title' },
       h('h2', { class: 'section-title', id: 'photo-own-title' }, t(app, 'photo.owned'), h('span', { class: 'section-title__n num' }, String(owned.length))),
       owned.length
-        ? h('ul', { class: 'photo-grid' }, owned.map((id, i) => {
+        ? h('ul', { class: ['photo-grid', owned.length <= 4 ? 'photo-grid--big' : null] }, owned.map((id, i) => {
           const ext = db.extensions[id];
+          const cols = owned.length <= 4 ? 2 : 3;
           // シャッターは斜めに順に（左上から右下へ）
-          const d = Math.floor(i / 3) + (i % 3);
+          const d = Math.floor(i / cols) + (i % cols);
           return h('li', { style: { '--d': String(d) } }, h('button', {
-            class: 'photo-tile', type: 'button', 'aria-label': `${ext.name} ${ext.text}`, dataset: { ext: id },
+            class: 'photo-tile', type: 'button', 'aria-label': `${ext.name} ${ext.text} ${equipLabel}`, dataset: { ext: id },
             onClick: () => openOwned(app, id),
           },
-          extImg(ext, 'photo-tile__img', 96),
+          h('span', { class: 'photo-tile__pic' }, extImg(ext, 'photo-tile__img', 96)),
           h('span', { class: 'photo-tile__fx' }, ext.text),
-          h('span', { class: 'photo-tile__name' }, ext.name)));
+          h('span', { class: 'photo-tile__name' }, ext.name),
+          // 押すと何が起きるかを書いておく（装備する ＞）
+          h('span', { class: 'photo-tile__cta', 'aria-hidden': 'true' }, equipLabel, h('span', { class: 'photo-tile__chev' }))));
         }))
         : h('p', { class: 'empty muted' }, t(app, 'photo.empty'))),
   ];
@@ -265,26 +285,30 @@ function swipeView(app, p) {
   const cands = (p.candidates || []).filter((id) => app.db.extensions[id]);
   return h('section', { class: 'swipe', 'aria-labelledby': 'swipe-title' },
     h('header', { class: 'swipe__head' },
+      // ナビは小さな顔だけ（吹き出しを伸ばして配置を動かさない）。案内は 1 行に固定
+      h('span', { class: 'swipe__navi', 'aria-hidden': 'true' }, imgEl(naviPath('smile'), '', { class: 'swipe__navi-img', draggable: 'false' })),
       h('div', { class: 'swipe__head-text' },
         h('h2', { class: 'swipe__title', id: 'swipe-title' }, t(app, 'photo.swipeTitle')),
-        h('p', { class: 'swipe__hint' }, t(app, 'photo.swipeHint'))),
-      h('div', { class: 'swipe__timer', role: 'timer', 'aria-label': t(app, 'photo.timer'), style: { '--p': '1' } },
-        h('span', { class: 'swipe__timer-ring', 'aria-hidden': 'true' }),
-        h('span', { class: 'swipe__timer-text num' }, String(Math.ceil(SWIPE_MS / 1000))))),
+        h('p', { class: 'swipe__hint' }, tx(app, 'photo.swipeHintShort', 'ほしいなら右、いらないなら左へはらう'))),
+      h('div', { class: 'swipe__timer-wrap' },
+        h('div', { class: 'swipe__timer', role: 'timer', 'aria-label': t(app, 'photo.timer'), style: { '--p': '1' } },
+          h('span', { class: 'swipe__timer-ring', 'aria-hidden': 'true' }),
+          h('span', { class: 'swipe__timer-text num', 'aria-hidden': 'true' }, String(Math.ceil(SWIPE_MS / 1000)))),
+        h('span', { class: 'swipe__timer-cap num' }, fill(tx(app, 'photo.timeLeft', '残り {n} 秒'), { n: Math.ceil(SWIPE_MS / 1000) })))),
     h('div', { class: 'swipe__stage' },
       h('span', { class: 'swipe__glow swipe__glow--no', 'aria-hidden': 'true' }),
       h('span', { class: 'swipe__glow swipe__glow--yes', 'aria-hidden': 'true' }),
-      h('span', { class: 'swipe__side swipe__side--no', 'aria-hidden': 'true' }, h('span', { class: 'swipe__arrow' }), t(app, 'photo.swipeNo')),
       h('div', { class: 'swipe__stack', dataset: { left: String(cands.length - s.i) } }),
-      h('span', { class: 'swipe__side swipe__side--yes', 'aria-hidden': 'true' }, t(app, 'photo.swipeYes'), h('span', { class: 'swipe__arrow' }))),
+      // アリにした数（束の右上のバッジ。アリにしたカードの小さな写真が飛び込む）
+      h('div', { class: ['swipe__badge', s.liked.length ? 'has-liked' : null] },
+        h('span', { class: 'swipe__badge-label' }, t(app, 'photo.swipeYes')),
+        h('b', { class: 'swipe__badge-n num swipe__liked', 'aria-live': 'polite' }, String(s.liked.length)),
+        h('ul', { class: 'swipe__picks', 'aria-hidden': 'true' }))),
     h('div', { class: 'swipe__buttons' },
       h('button', { class: 'btn-danger swipe__btn swipe__btn--no', type: 'button', dataset: { dir: 'left' } },
         h('span', { class: 'swipe__btn-arrow', 'aria-hidden': 'true' }), t(app, 'photo.swipeNo')),
       h('button', { class: 'btn-primary swipe__btn swipe__btn--yes', type: 'button', dataset: { dir: 'right' } },
-        t(app, 'photo.swipeYes'), h('span', { class: 'swipe__btn-arrow', 'aria-hidden': 'true' }))),
-    h('div', { class: 'swipe__tray' },
-      h('p', { class: 'swipe__liked num', 'aria-live': 'polite' }, ''),
-      h('ul', { class: 'swipe__picks', 'aria-hidden': 'true' })));
+        t(app, 'photo.swipeYes'), h('span', { class: 'swipe__btn-arrow', 'aria-hidden': 'true' }))));
 }
 
 function mountSwipe(app, el, p) {
@@ -294,6 +318,8 @@ function mountSwipe(app, el, p) {
   const timerEl = el.querySelector('.swipe__timer');
   const textEl = el.querySelector('.swipe__timer-text');
   const likedEl = el.querySelector('.swipe__liked');
+  const badgeEl = el.querySelector('.swipe__badge');
+  const capEl = el.querySelector('.swipe__timer-cap');
   const picksEl = el.querySelector('.swipe__picks');
   const reduce = reducedMotion();
   const L = { app, p, s, cands, el, stack, timers: [], offs: [], drag: null, busy: false, raf: 0 };
@@ -303,7 +329,10 @@ function mountSwipe(app, el, p) {
 
   const drawPicks = (fresh) => {
     clear(picksEl);
+    // 小さな写真は最後の 3 枚だけ重ねる
+    const from = Math.max(0, s.liked.length - 3);
     s.liked.forEach((id, i) => {
+      if (i < from) return;
       const ext = app.db.extensions[id];
       if (!ext) return;
       const li = h('li', { class: ['swipe__pick', fresh && i === s.liked.length - 1 ? 'is-new' : null] }, extImg(ext, 'swipe__pick-img', 28));
@@ -320,7 +349,9 @@ function mountSwipe(app, el, p) {
       const ext = app.db.extensions[rest[n]];
       stack.appendChild(swipeCard(app, ext, n, cands.length, n === 0));
     }
-    likedEl.textContent = fill(t(app, 'photo.likedCount'), { n: s.liked.length });
+    likedEl.textContent = String(s.liked.length);
+    badgeEl.setAttribute('aria-label', fill(t(app, 'photo.likedCount'), { n: s.liked.length }));
+    badgeEl.classList.toggle('has-liked', s.liked.length > 0);
     // 次のカードが 1 段せり上がる
     const top = stack.querySelector('.swipe-card.is-top');
     if (rise && top && top.animate && !reduce) {
@@ -362,7 +393,13 @@ function mountSwipe(app, el, p) {
     if (yes) s.liked.push(id);
     s.i += 1;
     flashSide(dir);
-    if (yes) drawPicks(true);
+    if (yes) {
+      drawPicks(true);
+      likedEl.textContent = String(s.liked.length);
+      badgeEl.classList.add('has-liked');
+      // バッジが弾む（押したら必ず返る）
+      if (badgeEl.animate && !reduce) badgeEl.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25)', offset: 0.35 }, { transform: 'scale(1)' }], { duration: 360, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
+    }
     const next = () => {
       L.busy = false;
       if (live !== L) return;
@@ -502,6 +539,7 @@ function mountSwipe(app, el, p) {
     if (sec !== lastSec) {
       lastSec = sec;
       textEl.textContent = String(sec);
+      if (capEl) capEl.textContent = fill(tx(app, 'photo.timeLeft', '残り {n} 秒'), { n: sec });
       if (sec <= 3 && sec > 0 && textEl.animate && !reduce) textEl.animate([{ transform: 'scale(1.35)' }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.34, 1.56, .64, 1)' });
     }
     el.classList.toggle('is-hurry', left <= 3000);
@@ -572,15 +610,10 @@ export function render(app) {
   else if (p) body = swipeView(app, p);
   else body = gallery(app);
   const mode = app.ui.photoGot ? 'got' : p ? 'swipe' : 'gallery';
-  const guide = firstGuide(app, {
-    name: 'photo', face: 'point',
-    text: tx(app, 'photo.guide', '届いたエクステンションは、ほしいなら右（アリ）、いらないなら左（ナシ）へはらってね。アリにした中から 1 つ手に入るよ'),
-  });
+  // ナビの案内パネルは出さない（スワイプ中に吹き出しが伸びて配置が動くのを避ける）。全文は「?」の頭
   const root = h('section', { class: ['app-screen', 'app-screen--photo', 'photo', `photo--${mode}`, mode === 'swipe' ? 'is-swiping' : null], dataset: { mode } },
     appHead(app, { title: t(app, 'app.photo'), sub: t(app, 'photo.title'), help: () => openHelp(app), back: () => back(app) }),
-    guide ? guide.el : null,
     body);
-  root._guide = guide;
   return root;
 }
 
@@ -593,7 +626,6 @@ export function mount(app, el) {
   const mode = el.dataset.mode;
   const fresh = enter || lastMode !== mode;
   lastMode = mode;
-  if (el._guide) el._guide.start();
   if (mode === 'gallery' && fresh && !reducedMotion()) {
     el.classList.add('is-enter');
     setTimeout(() => el.classList.remove('is-enter'), 1400);
@@ -612,6 +644,5 @@ export function unmount(app, el) {
     app.ui.photoGot = null;
     leave('photo');
     lastMode = null;
-    if (el && el._guide) markGuideSeen('photo');
   }
 }

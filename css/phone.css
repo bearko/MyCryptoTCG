@@ -303,7 +303,7 @@
   background-blend-mode: normal, soft-light, normal;
 }
 .todo.is-bad { --k: var(--bad); }
-.todo.is-gold { --k: var(--accent); }
+.todo.is-accent { --k: var(--accent); }
 .todo.is-ok { --k: var(--ok); }
 .todo.is-info { --k: var(--info); }
 .todo.is-next {

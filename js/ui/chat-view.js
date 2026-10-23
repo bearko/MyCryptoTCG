@@ -30,7 +30,8 @@ import { stepCost } from '../engine/pathfind.js';
 import { targetAt, isShielded } from '../engine/turn.js';
 import { save } from '../state.js';
 import { go, render as rerender, pendingApp, endTurn } from '../main.js';
-import { orderStatus, setOrderDone } from './phone.js';
+import { orderStatus, setOrderDone, naviPath } from './phone.js';
+import { appHead, helpPopup } from './app-kit.js';
 
 const MAI_ID = 'mai';
 const MAI_IMAGE = 'Image/Icons/mai_sd.png';
@@ -46,6 +47,8 @@ const SPEECH_REJECTS = new Set(['ap', 'home', 'range', 'build']);
 const TONE_ENTER = { bushi: 'hop', noble: 'tilt', scholar: 'nod', rogue: 'sway', plain: 'pop' };
 /** めくれる時間（SPEC-112 §4: 500〜700ms） */
 const FLIP_MS = 560;
+/** 下からのシートを閉じる / ロスターを畳む時間 */
+const SHEET_OUT_MS = 160;
 
 const t = (app, key) => uiText(app.db, key);
 /** 文言（無ければ fallback）。{name} などを埋める */
@@ -248,21 +251,25 @@ function renderList(app) {
   const st = app.state;
   const c = chatUi(app);
   const notices = st.notices || [];
-  const lastNotice = notices.length ? notices[notices.length - 1].text : t(app, 'chat.mineEmpty');
   const pa = pendingApp();
   const asking = askingSet(app);
-  // 指示を仰いでいるヒーローを一番上に（そのほかは id 順のまま）
-  const squads = mySquads(app).sort((a, b) => (asking.has(b.id) ? 1 : 0) - (asking.has(a.id) ? 1 : 0));
+  // 指示を仰いでいるヒーロー → 未指示 → 指示中 → 完了 → 休み の順（E: 次に手を付ける人が上）
+  const squads = mySquads(app).sort((a, b) => (asking.has(b.id) ? 1 : 0) - (asking.has(a.id) ? 1 : 0)
+    || rank(orderStatus(app, a)) - rank(orderStatus(app, b)) || idNum(a.id) - idNum(b.id));
   pending.list = c.listFresh;
   c.listFresh = false;
 
-  const maiRow = h('li', null,
-    h('button', { class: ['chat-row', 'chat-row--mai', pa ? 'is-pending' : null], type: 'button', onClick: () => openTalk(app, MAI_ID) },
+  // マインちゃん: お知らせ（か選択待ち）があるときだけ一等地。無いときは最下段で小さく
+  const hasNews = !!pa || notices.length > 0;
+  const lastNotice = notices.length ? notices[notices.length - 1].text : t(app, 'chat.mineEmpty');
+  const maiRow = h('li', { class: ['chat-list__mai', hasNews ? null : 'is-quiet'] },
+    h('button', { class: ['chat-row', 'chat-row--mai', hasNews ? null : 'chat-row--quiet', pa ? 'is-pending' : null], type: 'button', onClick: () => openTalk(app, MAI_ID) },
       h('span', { class: 'chat-ring chat-ring--mai' }, imgEl(MAI_IMAGE, t(app, 'chat.mine'), { class: 'chat-row__img chat-row__img--mai' })),
       h('span', { class: 'chat-row__main' },
         h('span', { class: 'chat-row__name' }, t(app, 'chat.mine')),
         h('span', { class: 'chat-row__last' }, pa ? t(app, 'chat.pending') : lastNotice)),
-      pa ? h('span', { class: 'chat-row__badge', 'aria-label': t(app, 'home.pending') }, '!') : null));
+      pa ? h('span', { class: 'chat-row__badge', 'aria-label': t(app, 'home.pending') }, '!')
+        : h('span', { class: 'chat-row__chev', 'aria-hidden': 'true' })));
 
   const counts = { none: 0, doing: 0, done: 0, off: 0 };
   const rows = squads.map((s) => {
@@ -288,32 +295,52 @@ function renderList(app) {
         h('span', { class: 'chat-row__ap-n' }, h('b', null, String(s.ap || 0)), `/${max}`))));
   });
 
-  // 次の一手（E）: 未指示を先に、次に指示中。全員済みならターン終了
-  const order = squads.slice().sort((a, b) => (asking.has(b.id) ? 1 : 0) - (asking.has(a.id) ? 1 : 0)
-    || rank(orderStatus(app, a)) - rank(orderStatus(app, b)) || idNum(a.id) - idNum(b.id));
-  const target = order.find((s) => ['none', 'doing'].includes(orderStatus(app, s)));
+  // 次の一手（E）: 並びの先頭（仰いでいる → 未指示 → 指示中）。全員済みならターン終了
+  const target = squads.find((s) => ['none', 'doing'].includes(orderStatus(app, s)));
   let primary = null;
   if (canOrder(app) && squads.length) {
     primary = target
-      ? h('button', { class: 'btn-primary chat-primary', type: 'button', dataset: { act: 'talk', squad: target.id }, onClick: () => openTalk(app, target.id) },
+      ? h('button', { class: 'btn-primary chat-primary', type: 'button', dataset: { act: 'talk', squad: target.id }, 'data-ripple': 'accent', onClick: () => openTalk(app, target.id) },
         h('span', { class: 'chat-primary__main' }, tf(app, 'chat.goHero', { name: heroName(app, target) }, '{name} に指示を出す')),
-        h('span', { class: 'chat-primary__sub' }, t(app, `home.status.${orderStatus(app, target)}`)))
-      : h('button', { class: 'btn-primary chat-primary', type: 'button', dataset: { act: 'end' }, onClick: () => endTurn() },
-        h('span', { class: 'chat-primary__main' }, tf(app, 'chat.allDone', {}, '全員の指示が完了 → ターン終了')));
+        h('span', { class: 'chat-primary__sub' }, t(app, `home.status.${orderStatus(app, target)}`)),
+        h('span', { class: 'chat-primary__arrow', 'aria-hidden': 'true' }))
+      : h('button', { class: 'btn-primary chat-primary', type: 'button', dataset: { act: 'end' }, 'data-ripple': 'accent', onClick: () => endTurn() },
+        h('span', { class: 'chat-primary__main' }, tf(app, 'chat.allDone', {}, '全員の指示が完了 → ターン終了')),
+        h('span', { class: 'chat-primary__arrow', 'aria-hidden': 'true' }));
   }
 
-  const tally = h('p', { class: 'chat-tally', 'aria-label': t(app, 'chat.list') },
-    ['none', 'doing', 'done'].map((k) => h('span', { class: `chat-tally__item chat-tally__item--${k}` },
-      h('span', { class: 'chat-status__mark', 'aria-hidden': 'true' }), `${t(app, `home.status.${k}`)} `, h('b', { class: 'num' }, String(counts[k] || 0)))));
+  // 集計: 見出しの下に 3 つのピル
+  const tally = h('ul', { class: 'chat-tally', 'aria-label': tf(app, 'chat.tally', {}, '指示のようす') },
+    ['none', 'doing', 'done'].map((k) => h('li', { class: ['chat-tally__item', `chat-tally__item--${k}`, counts[k] ? null : 'is-zero'] },
+      h('span', { class: 'chat-status__mark', 'aria-hidden': 'true' }),
+      h('span', { class: 'chat-tally__label' }, t(app, `home.status.${k}`)),
+      h('b', { class: 'num' }, String(counts[k] || 0)))));
 
   return h('section', { class: 'app-screen chat chat--list' },
-    h('header', { class: 'chat-list-head' },
-      h('h1', { class: 'app-title' }, t(app, 'app.chat')),
-      squads.length ? tally : null),
+    appHead(app, { title: t(app, 'app.chat'), back: () => go('home'), help: () => openChatHelp(app), cls: 'chat-list-head' }),
+    squads.length ? tally : null,
     h('ul', { class: 'chat-list', 'aria-label': t(app, 'chat.list') },
-      maiRow,
-      rows.length ? rows : h('li', { class: 'empty muted' }, t(app, 'chat.noSquads'))),
+      hasNews ? maiRow : null,
+      rows.length ? rows : h('li', { class: 'empty muted' }, t(app, 'chat.noSquads')),
+      hasNews ? null : maiRow),
     primary ? h('div', { class: 'chat-dock' }, primary) : null);
+}
+
+/** Chat の「?」: 指示のようすの印・AP・メニューの見方 */
+function openChatHelp(app) {
+  const mark = (k) => h('span', { class: ['chat-status', `chat-status--${k}`] }, h('span', { class: 'chat-status__mark', 'aria-hidden': 'true' }), t(app, `home.status.${k}`));
+  helpPopup(app, {
+    title: tf(app, 'help.chatTitle', {}, 'Chat の使い方'),
+    lead: tf(app, 'help.chatLead', {}, 'ヒーローとのトークで、その日の指示を積みます。上から順に指示して、最後にターン終了です'),
+    items: [
+      { id: 'none', term: '', tag: mark('none'), text: tf(app, 'help.chat.none', {}, 'まだ指示を 1 つも積んでいないヒーロー') },
+      { id: 'doing', term: '', tag: mark('doing'), text: tf(app, 'help.chat.doing', {}, '指示を積んでいて、AP がまだ残っているヒーロー') },
+      { id: 'done', term: '', tag: mark('done'), text: tf(app, 'help.chat.done', {}, '「指示を終える」を押したか、AP を使い切ったヒーロー。トークを開けば指示を足せます') },
+      { id: 'off', term: '', tag: mark('off'), text: tf(app, 'help.chat.off', {}, '敗走などで今日は動けないヒーロー') },
+      { id: 'ap', term: 'AP', text: tf(app, 'help.chat.ap', {}, '1 日に使える行動の量。指示を積むと減り、翌日に戻ります') },
+      { id: 'menu', term: tf(app, 'help.chat.menuTerm', {}, 'メニュー'), text: tf(app, 'help.chat.menu', {}, '金のピルは使う AP。黄色の点が付いたボタンは今はできない指示で、押すと理由と次の一手が出ます') },
+    ],
+  });
 }
 
 function rank(kind) {
@@ -356,7 +383,8 @@ function renderMai(app) {
   pending.maiEnter = true;
   return h('section', { class: 'chat chat--talk chat--mai' },
     talkHead(app, imgEl(MAI_IMAGE, t(app, 'chat.mine'), { class: 'chat-head__img chat-head__img--mai' }), t(app, 'chat.mine'), null),
-    h('ol', { class: 'chat-log', 'aria-live': 'polite' }, items));
+    room(imgEl(naviPath('normal'), '', { class: 'chat-room__img chat-room__img--navi', 'aria-hidden': 'true' }),
+      h('ol', { class: 'chat-log', 'aria-live': 'polite' }, items)));
 }
 
 function bubbleMai(app, content) {
@@ -387,14 +415,28 @@ function renderTalk(app, squad) {
     }));
 
   const orderable = canOrder(app);
-  return h('section', { class: 'chat chat--talk', dataset: { squad: squad.id, status: orderStatus(app, squad) } },
+  const sheet = orderable ? submenu(app, squad) : null;
+  // シートが開いた / 閉じたときだけ、ロスターを畳む / 広げる動きを付ける（描き直しのたびには動かさない）
+  const sheetNow = !!sheet;
+  const fold = c.sheetWas == null || c.sheetWas === sheetNow ? null : sheetNow ? 'fold' : 'unfold';
+  c.sheetWas = sheetNow;
+  return h('section', { class: ['chat', 'chat--talk', sheet ? 'has-sheet' : null], dataset: { squad: squad.id, status: orderStatus(app, squad) } },
     talkHead(app, apRingHead(app, squad, hero), hero ? hero.name : squad.id, headInfo(app, squad, hero)),
     apGauge(app, squad, hero),
     queuedStrip(app, squad),
-    log,
-    orderable ? submenu(app, squad) : null,
-    orderable ? dock(app, squad) : null,
+    // 会話の欄の奥に、その人の絵を大きく（空白が「その人の部屋」になる）
+    room(heroImg(hero, { class: 'chat-room__img', width: 160, height: 160, 'aria-hidden': 'true' }), log),
+    sheet,
+    orderable ? dock(app, squad, { folded: sheetNow, fold }) : null,
     orderable ? richMenu(app, squad) : h('p', { class: 'chat-locked muted' }, t(app, 'chat.locked')));
+}
+
+/** 会話の欄（奥に大きな絵を敷く） */
+function room(art, log) {
+  if (art) art.setAttribute('alt', '');
+  return h('div', { class: 'chat-room' },
+    h('div', { class: 'chat-room__art', 'aria-hidden': 'true' }, art),
+    log);
 }
 
 function apRingHead(app, squad, hero) {
@@ -432,6 +474,29 @@ export function mount(app, el) {
   if (p.list) fx.stagger(el.querySelectorAll('.chat-list > li'), { from: 'up', step: 55, delay: p.slide ? 60 : 120, distance: 18 });
   if (p.maiEnter && log && !reduce) fx.stagger(Array.from(log.children).slice(-4), { from: 'up', step: 60, distance: 10 });
   if (log) playLog(log, p, reduce);
+  // シートの外（会話の欄・AP・積んだ指示・見出しの空き）をタップしたら閉じる
+  const talk = el.classList && el.classList.contains('chat--talk') ? el : null;
+  if (talk && talk.classList.contains('has-sheet')) {
+    talk.addEventListener('click', (e) => {
+      const tg = e.target;
+      if (!tg || !tg.closest || tg.closest('.chat-sub, .chat-menu, .chat-dock, button, a')) return;
+      closeSheet(app);
+    });
+  }
+}
+
+/** 下からのシートを沈めて閉じる（動きを減らすときはすぐ） */
+function closeSheet(app) {
+  if (!app) return;
+  const c = chatUi(app);
+  if (!c.menu || c.closing) return;
+  const sheet = typeof document !== 'undefined' ? document.querySelector('.chat--talk .chat-sub') : null;
+  const done = () => { c.closing = false; c.menu = null; rerender(); };
+  if (!sheet || fx.reducedMotion() || !sheet.animate) { done(); return; }
+  c.closing = true;
+  sheet.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(24px)' }],
+    { duration: SHEET_OUT_MS, easing: 'cubic-bezier(.55, 0, .75, .2)', fill: 'forwards' })
+    .finished.then(done, done);
 }
 
 /** 新しい吹き出しの演出（めくる → 入力中 → 1 文字ずつ）を順に流す */
@@ -785,9 +850,10 @@ function richMenu(app, squad) {
         'aria-label': `${t(app, `cmd.${cmd}`)}・${s.meta}`,
         onClick: () => onMenu(app, squad, cmd, s),
       },
+      s.ok ? null : h('span', { class: 'chat-menu__dot', 'aria-hidden': 'true' }),
       h('span', { class: `chat-menu__icon chat-menu__icon--${cmd}`, 'aria-hidden': 'true' }),
       h('span', { class: 'chat-menu__label' }, t(app, `cmd.${cmd}`)),
-      h('span', { class: ['chat-menu__meta', s.ok ? null : 'is-ng'], 'aria-hidden': 'true' }, s.meta));
+      h('span', { class: ['chat-menu__meta', s.ok ? 'chat-menu__pill num' : 'is-ng'], 'aria-hidden': 'true' }, s.meta));
     }));
 }
 
@@ -795,7 +861,8 @@ function onMenu(app, squad, cmd, s) {
   const c = chatUi(app);
   // できないとき（内政・戦闘は理由のうえに中身も見せる）: 理由と次の一手を返す
   if (!s.ok) {
-    c.menu = c.menu === cmd ? null : cmd;
+    if (c.menu === cmd) { closeSheet(app); return; }
+    c.menu = cmd;
     c.shake = cmd;
     // AP を使い切っているなら、次の一手は主役ボタン（指示を終える / 次のヒーローへ）。光らせて知らせる
     if ((squad.ap || 0) <= 0 || s.reason === 'ap' || s.reason === 'none') c.call = squad.id;
@@ -820,7 +887,8 @@ function onMenu(app, squad, cmd, s) {
       doClear(app, squad);
       return;
     default:
-      c.menu = c.menu === cmd ? null : cmd;
+      if (c.menu === cmd) { closeSheet(app); return; }
+      c.menu = cmd;
       rerender();
   }
 }
@@ -839,8 +907,9 @@ function submenu(app, squad) {
   if (!c.menu) return null;
   const s = menuState(app, squad, c.menu);
   // 内政と戦闘は、できないときも中身（何ができるようになるか）を薄く見せる
+  // 戦闘で射程内に誰もいないときは、空の一覧を出さない（理由は返事が言う）
   const inner = c.menu === 'build' ? (s.ok ? buildMenu(app, squad) : null)
-    : c.menu === 'attack' ? attackMenu(app, squad)
+    : c.menu === 'attack' ? (s.ok || findTargets(app, squad).length ? attackMenu(app, squad) : null)
       : c.menu === 'domestic' ? domesticMenu(app, squad)
         : c.menu === 'policy' ? policyMenu(app, squad) : null;
   if (s.ok) return inner;
@@ -853,6 +922,7 @@ function blockedPanel(app, squad, cmd, s, inner) {
   const steps = nextSteps(app, squad, cmd, s);
   const line = s.speech || t(app, `chat.ngLong.${s.reason}`);
   return h('div', { class: 'chat-sub chat-next', role: 'group', dataset: { cmd, reason: s.reason }, 'aria-label': `${t(app, `cmd.${cmd}`)}・${s.meta}` },
+    grabber(app),
     h('div', { class: 'chat-next__head' },
       heroImg(hero, { class: 'chat-next__img', width: 32, height: 32 }),
       h('div', { class: 'chat-next__say' },
@@ -869,8 +939,17 @@ function blockedPanel(app, squad, cmd, s, inner) {
     inner ? h('div', { class: 'chat-next__inner' }, inner) : null);
 }
 
+/** シートの上の取っ手（押すと閉じる。外をタップしても閉じる） */
+function grabber(app) {
+  return h('button', {
+    class: 'chat-sub__grab', type: 'button', 'data-ripple': 'off', 'aria-label': t(app, 'common.close'),
+    onClick: () => closeSheet(app),
+  }, h('span', { 'aria-hidden': 'true' }));
+}
+
 function subPanel(app, titleKey, children, extra) {
   return h('div', { class: 'chat-sub', role: 'group', 'aria-label': t(app, titleKey) },
+    grabber(app),
     h('div', { class: 'chat-sub__head' },
       h('span', { class: 'chat-sub__title' }, t(app, titleKey)),
       extra || null),
@@ -1006,11 +1085,14 @@ function policyMenu(app, squad) {
 // ロスターと主役ボタン（SPEC-112 §7.5.2）
 // ------------------------------------------------------------
 
-function dock(app, squad) {
+function dock(app, squad, o = {}) {
   const c = chatUi(app);
   const list = mySquads(app);
   const idx = list.findIndex((s) => s.id === squad.id);
-  const roster = h('ol', { class: 'chat-roster', 'aria-label': tf(app, 'chat.roster', {}, 'ヒーローの並び') },
+  const roster = h('ol', {
+    class: ['chat-roster', o.folded ? 'is-folded' : null, o.fold ? `is-${o.fold}` : null],
+    'aria-label': tf(app, 'chat.roster', {}, 'ヒーローの並び'), 'aria-hidden': o.folded ? 'true' : null, inert: o.folded ? '' : null,
+  },
     list.map((s, i) => {
       const hero = heroOf(app, s);
       const kind = orderStatus(app, s);
@@ -1035,11 +1117,10 @@ function dock(app, squad) {
       : tf(app, 'chat.finishLast', {}, '指示を終える'), () => finishHero(app, squad));
   } else if (kind === 'none') {
     // まだ何も積んでいない: 主役にはしない（控えめに「あとで」）
+    // まだ何も積んでいない: 主役にはしない。枠つきの副ボタン（右端に「＞」）
     btn = nx
-      ? h('button', { class: 'btn-ghost chat-primary chat-primary--ghost', type: 'button', dataset: { act: 'skip', squad: nx.id }, onClick: () => openTalk(app, nx.id, 1) },
-        tf(app, 'chat.skipTo', { name: heroName(app, nx) }, 'あとで（{name} へ）'))
-      : h('button', { class: 'btn-ghost chat-primary chat-primary--ghost', type: 'button', dataset: { act: 'finish' }, onClick: () => finishHero(app, squad) },
-        tf(app, 'chat.finishEmpty', {}, '指示なしで終える'));
+      ? subBtn(app, 'skip', tf(app, 'chat.skipTo', { name: heroName(app, nx) }, 'あとで（{name} へ）'), () => openTalk(app, nx.id, 1), nx.id)
+      : subBtn(app, 'finish', tf(app, 'chat.finishEmpty', {}, '指示なしで終える'), () => finishHero(app, squad));
   } else if (nx) {
     // 完了・休み（AP 0 も含む）: 次のヒーローへ。押すと完了にして移る
     btn = primaryBtn(app, 'next', tf(app, 'chat.nextHero', { name: heroName(app, nx) }, '次のヒーローへ（{name}）'), () => finishHero(app, squad));
@@ -1049,6 +1130,11 @@ function dock(app, squad) {
   // AP を使い切った直後は、0.6 秒後に主役ボタンが光る（自動では移らない）
   if (c.call === squad.id && btn && btn.classList) { btn.classList.add('is-call'); c.call = null; }
   return h('div', { class: 'chat-dock' }, roster, btn);
+}
+
+function subBtn(app, act, label, onClick, squadId) {
+  return h('button', { class: 'chat-primary chat-primary--sub', type: 'button', dataset: { act, squad: squadId || null }, onClick },
+    h('span', { class: 'chat-primary__main' }, label), h('span', { class: 'chat-primary__chev', 'aria-hidden': 'true' }));
 }
 
 function primaryBtn(app, act, label, onClick) {

@@ -2,9 +2,11 @@
 //
 // タブ: ヒーロー / 砦とエネミー / ランド（app.ui.driveTab）。タブは金の板が横にすべり、中身は横から入る。
 // ヒーローのカードは絵を大きく、名前の「裏」に絵が少しはみ出す（SPEC-112 B）。レアリティは縁の色と光沢。
-// パラメーターの棒は入ってきたときに左から伸び、数字が転がる。用語は「?」で説明する（統率力・知力など）。
+// 一覧は畳んだ形（兵とスキルだけ）で並び、タップで開く（240ms）。開くと棒が左から伸び、数字が転がる。
+// 用語の「?」は見出しの横に 1 つだけ（押すと 6 項目の説明）。
 // SOUL の選択（pending.kind === "soul"）はここ: 3 枚が裏向きで出て、順にめくれる（600ms ずつ）。
 // 1 枚タップ → そのカードが前に出てほかは下がる → 確認 → souls.accept → カットインで迎える。
+// 選択待ちがあるときは、ナビの案内パネルを出さず SOUL の見出しの横に 1 行だけ（全文は「?」）。主役の 3 枚を押し下げない。
 // 数値（装備込みのパラメーター・兵の上限・射程）は heroes.js に聞く。占領数は season.tileCount と同じ数え方を
 // 探索済みのタイルに絞って数える（見えていない所は数えない）。
 
@@ -65,8 +67,14 @@ function termItems(app) {
   return params.concat(more);
 }
 
+/** 初回の案内（SOUL の選択待ちでは出さないので、その全文は「?」の頭に回す） */
+function guideText(app) {
+  return tx(app, 'drive.guideFold', 'ここはデータベース。ヒーローのカードを押すと、強さを決める 6 つのパラメーターが開くよ。意味は「?」で読めるからね');
+}
+
 export function openHelp(app, focus) {
-  helpPopup(app, { title: tx(app, 'help.driveTitle', '用語の説明'), lead: tx(app, 'help.driveLead', ''), items: termItems(app), focus });
+  const lead = [app.ui && app.ui.driveGuideInHelp ? guideText(app) : null, tx(app, 'help.driveLead', '')].filter(Boolean).join('\n');
+  helpPopup(app, { title: tx(app, 'help.driveTitle', '用語の説明'), lead, items: termItems(app), focus });
 }
 
 /** 用語のボタン（押すとその用語を光らせて説明を出す）。ボタンの中では使えないので、そのときは文字だけ */
@@ -93,7 +101,7 @@ export function paramBars(app, hero, squad, opts = {}) {
     const top = Math.max(max[k], e);
     const plus = e - b;
     return h('div', { class: 'param-bar', dataset: { param: k }, style: { '--j': String(j) } },
-      h('dt', null, term(app, k, t(app, `param.${k}`), opts.inButton)),
+      h('dt', null, opts.plain ? h('span', { class: 'term term--plain' }, t(app, `param.${k}`)) : term(app, k, t(app, `param.${k}`), opts.inButton)),
       h('dd', null,
         h('span', { class: 'param-bar__track', 'aria-hidden': 'true' },
           h('span', { class: 'param-bar__grow' },
@@ -135,6 +143,28 @@ function skillLine(app, hero) {
 // ヒーロー
 // ------------------------------------------------------------
 
+/** 開いているヒーローのカード（描き直しても残す） */
+function openSet(app) {
+  if (!app.ui.driveOpen || typeof app.ui.driveOpen !== 'object') app.ui.driveOpen = {};
+  return app.ui.driveOpen;
+}
+
+/** カードを開く / 畳む（DOM を直接切り替える。描き直しはしない） */
+function toggleCard(app, card) {
+  const id = card.dataset.squad;
+  const open = !card.classList.contains('is-open');
+  openSet(app)[id] = open;
+  card.classList.toggle('is-open', open);
+  const btn = card.querySelector('.hero-card__toggle');
+  if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (!open || fx.reducedMotion()) return;
+  // 開いたときだけ、棒が伸びて数字が転がる（押したら必ず何かが返る）
+  for (const g of card.querySelectorAll('.param-bar__grow')) {
+    if (g.animate) g.animate([{ transform: 'scaleX(0)' }, { transform: 'none' }], { duration: 560, delay: 90 + Number(g.parentNode.parentNode.parentNode.style.getPropertyValue('--j') || 0) * 40, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'backwards' });
+  }
+  for (const n of card.querySelectorAll('.param-bar__num')) fx.rollNumber(n, Number(n.dataset.to), { from: 0, flash: false, ms: 520 });
+}
+
 function heroCard(app, squad, i) {
   const db = app.db;
   const hero = heroOf(db, squad.heroId);
@@ -142,8 +172,11 @@ function heroCard(app, squad, i) {
   const cap = troopCap(hero, squad, db);
   const ext = squad.equip ? db.extensions[squad.equip] : null;
   const pct = cap ? Math.max(0, Math.min(100, (squad.troops / cap) * 100)) : 0;
+  const open = !!openSet(app)[squad.id];
+  const bodyId = `hero-body-${squad.id}`;
+  const s = hero.skill;
   return h('article', {
-    class: ['hero-card', squad.status === 'routed' ? 'is-routed' : null],
+    class: ['hero-card', squad.status === 'routed' ? 'is-routed' : null, open ? 'is-open' : null],
     dataset: { rarity: hero.rarity, squad: squad.id }, style: { '--i': String(i) },
   },
   // 光沢と縁（カードの形に切り抜く層。絵は切り抜かずに上へはみ出す）
@@ -152,29 +185,47 @@ function heroCard(app, squad, i) {
   h('span', { class: 'hero-card__art', 'aria-hidden': 'true' },
     h('span', { class: 'hero-card__halo' }),
     heroImg(hero, { class: 'hero-card__img', width: 128, height: 128, alt: '' })),
-  h('header', { class: 'hero-card__head' },
-    h('p', { class: 'hero-card__meta' }, rarityTag(app, hero), h('span', { class: 'hero-card__cls' }, clsText(app, hero))),
-    h('h3', { class: 'hero-card__name' }, hero.name),
-    h('div', { class: 'hero-card__stats num' },
-      h('span', { class: 'stat' },
-        h('span', { class: 'stat__label' }, term(app, 'troops', t(app, 'param.troops'))),
-        h('span', { class: 'stat__val' }, h('b', null, String(squad.troops)), h('small', null, ` / ${cap}`)),
-        h('span', { class: 'stat__bar', 'aria-hidden': 'true' }, h('span', { class: 'stat__fill', style: { width: `${pct}%` } }))),
-      h('span', { class: 'stat' },
-        h('span', { class: 'stat__label' }, term(app, 'range', t(app, 'drive.range'))),
-        h('span', { class: 'stat__val' }, h('b', null, String(rangeOf(hero))))),
-      squad.status === 'routed' ? h('span', { class: 'tag tag--danger' }, t(app, 'map.routed')) : null)),
-  paramBars(app, hero, squad),
-  h('footer', { class: 'hero-card__foot' },
-    skillLine(app, hero),
-    h('div', { class: 'hero-card__equip' },
-      h('span', { class: 'hero-card__equip-label' }, t(app, 'drive.equip')),
-      ext
-        ? h('button', { class: 'hero-card__ext', type: 'button', onClick: () => go('photo') },
-          imgEl(ext.image, ext.name, { class: 'hero-card__ext-img', width: 28, height: 28 }),
-          h('span', { class: 'hero-card__ext-name' }, ext.name), h('small', null, ext.text))
-        : h('button', { class: 'hero-card__ext is-empty', type: 'button', onClick: () => go('photo') },
-          h('span', { class: 'hero-card__ext-slot', 'aria-hidden': 'true' }), h('span', null, t(app, 'drive.noEquip'))))));
+  // 畳んだ形: レアリティ・名前・兵・スキル名だけ。押すと開く
+  h('button', {
+    class: 'hero-card__toggle', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': bodyId,
+    onClick: (e) => toggleCard(app, e.currentTarget.closest('.hero-card')),
+  },
+  h('span', { class: 'hero-card__meta' }, rarityTag(app, hero), h('span', { class: 'hero-card__cls' }, clsText(app, hero)),
+    squad.status === 'routed' ? h('span', { class: 'tag tag--danger' }, t(app, 'map.routed')) : null),
+  h('span', { class: 'hero-card__name', role: 'heading', 'aria-level': '3' }, hero.name),
+  h('span', { class: 'hero-card__sum num' },
+    h('span', { class: 'stat' },
+      h('span', { class: 'stat__label' }, t(app, 'param.troops')),
+      h('span', { class: 'stat__val' }, h('b', null, String(squad.troops)), h('small', null, ` / ${cap}`)),
+      h('span', { class: 'stat__bar', 'aria-hidden': 'true' }, h('span', { class: 'stat__fill', style: { width: `${pct}%` } }))),
+    s ? h('span', { class: 'hero-card__skill-chip' },
+      h('span', { class: 'skill-kind', dataset: { kind: s.kind } }, t(app, `skill.${s.kind}`)),
+      h('span', { class: 'hero-card__skill-name' }, s.name)) : null)),
+  // 開いた形: 射程・6 つのパラメーター（「?」は見出しの横に 1 つ）・スキル・エクステンション
+  h('div', { class: 'hero-card__more', id: bodyId },
+    h('div', { class: 'hero-card__more-in' },
+      h('div', { class: 'hero-card__params-head' },
+        h('span', { class: 'hero-card__params-title' }, tx(app, 'drive.params', '能力値')),
+        h('button', {
+          class: 'hero-card__q', type: 'button', 'aria-label': `${tx(app, 'drive.params', '能力値')} ${tx(app, 'help.title', '説明')}`,
+          onClick: (e) => { e.stopPropagation(); openHelp(app, 'act'); },
+        }, h('span', { 'aria-hidden': 'true' }, '?')),
+        h('span', { class: 'stat hero-card__range num' },
+          h('span', { class: 'stat__label' }, t(app, 'drive.range')),
+          h('span', { class: 'stat__val' }, h('b', null, String(rangeOf(hero)))))),
+      paramBars(app, hero, squad, { plain: true }),
+      h('footer', { class: 'hero-card__foot' },
+        skillLine(app, hero),
+        h('div', { class: 'hero-card__equip' },
+          h('span', { class: 'hero-card__equip-label' }, t(app, 'drive.equip')),
+          ext
+            ? h('button', { class: 'hero-card__ext', type: 'button', onClick: () => go('photo') },
+              imgEl(ext.image, ext.name, { class: 'hero-card__ext-img', width: 28, height: 28 }),
+              h('span', { class: 'hero-card__ext-name' }, ext.name), h('small', null, ext.text))
+            : h('button', { class: 'hero-card__ext is-empty', type: 'button', onClick: () => go('photo') },
+              h('span', { class: 'hero-card__ext-slot', 'aria-hidden': 'true' }), h('span', null, t(app, 'drive.noEquip'))))))),
+  // 開く印（カードの下の縁に掛かったつまみ。開くと上を向く）
+  h('span', { class: 'hero-card__chev', 'aria-hidden': 'true' }));
 }
 
 function heroesTab(app) {
@@ -194,7 +245,9 @@ function fortsTab(app) {
   const me = st.lands[st.playerLand];
   const seen = new Set(me.explored || []);
   const order = { legendary: 0, epic: 1, rare: 2 };
-  const forts = Object.values(st.forts || {}).sort((a, b) => (order[a.rank] - order[b.rank]) || String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
+  // 分かっている砦（よそ）→ 自ランドの砦 → 未探索。その中はランクの高い順
+  const group = (f) => (!seen.has(f.tile) ? 2 : f.owner === st.playerLand ? 1 : 0);
+  const forts = Object.values(st.forts || {}).sort((a, b) => (group(a) - group(b)) || (order[a.rank] - order[b.rank]) || String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
   return h('ul', { class: 'fort-list' }, forts.map((f, i) => {
     if (!seen.has(f.tile)) {
       return h('li', { class: 'fort-card is-unknown', dataset: { rank: f.rank }, style: { '--i': String(i) } },
@@ -212,10 +265,13 @@ function fortsTab(app) {
         h('span', { class: 'fort-card__art' },
           enemy ? imgEl(enemy.image, enemy.name, { class: 'fort-card__img pixel', width: 64, height: 64 }) : h('span', { class: 'img-fallback' }, '?')),
         h('div', { class: 'fort-card__body' },
-          h('h3', { class: 'fort-card__name' }, h('span', { class: 'fort-rank' }, t(app, `fort.${f.rank}`)), ' ', f.name),
-          h('p', { class: 'fort-card__meta' }, h('span', { class: 'muted' }, `${t(app, 'map.owner')} `),
-            h('span', { class: 'fort-card__owner' }, landName(app, f.owner)),
-            enemy ? h('span', { class: 'muted' }, `　${t(app, 'drive.enemy')} ${enemy.name}`) : null),
+          // 名前にランクが入っている（「Rare砦 …」）ので、前にランクを重ねない。色だけランクの色
+          h('h3', { class: 'fort-card__name fort-rank' }, f.name),
+          // 持ち主とエネミーは 2 行に分ける（名前が途中で折れないように）
+          h('p', { class: 'fort-card__meta fort-card__row' }, h('span', { class: 'fort-card__k muted' }, t(app, 'map.owner')),
+            h('span', { class: 'fort-card__owner' }, landName(app, f.owner)), own ? h('span', { class: 'fort-card__mine' }, tx(app, 'drive.mine', '自ランド')) : null),
+          enemy ? h('p', { class: 'fort-card__meta fort-card__row' }, h('span', { class: 'fort-card__k muted' }, t(app, 'drive.enemy')),
+            h('span', { class: 'fort-card__enemy' }, enemy.name)) : null,
           h('p', { class: 'fort-card__meta num' },
             h('span', { class: 'muted' }, `${t(app, 'fort.troops')} `), String(f.troops),
             h('span', { class: 'muted' }, `　${t(app, 'fort.durability')} `), `${f.durability} / ${f.maxDurability}`),
@@ -329,7 +385,7 @@ function welcome(app, pending, hero) {
   app.ui.driveTab = 'heroes';
   app.ui.driveNew = squad.id;
   renderApp();
-  fx.cutin({ image: hero.image, title: fill(tx(app, 'drive.joinTitle', '{name} が仲間に'), { name: hero.name }), sub: `${t(app, `rarity.${hero.rarity}`)} ・ ${clsText(app, hero)}`, side: 'gold', ms: 1500, se: 'confirm' });
+  fx.cutin({ image: hero.image, title: fill(tx(app, 'drive.joinTitle', '{name} が仲間に'), { name: hero.name }), sub: `${t(app, `rarity.${hero.rarity}`)} ・ ${clsText(app, hero)}`, side: 'accent', ms: 1500, se: 'confirm' });
   toast(say(app.db, hero, 'join', { name: hero.name }), { key: 'soul-join', kind: 'good' });
 }
 
@@ -341,10 +397,14 @@ function soulSection(app) {
   const soul = p.soul || {};
   const key = soulKey(p);
   const shown = soulRevealed === key;
-  return h('section', { class: ['soul', shown ? 'is-ready' : null], 'aria-labelledby': 'soul-title', dataset: { key } },
+  const sec = h('section', { class: ['soul', shown ? 'is-ready' : null], 'aria-labelledby': 'soul-title', dataset: { key } },
     h('span', { class: 'soul__glow', 'aria-hidden': 'true' }),
     h('header', { class: 'soul__head' },
       h('h2', { class: 'soul__title', id: 'soul-title' }, t(app, 'drive.soulTitle')),
+      // 案内は見出しの横の 1 行だけ（全文は右上の「?」）
+      h('p', { class: 'soul__hint', 'aria-live': 'polite' },
+        h('span', { class: 'soul__hint-dot', 'aria-hidden': 'true' }),
+        shown ? tx(app, 'drive.soulHintShort', '1 枚タップして選ぶ') : tx(app, 'drive.soulHintWait', 'SOUL をめくっています')),
       h('p', { class: 'soul__lead' },
         h('span', { class: 'soul__chip' }, t(app, `cls.${soul.role}`)),
         h('span', { class: 'soul__chip', dataset: { rarity: soul.rarity } }, t(app, `rarity.${soul.rarity}`)),
@@ -364,18 +424,23 @@ function soulSection(app) {
           pickSoul(app, p, hero.id, card);
         },
       },
+      // 回るのは中の板（__inner）。ボタン自身は perspective を持ち、床の影（::before）は回らない
+      h('span', { class: 'soul-card__inner' },
+      h('span', { class: 'soul-card__edge', 'aria-hidden': 'true' }),
       h('span', { class: 'soul-card__back', 'aria-hidden': 'true' },
         h('span', { class: 'soul-card__crest' }, h('span', null, 'SOUL'))),
       h('span', { class: 'soul-card__face' },
+        h('span', { class: 'soul-card__flash', 'aria-hidden': 'true' }),
         h('span', { class: 'soul-card__shine', 'aria-hidden': 'true' }),
         h('span', { class: 'soul-card__art' }, heroImg(hero, { class: 'soul-card__img', width: 64, height: 64 })),
         h('span', { class: 'soul-card__name' }, hero.name),
         rarityTag(app, hero),
         h('span', { class: 'soul-card__cls' }, clsText(app, hero)),
         paramBars(app, hero, null, { inButton: true }),
-        hero.skill ? h('span', { class: 'soul-card__skill' }, hero.skill.name) : null));
-    })),
-    h('p', { class: 'soul__hint muted' }, tx(app, 'drive.soulHint', '1 枚タップして迎えるヒーローを選ぶ')));
+        hero.skill ? h('span', { class: 'soul-card__skill' }, hero.skill.name) : null)));
+    })));
+  sec._readyText = tx(app, 'drive.soulHintShort', '1 枚タップして選ぶ');
+  return sec;
 }
 
 /** 裏向きのカードを順にめくる（600ms ずつ）。動きを減らすときはすぐ表 */
@@ -408,9 +473,26 @@ function revealAll(sec, key) {
 function markReady(sec, key) {
   sec.classList.add('is-ready');
   soulRevealed = key;
+  const hint = sec.querySelector('.soul__hint');
+  if (hint && sec._readyText) {
+    hint.lastChild.textContent = sec._readyText;
+    if (hint.animate && !fx.reducedMotion()) hint.animate([{ opacity: 0, transform: 'translateX(-6px)' }, { opacity: 1, transform: 'none' }], { duration: 240, easing: 'cubic-bezier(.16, 1, .3, 1)' });
+  }
 }
 
 // ------------------------------------------------------------
+
+/**
+ * 吹き出しの高さを、全文が出たときの高さで先に確保する（1 文字ずつ出ても下の配置が動かない）。
+ * 差した直後（まだ全文が入っている）に測る。
+ */
+export function lockGuide(guideEl) {
+  const b = guideEl && guideEl.querySelector('.navi-bubble');
+  if (!b || !b.offsetHeight) return;
+  b.style.minHeight = `${b.offsetHeight}px`;
+  b.style.width = `${b.offsetWidth}px`;
+  b.style.boxSizing = 'border-box';
+}
 
 /** 前回のタブ（タブを替えたら、金の板がすべり中身が横から入る） */
 let lastTab = null;
@@ -419,7 +501,11 @@ export function render(app) {
   const tab = TABS.includes(app.ui.driveTab) ? app.ui.driveTab : 'heroes';
   app.ui.driveTab = tab;
   const body = tab === 'heroes' ? heroesTab(app) : tab === 'forts' ? fortsTab(app) : landsTab(app);
-  const guide = firstGuide(app, { name: 'drive', face: 'point', text: tx(app, 'drive.guide', 'ここはデータベース。ヒーローの強さは 6 つのパラメーターで決まるよ。名前の横の「?」で意味を読めるからね') });
+  const soulWaiting = (app.state.pending || []).some((p) => p.kind === 'soul' && p.land === app.state.playerLand);
+  // SOUL の選択待ちでは案内のパネルを出さない（3 枚を押し下げない）。全文は「?」の頭へ
+  // 迎えた直後（カットインとトーストが出ている）にも、案内は重ねない
+  const guide = soulWaiting || app.ui.driveNew ? null : firstGuide(app, { name: 'drive', face: 'point', text: guideText(app) });
+  app.ui.driveGuideInHelp = soulWaiting;
   const ti = TABS.indexOf(tab);
   const root = h('section', { class: 'app-screen app-screen--drive drive' },
     appHead(app, { title: t(app, 'app.drive'), sub: t(app, 'drive.title'), help: () => openHelp(app), back: () => go('home') }),
@@ -452,7 +538,7 @@ export function mount(app, el) {
   const prevTab = lastTab;
   lastTab = tab;
   const tabChanged = !enter && prevTab && prevTab !== tab;
-  if (el._guide) el._guide.start();
+  if (el._guide) { lockGuide(el._guide.el); el._guide.start(); }
   // タブ: 金の板が前のタブからすべってくる・中身が横から入る
   if (tabChanged) {
     const dir = TABS.indexOf(tab) > TABS.indexOf(prevTab) ? 1 : -1;
@@ -485,7 +571,8 @@ export function mount(app, el) {
     app.ui.driveNew = null;
     if (card) {
       card.classList.add('is-new');
-      if (card.scrollIntoView) card.scrollIntoView({ block: 'nearest' });
+      // 真ん中へ（上のアプリバーと右上のトーストに隠れないように）
+      if (card.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: fx.reducedMotion() ? 'auto' : 'smooth' });
     }
   }
 }

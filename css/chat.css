@@ -63,19 +63,29 @@
 .chat-ring--mai { --ring: var(--accent); --p: 1; }
 
 /* ---------- トークの一覧 ---------- */
-.chat--list { min-height: 100%; display: flex; flex-direction: column; gap: 8px; padding-bottom: 0; }
-.chat-list-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
-.chat-list-head .app-title { margin: 0; }
-.chat-tally { display: flex; gap: .7rem; margin: 0; font-size: .7rem; color: var(--muted); }
-.chat-tally__item { display: inline-flex; align-items: center; gap: 4px; }
-.chat-tally__item b { color: var(--text-hi); font-size: .8rem; }
-.chat-tally__item--doing { color: var(--accent-hi); }
-.chat-tally__item--done { color: var(--ok); }
+.chat--list { min-height: 100%; display: flex; flex-direction: column; gap: 10px; padding-bottom: 0; }
+.chat--list .chat-list-head { margin-bottom: 0; }
+/* 集計: 見出しの下に 3 つのピル（高さ 24px・13px） */
+.chat-tally { list-style: none; display: flex; gap: 6px; margin: -2px 0 2px; padding: 0; }
+.chat-tally__item {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px; border-radius: 999px;
+  font-size: 13px; font-weight: 800; line-height: 1; color: var(--muted); white-space: nowrap;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .025));
+  border: 1px solid rgba(255, 255, 255, .09);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 1px 3px rgba(0, 0, 0, .35);
+  transition: opacity var(--t-ui);
+}
+.chat-tally__item b { color: var(--text-hi); font-size: 13px; font-weight: 900; min-width: .7em; text-align: center; }
+.chat-tally__item--none { color: #d8d0ec; }
+.chat-tally__item--doing { color: var(--accent-hi); border-color: rgba(196, 163, 90, .4); background: linear-gradient(180deg, rgba(196, 163, 90, .2), rgba(196, 163, 90, .07)); }
+.chat-tally__item--done { color: var(--ok); border-color: rgba(94, 207, 138, .38); background: linear-gradient(180deg, rgba(94, 207, 138, .16), rgba(94, 207, 138, .05)); }
+.chat-tally__item.is-zero { opacity: .55; }
+.chat-tally__item .chat-status__mark { width: 10px; height: 10px; flex-basis: 10px; }
 
 .chat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; }
 .chat-row {
-  position: relative; width: 100%; display: flex; align-items: center; gap: .75rem;
-  min-height: 80px; padding: 7px 12px 7px 9px; text-align: left; cursor: pointer; overflow: hidden;
+  position: relative; width: 100%; display: flex; align-items: center; gap: .8rem;
+  min-height: 88px; padding: 8px 12px 8px 10px; text-align: left; cursor: pointer; overflow: hidden;
   background:
     linear-gradient(100deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, 0) 45%),
     var(--noise) 0 0 / 120px 120px,
@@ -106,7 +116,23 @@
   0%, 100% { box-shadow: var(--sh-edge), var(--sh-1), 0 0 0 0 rgba(108, 198, 255, .0); }
   50% { box-shadow: var(--sh-edge), var(--sh-1), 0 0 0 3px rgba(108, 198, 255, .25), 0 0 22px rgba(108, 198, 255, .35); }
 }
-.chat-row__img { width: 58px; height: 58px; }
+.chat-row__img { width: 64px; height: 64px; }
+/* お知らせが無いときのマインちゃん: 最下段で小さく（高さ 56px） */
+.chat-list__mai.is-quiet { margin-top: 4px; }
+.chat-row--quiet {
+  min-height: 56px; padding: 6px 12px 6px 10px; gap: .65rem; border-color: var(--border);
+  background: linear-gradient(180deg, rgba(42, 36, 56, .55), rgba(30, 26, 40, .55));
+  box-shadow: var(--sh-edge);
+}
+.chat-row--quiet .chat-ring { padding: 2px; }
+.chat-row--quiet .chat-row__img { width: 38px; height: 38px; }
+.chat-row--quiet .chat-row__main { flex-direction: row; align-items: baseline; gap: .6rem; }
+.chat-row--quiet .chat-row__name { font-size: .84rem; flex: 0 0 auto; }
+.chat-row--quiet .chat-row__last { font-size: .74rem; }
+.chat-row__chev {
+  flex: 0 0 auto; width: 8px; height: 8px; margin-right: 4px; opacity: .55;
+  border-top: 2px solid var(--muted); border-right: 2px solid var(--muted); transform: rotate(45deg);
+}
 .chat-row__img--mai { image-rendering: auto; }
 .chat-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .chat-row__name { font-weight: 800; font-size: .96rem; display: flex; align-items: center; gap: .45rem; min-width: 0; color: var(--text-hi); }
@@ -230,9 +256,28 @@
 .chat-queue__ap { font-size: .66rem; font-weight: 800; color: #ffb3a8; }
 .chat-queue__none { font-size: .74rem; }
 
+/* ---------- 会話の欄（奥にその人の絵を大きく。B のレイヤー） ---------- */
+.chat-room { position: relative; z-index: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.chat-room__art {
+  position: absolute; right: -14px; bottom: -6px; width: 160px; height: 160px; pointer-events: none; z-index: 0;
+  opacity: .14; filter: saturate(.8) drop-shadow(0 0 18px rgba(196, 163, 90, .35));
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%); mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  animation: chat-room-breathe 7s var(--ease-inout) infinite;
+  transition: opacity var(--t-ui) var(--ease-out);
+}
+.chat-room__img { display: block; width: 160px; height: 160px; object-fit: contain; image-rendering: pixelated; }
+.chat-room__img--navi { image-rendering: auto; object-position: 50% 0; }
+/* 床の光（絵が「置いてある」ように） */
+.chat-room::after {
+  content: ""; position: absolute; right: -40px; bottom: -50px; width: 240px; height: 110px; pointer-events: none; z-index: 0;
+  background: radial-gradient(closest-side, rgba(196, 163, 90, .10), transparent);
+}
+.chat--talk.has-sheet .chat-room__art { opacity: .08; }
+@keyframes chat-room-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+
 /* ---------- 吹き出し ---------- */
 .chat-log {
-  position: relative; z-index: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; list-style: none; margin: 0;
+  position: relative; z-index: 1; flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; list-style: none; margin: 0;
   padding: 12px clamp(8px, 3vw, 14px) 14px; display: flex; flex-direction: column; gap: 8px;
   -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 14px); mask-image: linear-gradient(180deg, transparent 0, #000 14px);
   overscroll-behavior: contain;
@@ -315,6 +360,16 @@
   animation: chat-sheet-in var(--t-ui) var(--ease-out);
 }
 @keyframes chat-sheet-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+/* 取っ手（押すと閉じる。外をタップしても閉じる） */
+.chat-sub__grab {
+  display: block; width: 100%; height: 14px; margin: -8px 0 4px; padding: 0; border: 0; background: none; cursor: pointer;
+}
+.chat-sub__grab span {
+  display: block; width: 36px; height: 4px; margin: 4px auto 0; border-radius: 999px;
+  background: rgba(255, 255, 255, .22); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .15);
+  transition: background var(--t-ui), width var(--t-ui) var(--ease-out);
+}
+.chat-sub__grab:hover span { background: rgba(255, 255, 255, .38); width: 44px; }
 .chat-sub__head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: 6px; flex-wrap: wrap; }
 .chat-sub__title { font-size: .78rem; font-weight: 800; color: var(--muted); }
 .chat-sub__now { font-size: .75rem; }
@@ -384,6 +439,7 @@
 @keyframes chat-next-in { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 .chat-next__inner { margin-top: 10px; opacity: .62; filter: saturate(.6); }
 .chat-next__inner .chat-sub { padding: 0; max-height: none; background: none; box-shadow: none; border-radius: 0; animation: none; }
+.chat-next__inner .chat-sub__grab { display: none; }
 
 /* ---------- ロスターと主役ボタン（親指の届く帯） ---------- */
 .chat--talk .chat-dock {
@@ -392,7 +448,22 @@
   background: linear-gradient(180deg, rgba(24, 20, 32, .9), rgba(18, 16, 24, .96));
   box-shadow: inset 0 1px 0 var(--edge-hi);
 }
-.chat-roster { list-style: none; margin: -6px -4px 0; padding: 6px 8px 4px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.chat-roster {
+  list-style: none; margin: -6px -4px 0; padding: 6px 8px 4px; display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+  height: 52px; box-sizing: border-box; flex: 0 0 auto;
+}
+/* シートが開いているあいだは畳む（高さ 0・180ms） */
+.chat-roster.is-folded { height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -6px; opacity: 0; overflow: hidden; pointer-events: none; }
+.chat-roster.is-fold { animation: chat-roster-fold 180ms var(--ease-in) both; }
+.chat-roster.is-unfold { animation: chat-roster-unfold 180ms var(--ease-out) both; }
+@keyframes chat-roster-fold {
+  from { height: 52px; padding-top: 6px; padding-bottom: 4px; margin-bottom: 0; opacity: 1; }
+  to { height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -6px; opacity: 0; }
+}
+@keyframes chat-roster-unfold {
+  from { height: 0; padding-top: 0; padding-bottom: 0; margin-bottom: -6px; opacity: 0; }
+  to { height: 52px; padding-top: 6px; padding-bottom: 4px; margin-bottom: 0; opacity: 1; }
+}
 .chat-roster::-webkit-scrollbar { display: none; }
 .chat-roster__btn {
   position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%;
@@ -434,7 +505,23 @@
   transform: rotate(45deg); animation: chat-arrow-r 1.6s var(--ease-inout) infinite;
 }
 @keyframes chat-arrow-r { 0%, 100% { transform: rotate(45deg); } 50% { transform: translateX(4px) rotate(45deg); } }
-.chat-primary--ghost { font-size: .82rem; font-weight: 700; color: var(--muted); min-height: 40px; }
+/* 副ボタン（まだ何も積んでいないとき）: 高さ 48px・枠 1px・右端に「＞」 */
+.chat-primary--sub {
+  position: relative; min-height: 48px; justify-content: space-between; gap: .6rem; padding: 8px 16px 8px 18px; cursor: pointer;
+  font-size: .88rem; font-weight: 800; color: var(--text-hi);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015)), var(--panel-1);
+  border: 1px solid var(--border-hi);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 2px 0 rgba(0, 0, 0, .45);
+  transition: transform var(--t-tap) var(--ease-out), box-shadow var(--t-tap) var(--ease-out), border-color var(--t-ui), background var(--t-ui);
+}
+.chat-primary--sub:hover { border-color: rgba(196, 163, 90, .55); }
+.chat-primary--sub:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 rgba(0, 0, 0, 0); }
+.chat-primary--sub .chat-primary__main { text-align: left; }
+.chat-primary__chev {
+  flex: 0 0 auto; width: 9px; height: 9px; margin-right: 2px;
+  border-top: 2px solid var(--accent); border-right: 2px solid var(--accent); transform: rotate(45deg);
+  animation: chat-arrow-r 1.6s var(--ease-inout) infinite;
+}
 .chat-primary--hint { margin: 0; min-height: 40px; font-size: .78rem; font-weight: 700; }
 /* AP を使い切った直後: 0.6 秒後に光って呼ぶ */
 .chat-primary.is-call { animation: chat-call 1.1s var(--ease-out) 600ms 2 both; }
@@ -444,32 +531,63 @@
   100% { box-shadow: 0 0 0 14px rgba(236, 208, 138, 0); transform: none; }
 }
 
-/* ---------- リッチメニュー（2 行 × 4 列。AP の消費とできない理由つき） ---------- */
+/* ---------- リッチメニュー（2 行 × 4 列の板。AP の消費とできない理由つき） ---------- */
 .chat-menu {
   position: relative; z-index: 1; flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1px; background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 0 var(--edge-hi);
+  gap: 6px; padding: 7px 8px 8px;
+  background: var(--noise) 0 0 / 120px 120px, linear-gradient(180deg, rgba(14, 12, 20, .96), rgba(8, 7, 12, .98));
+  box-shadow: inset 0 1px 0 var(--edge-hi), inset 0 2px 6px rgba(0, 0, 0, .5);
 }
 .chat-menu__btn {
-  position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  min-height: clamp(54px, 7.4dvh, 64px); padding: 5px 2px 4px; border: 0; cursor: pointer;
-  background: linear-gradient(180deg, var(--panel-2), var(--panel-1)); font-size: .78rem; font-weight: 800; color: var(--text-hi);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06);
-  transition: background var(--t-ui) var(--ease-out), transform var(--t-tap) var(--ease-out);
+  position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: clamp(56px, 7.6dvh, 66px); padding: 6px 2px 5px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .06); border-radius: 10px;
+  font-size: .78rem; font-weight: 800; color: var(--text-hi);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, 0) 55%),
+    linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  /* 上辺のエッジ光 + 2px の影（板が置いてある） */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .35), 0 2px 0 rgba(0, 0, 0, .55), 0 3px 6px rgba(0, 0, 0, .3);
+  transition: background var(--t-ui) var(--ease-out), transform 120ms var(--ease-out), box-shadow 120ms var(--ease-out), border-color var(--t-ui);
 }
-.chat-menu__btn:hover { background: linear-gradient(180deg, var(--panel-3), var(--panel-2)); }
-.chat-menu__btn:active { transform: scale(.95); }
-.chat-menu__btn.is-open { background: linear-gradient(180deg, rgba(196, 163, 90, .22), var(--panel-2)); color: var(--accent-hi); }
-.chat-menu__btn.is-open::after { content: ""; position: absolute; left: 22%; right: 22%; top: 0; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent-hi); box-shadow: 0 0 8px var(--accent); }
+.chat-menu__btn:hover { border-color: rgba(255, 255, 255, .14); }
+/* 押したら 2px 沈む（影が消える） */
+.chat-menu__btn:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), inset 0 2px 4px rgba(0, 0, 0, .35), 0 0 0 rgba(0, 0, 0, 0); }
+.chat-menu__btn.is-open {
+  color: var(--accent-hi); border-color: rgba(236, 208, 138, .55);
+  background: linear-gradient(180deg, rgba(196, 163, 90, .3), rgba(196, 163, 90, .1) 60%), linear-gradient(180deg, var(--panel-3), var(--panel-2));
+  transform: translateY(2px);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 200, .25), 0 0 0 rgba(0, 0, 0, 0), 0 0 14px rgba(196, 163, 90, .3);
+}
+.chat-menu__btn.is-open::after { content: ""; position: absolute; left: 24%; right: 24%; top: -1px; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent-hi); box-shadow: 0 0 8px var(--accent); }
 .chat-menu__label { line-height: 1.15; }
 .chat-menu__meta {
   font-size: .6rem; font-weight: 800; line-height: 1.1; color: var(--accent); letter-spacing: .02em;
   max-width: 100%; padding: 0 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* できないボタン: 押せるが一段沈めて、理由を黄で */
-.chat-menu__btn.is-ng { background: linear-gradient(180deg, #221d2d, #1a1622); color: var(--muted); }
-.chat-menu__btn.is-ng .chat-menu__icon { filter: grayscale(1) brightness(.75); }
-.chat-menu__meta.is-ng { color: var(--warn); opacity: .9; }
-.chat-menu__btn.is-ng.is-open { color: var(--warn); }
+/* 押せるボタン: AP のピル（金の地・黒文字） */
+.chat-menu__pill {
+  height: 15px; display: inline-flex; align-items: center; padding: 0 7px; max-width: calc(100% - 8px);
+  border-radius: 999px; color: #17120a; font-weight: 900;
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent) 70%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 1px 2px rgba(0, 0, 0, .5);
+}
+/* できないボタン: 押せるが、文字とアイコンを沈め、右上に黄色の点 */
+.chat-menu__btn.is-ng {
+  color: color-mix(in srgb, var(--muted) 60%, transparent);
+  border-color: rgba(255, 255, 255, .03);
+  background: linear-gradient(180deg, rgba(20, 17, 27, .95), rgba(14, 12, 19, .95));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .03), 0 1px 0 rgba(0, 0, 0, .4);
+}
+.chat-menu__btn.is-ng .chat-menu__icon { opacity: .35; filter: grayscale(1); }
+.chat-menu__btn.is-ng:active { transform: translateY(1px); }
+.chat-menu__dot {
+  position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--warn); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .55), 0 0 6px rgba(240, 193, 75, .7);
+}
+.chat-menu__meta.is-ng { color: var(--warn); opacity: .85; }
+.chat-menu__btn.is-ng.is-open { color: var(--warn); border-color: rgba(240, 193, 75, .45); background: linear-gradient(180deg, rgba(240, 193, 75, .12), rgba(14, 12, 19, .95)); box-shadow: none; }
+.chat-menu__btn.is-ng.is-open .chat-menu__icon { opacity: .6; }
 .chat-menu__btn.is-ng.is-open::after { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
 .chat-menu__btn.is-shake { animation: chat-shake 360ms var(--ease-out); }
 @keyframes chat-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-4px); } 45% { transform: translateX(3px); } 70% { transform: translateX(-2px); } }

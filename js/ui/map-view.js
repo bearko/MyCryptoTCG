@@ -26,7 +26,8 @@ import { rangeOf } from '../engine/heroes.js';
 import { targetAt, noticesFrom, isShielded } from '../engine/turn.js';
 import { terrainYield } from '../engine/economy.js';
 import { save } from '../state.js';
-import { endTurn, STEP_MS } from '../main.js';
+import { endTurn, go, STEP_MS } from '../main.js';
+import { orderStatus } from './phone.js';
 
 /** zoom 1 の 1 ヘックスの大きさ（main.js の HEX_SIZE と同じ。mapCam はこの基準のワールド座標） */
 const BASE = 28;
@@ -40,8 +41,23 @@ const SQRT3 = Math.sqrt(3);
 const ENEMY = 'enemy';
 /** 待機中（揺れだけ）の描画間隔。30fps */
 const IDLE_MS = 33;
-/** 経路の線が出発地から目的地へ伸びきるまで */
-const PATH_MS = 420;
+/** 経路の線が伸びる速さ（1 マスあたり）と上限（SPEC-112 §3。カメラが寄りきってから伸ばす） */
+const PATH_STEP_MS = 60;
+const PATH_MAX_MS = 500;
+/** 経路を引いたときにカメラが寄る時間（--t-page 600ms の前半） */
+const ROUTE_CAM_MS = 300;
+/** 実行フェーズ: 戦闘の 1 拍ごとにカメラが攻撃側と守備側の中点へ寄る時間 */
+const BATTLE_CAM_MS = 400;
+/** 実行フェーズ: スキル名の帯を出しておく時間（そのあと数字が弾む） */
+const SKILL_LABEL_MS = 600;
+/** 実行フェーズ: ダメージの数字が読めるまでの時間（そのあと砦の旗の色が変わる） */
+const HIT_READ_MS = 900;
+/** 実行フェーズ: 砦の旗の色が変わる演出（そのあとカットイン） */
+const FLAG_MS = 300;
+/** 浮く文字を画面の端からこれだけ内側に収める */
+const FLOAT_MARGIN = 24;
+/** これより画面の外にある浮く文字は出さない（寄せるのは半分切れる程度のものだけ） */
+const NEAR = 90;
 /** タップの波紋 */
 const TAP_MS = 480;
 /** 初回の案内を見たかどうか（mcw.settings のキー） */
@@ -66,8 +82,6 @@ for (let i = 0; i < 6; i++) {
 // 辺 i の向こうの隣（odd-r。奇数行は右へ半分ずれる。engine/hex.js の toPixel と同じ並び）
 const NB_EVEN = [[1, 0], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1]];
 const NB_ODD = [[1, 0], [1, 1], [0, 1], [-1, 0], [0, -1], [1, -1]];
-
-const BAND_EVENTS = new Set(['fort_fallen', 'home_fallen', 'clear']);
 
 // ナビゲーター（マインちゃん）の差分。話している間は口を動かし、話し終えたら指さし
 const NAVI = {
@@ -181,6 +195,30 @@ function mySquads(st) {
 /** 指示を待っている自分の部隊（敗走していない・AP が残っている・何も積んでいない）。表示のための数え方 */
 function idleSquads(st) {
   return mySquads(st).filter((s) => s.status !== 'routed' && (s.ap || 0) > 0 && !(s.orders || []).length);
+}
+
+/** ロスターの順（phone.js・Chat と同じ: id の数の順） */
+function rosterSquads(st) {
+  return mySquads(st).sort((a, b) => String(a.id).localeCompare(String(b.id), 'en', { numeric: true }));
+}
+
+/** まだ指示を出せるか（未指示 / 指示中 で、AP が残っている。ステータスは phone.js の orderStatus） */
+function canAct(app, sq) {
+  if (!sq || sq.status === 'routed' || (sq.ap || 0) <= 0) return false;
+  const k = orderStatus(app, sq);
+  return k === 'none' || k === 'doing';
+}
+
+/** ロスターの順で、afterId の次から数えて最初の「まだ指示を出せる」部隊（afterId 自身は除く） */
+function nextActive(app, afterId = null) {
+  const list = rosterSquads(app.state);
+  const n = list.length;
+  const i = afterId == null ? -1 : list.findIndex((s) => s.id === afterId);
+  for (let k = 1; k <= n; k++) {
+    const s = list[(i + k + n) % n];
+    if (s.id !== afterId && canAct(app, s)) return s;
+  }
+  return null;
 }
 
 function homeAt(st, tile) {
@@ -374,20 +412,28 @@ function flyTo(app, tile, { zoom = null, dur = null, offsetY = 0 } = {}) {
   requestDraw();
 }
 
-/** シートや上の札に隠れていない、地図の見えている帯（画面座標） */
+/** 上の札・下のロスター / シート・案内に隠れていない、地図の見えている帯（画面座標） */
 function viewBand() {
-  const ge = V.guide && V.guide.el && V.el.classList.contains('has-sheet') ? V.guide.el : null;
-  const top = ge ? Math.max(64, ge.offsetTop + ge.offsetHeight + 4) : 64;
-  const sheetH = V.sheet && !V.sheet.hidden ? V.sheet.getBoundingClientRect().height : 0;
-  return { top, bottom: Math.max(top + 40, V.ch - sheetH - 12) };
+  const top = V.topEl ? Math.max(56, V.topEl.offsetTop + V.topEl.offsetHeight + 4) : 64;
+  const ui = bottomUi();
+  const ge = V.guide && V.guide.el && !V.guide.el.classList.contains('is-out') ? V.guide.el.offsetHeight + 8 : 0;
+  return { top, bottom: Math.max(top + 40, V.ch - ui - ge - 12) };
+}
+
+/** 画面の下に重なっている UI（シートが開いていればシート、無ければロスターの帯）の高さ */
+function bottomUi() {
+  if (!V) return 0;
+  if (V.sheet && !V.sheet.hidden) return V.sheet.getBoundingClientRect().height;
+  if (V.dock && !V.dock.hidden) return V.dock.offsetHeight;
+  return 0;
 }
 
 /**
  * タイルが画面の端やシートに隠れていれば寄せる。from を渡すと、出発地と行き先の両方が収まるように寄せる
- * （収まらなければ行き先を優先）
+ * （収まらなければ行き先を優先）。寄せたら true（動きを減らすときは寄せても false。待つ必要が無いため）
  */
-function ensureVisible(app, tile, from = null) {
-  if (!V || tile == null) return;
+function ensureVisible(app, tile, from = null, dur = fx.token('--t-flip', 380)) {
+  if (!V || tile == null) return false;
   const st = app.state;
   const p = tileWorld(st, tile);
   const s = toScreen(app, p.x, p.y);
@@ -402,21 +448,21 @@ function ensureVisible(app, tile, from = null) {
     dx = ((dx % P) + P * 1.5) % P - P / 2;
     q = { x: s.x + dx * app.ui.mapCam.zoom, y: s.y + (f.y - p.y) * app.ui.mapCam.zoom };
   }
-  if (inside(s) && (!q || inside(q))) return;
+  if (inside(s) && (!q || inside(q))) return false;
   const mid = (b.top + b.bottom) / 2;
-  const dur = fx.token('--t-flip', 380);
   if (q && Math.abs(q.x - s.x) < V.cw - m * 2 && Math.abs(q.y - s.y) < b.bottom - b.top - m) {
     // 2 点の真ん中へ（ワールド座標で）
     const wx = (q.x + s.x) / 2;
     const wy = (q.y + s.y) / 2;
     const w = screenToWorld(app, wx, wy);
     const cam = app.ui.mapCam;
-    if (!motion()) { cam.x = w.x; cam.y = w.y + (V.ch / 2 - mid) / cam.zoom; clampCam(app); requestDraw(); return; }
+    if (!motion()) { cam.x = w.x; cam.y = w.y + (V.ch / 2 - mid) / cam.zoom; clampCam(app); requestDraw(); return false; }
     V.camAnim = { fx: cam.x, fy: cam.y, fz: cam.zoom, tx: w.x, ty: w.y + (V.ch / 2 - mid) / cam.zoom, tz: cam.zoom, t0: now(), dur };
     requestDraw();
-    return;
+    return true;
   }
   flyTo(app, tile, { offsetY: V.ch / 2 - mid, dur });
+  return motion();
 }
 
 // ------------------------------------------------------------
@@ -438,7 +484,8 @@ function requestDraw() {
 /** 毎フレーム描く必要があるか（何かが動いている） */
 function busy(tm) {
   return !!(V.camAnim || V.anims.size || V.floats.length || V.lunges.size || V.taps.length || V.shake
-    || (V.pathFx && tm - V.pathFx.t0 < PATH_MS + 500)
+    || (V.pathFx && tm - V.pathFx.t0 < V.pathFx.dur + 500)
+    || V.flagFx.length || V.holds.size
     || (V.selFx && tm - V.selFx.t0 < 700));
 }
 
@@ -473,6 +520,7 @@ function frame() {
   for (const [id, a] of V.lunges) if (tm - a.t0 >= a.dur) V.lunges.delete(id);
   V.floats = V.floats.filter((f) => tm - f.t0 < f.dur);
   V.taps = V.taps.filter((f) => tm - f.t0 < TAP_MS);
+  V.flagFx = V.flagFx.filter((f) => tm - f.t0 < f.dur);
   if (V.shake && tm - V.shake.t0 >= V.shake.dur) V.shake = null;
   V.dirty = false;
   V.lastDraw = tm;
@@ -626,8 +674,10 @@ function drawStatic(app, ctx, cells, tm) {
     }
     ctx.stroke(lo);
   }
-  // 2. 占領色（自ランドは薄く塗って縁取りで見せる）
-  const ownerOf = (i) => (seen(i) && tiles[i] ? tiles[i].owner : null);
+  // 2. 占領色（自ランドは薄く塗って縁取りで見せる）。陥落の演出中の砦は、旗が変わるまで前の持ち主で描く
+  const heldTile = new Map();
+  for (const hd of V.holds.values()) if (hd.tile != null) heldTile.set(hd.tile, hd.tileOwner);
+  const ownerOf = (i) => (seen(i) && tiles[i] ? (heldTile.has(i) ? heldTile.get(i) : tiles[i].owner) : null);
   for (const c of cells) {
     const owner = ownerOf(c.tile);
     if (!owner) continue;
@@ -770,15 +820,9 @@ function drawStatic(app, ctx, cells, tm) {
       ctx.arc(c.x, c.y, s * 0.28, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (fort.owner !== ENEMY) {
-      ctx.fillStyle = landColor(db, fort.owner);
-      ctx.beginPath();
-      ctx.arc(c.x + s * 0.6, c.y - s * 0.55, Math.max(3, s * 0.16), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
+    const hold = V.holds.get(fort.id);
+    const owner = hold ? hold.owner : fort.owner;
+    if (owner !== ENEMY) drawPennant(ctx, c.x + s * 0.5, c.y - s * 0.25, s, landColor(db, owner));
     if (s >= 12) {
       const ratio = fort.maxDurability > 0 ? fort.durability / fort.maxDurability : 0;
       bar(ctx, c.x - s * 0.6, c.y + s * 0.62, s * 1.2, Math.max(2, s * 0.1), ratio, col);
@@ -846,6 +890,28 @@ function drawStatic(app, ctx, cells, tm) {
   }
 }
 
+/** 砦の旗（竿 + 三角の旗。持ち主のランドの色） */
+function drawPennant(ctx, x, y, s, color) {
+  const hgt = Math.max(9, s * 0.62);
+  const fw = Math.max(7, s * 0.4);
+  ctx.strokeStyle = '#f2ecfa';
+  ctx.lineWidth = Math.max(1.2, s * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - hgt);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y - hgt);
+  ctx.lineTo(x + fw, y - hgt + fw * 0.42);
+  ctx.lineTo(x, y - hgt + fw * 0.84);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = INK;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 /** 裏の canvas を描き直すかどうかの鍵（カメラ・大きさ・選択・到達範囲・表示の切り替え） */
 function staticKey(app, tm) {
   const cam = app.ui.mapCam;
@@ -853,7 +919,7 @@ function staticKey(app, tm) {
   const fading = sel && V.selFx && motion() && tm - V.selFx.t0 < 260;
   const show = mv(app).show;
   return [cam.x.toFixed(2), cam.y.toFixed(2), cam.zoom.toFixed(4), V.cw, V.ch, V.dpr,
-    sel ? sel.id : '', V.reach ? V.reach.key : '', fading ? tm : '', show.fog, show.owner, show.yield].join('|');
+    sel ? sel.id : '', V.reach ? V.reach.key : '', fading ? tm : '', show.fog, show.owner, show.yield, V.holds.size].join('|');
 }
 
 function draw(app, tm = now()) {
@@ -928,32 +994,7 @@ function draw(app, tm = now()) {
   for (const c of cells) {
     const list = byTile.get(c.tile);
     if (!list || !seen(c.tile)) continue;
-    // 選択中の部隊がいれば一番手前に
-    list.sort((a, b) => ((a.land === me) - (b.land === me)) || ((a.id === app.ui.selectedSquad) - (b.id === app.ui.selectedSquad)));
-    const n = Math.min(list.length, 3);
-    // 砦・本拠地のタイルでは、絵を隠さないように下へ寄せて小さく
-    const crowded = !!tiles[c.tile].fort || !!homeAt(st, c.tile);
-    const ss = crowded ? s * 0.7 : s;
-    const yy = crowded ? c.y + s * 0.42 : c.y - s * 0.05;
-    for (let k = 0; k < n; k++) {
-      const off = (k - (n - 1) / 2) * ss * 0.42;
-      drawSquad(app, list[list.length - n + k], c.x + off, yy, ss, tm, true);
-    }
-    if (list.length > 1 && s >= 12) {
-      const fs = Math.max(9, s * 0.34);
-      ctx.font = `800 ${fs}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = INK;
-      ctx.beginPath();
-      ctx.arc(c.x + s * 0.62, c.y + s * 0.5, fs * 0.72, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.25)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.fillStyle = '#f2ecfa';
-      ctx.fillText(String(list.length), c.x + s * 0.62, c.y + s * 0.52);
-    }
+    drawStack(app, c, list, s, tm, !!tiles[c.tile].fort || !!homeAt(st, c.tile));
   }
   // 動いている部隊（タイル間を滑る。最後に少し弾む）
   for (const [id, a] of V.anims) {
@@ -1002,6 +1043,7 @@ function draw(app, tm = now()) {
       ctx.lineDashOffset = 0;
     }
   }
+  if (V.flagDraw) { V.flagDraw(); V.flagDraw = null; }
   // タップの波紋（ヘックスの形で広がって消える）
   for (const tp of V.taps) {
     const k = Math.min(1, (tm - tp.t0) / TAP_MS);
@@ -1016,46 +1058,168 @@ function draw(app, tm = now()) {
       ctx.stroke();
     }
   }
-  // 浮く文字（ダメージ・奇襲・回避）。出る瞬間に弾んでから昇る
+  // 陥落した砦の旗が変わる瞬間（新しい持ち主の色の輪が広がる）
+  for (const ff of V.flagFx) {
+    const k = Math.min(1, Math.max(0, (tm - ff.t0) / ff.dur));
+    const e = 1 - Math.pow(1 - k, 3);
+    for (const c of cells) {
+      if (c.tile !== ff.tile) continue;
+      hexPath(ctx, c.x, c.y, s * (0.9 + 0.7 * e));
+      ctx.lineWidth = 2 + 4 * (1 - k);
+      ctx.strokeStyle = alpha(ff.color, 0.95 * (1 - k));
+      ctx.stroke();
+      hexPath(ctx, c.x, c.y, s - 2);
+      ctx.fillStyle = alpha(ff.color, 0.35 * (1 - k));
+      ctx.fill();
+    }
+  }
+  // 浮く文字（ダメージ・奇襲・回避）。出る瞬間に弾んでから昇る。画面の端から 24px 内側に収める
   for (const f of V.floats) {
     const age = tm - f.t0;
     if (age < 0) continue;
     const k = Math.min(1, age / f.dur);
     const p = toScreen(app, f.wx, f.wy);
     const mo = motion();
+    if (f.kind === 'label') {
+      drawSkillLabel(ctx, f, p, s, k, mo);
+      continue;
+    }
     const pop = !mo ? 1 : k < 0.1 ? 0.4 + (k / 0.1) * 1.05 : k < 0.24 ? 1.45 - ((k - 0.1) / 0.14) * 0.45 : 1;
     const rise = !mo ? 0 : Math.max(0, k - 0.24) * s * 1.1;
     ctx.globalAlpha = k > 0.75 ? (1 - k) / 0.25 : 1;
-    const size = Math.max(13, s * f.scale) * pop;
+    const size = Math.max(15, s * f.scale) * pop;
     ctx.font = `900 ${size}px "Hiragino Sans","Noto Sans JP",sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const y = p.y - s * 0.6 - rise + f.dy;
+    const tw = ctx.measureText(f.text).width;
+    const y0 = p.y - s * 0.6 - rise + f.dy;
+    // 画面のすぐ外（半分切れる程度）なら内側へ寄せる。遠く離れた所の数字は出さない（端に張り付かせない）
+    if (p.x < -NEAR || p.x > V.cw + NEAR || y0 < -NEAR || y0 > V.ch + NEAR) { ctx.globalAlpha = 1; continue; }
+    const x = Math.min(V.cw - FLOAT_MARGIN - tw / 2, Math.max(FLOAT_MARGIN + tw / 2, p.x));
+    const y = Math.min(V.ch - FLOAT_MARGIN - size / 2, Math.max(FLOAT_MARGIN + size / 2, y0));
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(3, size * 0.2);
     ctx.strokeStyle = 'rgba(10,8,16,.92)';
-    ctx.strokeText(f.text, p.x, y);
+    ctx.strokeText(f.text, x, y);
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, p.x, y);
+    ctx.fillText(f.text, x, y);
     if (f.shine) {
       ctx.fillStyle = 'rgba(255,255,255,.55)';
       ctx.save();
       ctx.beginPath();
-      ctx.rect(p.x - size * 3, y - size * 0.6, size * 6, size * 0.45);
+      ctx.rect(x - size * 3, y - size * 0.6, size * 6, size * 0.45);
       ctx.clip();
-      ctx.fillText(f.text, p.x, y);
+      ctx.fillText(f.text, x, y);
       ctx.restore();
     }
     ctx.globalAlpha = 1;
   }
 }
 
-function drawSquad(app, sq, x, y, s, tm, idle) {
+/** スキル名の帯: ダメージの数字が出る位置の 28px 上に、暗い帯（高さ 20px）で。出て、少し留まって、消える */
+function drawSkillLabel(ctx, f, p, s, k, mo) {
+  const fs = 12;
+  ctx.font = `900 ${fs}px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  const tw = ctx.measureText(f.text).width;
+  const w = tw + 22;
+  const H = 20;
+  const ny = p.y - s * 0.6;
+  if (p.x < -NEAR || p.x > V.cw + NEAR || ny < -NEAR || ny > V.ch + NEAR) return;
+  const x = Math.min(V.cw - FLOAT_MARGIN - w / 2, Math.max(FLOAT_MARGIN + w / 2, p.x));
+  const y = Math.max(FLOAT_MARGIN + H / 2, ny - 28);
+  const inK = mo ? Math.min(1, k / 0.18) : 1;
+  const outA = k > 0.82 ? (1 - k) / 0.18 : 1;
+  const sx = 0.6 + 0.4 * (1 - Math.pow(1 - inK, 3));
+  ctx.save();
+  ctx.globalAlpha = outA * inK;
+  ctx.translate(x, y);
+  ctx.scale(sx, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 6, -H / 2);
+  ctx.lineTo(w / 2, -H / 2);
+  ctx.lineTo(w / 2 - 6, H / 2);
+  ctx.lineTo(-w / 2, H / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = ACCENT;
+  ctx.fillRect(-w / 2 + 2, -H / 2, 3, H);
+  ctx.strokeStyle = 'rgba(255,227,160,.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-w / 2 + 6, -H / 2 + 0.5);
+  ctx.lineTo(w / 2, -H / 2 + 0.5);
+  ctx.stroke();
+  ctx.fillStyle = '#fff1c8';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(f.text, 3, 0.5);
+  ctx.restore();
+}
+
+function drawStack(app, c, list, s, tm, crowded) {
+  const ctx = V.ctx;
+  const me = app.state.playerLand;
+  const selId = !app.ui.executing ? app.ui.selectedSquad : null;
+  // 手前ほど後ろに並べる: 敵 → 自分 → 選択中
+  list.sort((a, b) => ((a.land === me) - (b.land === me)) || ((a.id === selId) - (b.id === selId)));
+  const n = Math.min(list.length, 3);
+  const shown = list.slice(list.length - n);
+  const sel = shown.find((q) => q.id === selId) || null;
+  const base = crowded ? s * 0.56 : (n > 1 ? s * 0.68 : s);
+  const yy = crowded ? c.y + s * 0.4 : c.y - s * 0.05;
+  const k = s / BASE;
+  const spread = 14 * Math.max(0.8, Math.min(1.6, k));
+  // 扇の位置（選択中は真ん中へ）
+  const order = sel ? shown.filter((q) => q !== sel) : shown.slice();
+  const slots = n === 1 ? [0] : n === 2 ? [-0.75, 0.75] : [-1, 0, 1];
+  const placed = [];
+  if (sel && n > 1) {
+    // 選択中は扇の真ん中（2 体なら右）に、ほかは両脇へ
+    const pos = n === 3 ? [0, 2] : [0];
+    order.forEach((q, i) => placed.push({ sq: q, slot: slots[pos[i]] }));
+    placed.push({ sq: sel, slot: slots[1] });
+  } else {
+    shown.forEach((q, i) => placed.push({ sq: q, slot: slots[i] }));
+  }
+  for (const pl of placed) {
+    const x = c.x + pl.slot * spread;
+    const y = yy + Math.abs(pl.slot) * spread * 0.18;
+    const big = pl.sq === sel && n > 1 ? 1.25 : 1;
+    if (n > 1 && pl.slot !== 0 && pl.sq !== sel) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(pl.slot * 0.14);
+      drawSquad(app, pl.sq, 0, 0, base, tm, true, big);
+      ctx.restore();
+    } else drawSquad(app, pl.sq, x, y, base, tm, true, big);
+  }
+  // 描ききれない数（4 体以上）は右下にピル
+  if (list.length > n && s >= 12) {
+    const label = `x${list.length}`;
+    ctx.font = '800 11px sans-serif';
+    const w = ctx.measureText(label).width + 10;
+    const px = c.x + s * 0.55;
+    const py = c.y + s * 0.62;
+    roundRect(ctx, px - w / 2, py - 8, w, 16, 8);
+    ctx.fillStyle = INK;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#f2ecfa';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, px, py + 0.5);
+  }
+}
+
+function drawSquad(app, sq, x, y, s, tm, idle, big = 1) {
   const ctx = V.ctx;
   const st = app.state;
   const mine = sq.land === st.playerLand;
   const selected = app.ui.selectedSquad === sq.id && !app.ui.executing;
-  const size = Math.max(14, s * 1.15) * (selected ? 1.06 : 1);
+  const size = Math.max(14, s * 1.15) * (selected ? Math.max(1.06, big) : big);
   const half = size / 2;
   const mo = motion();
   // 攻撃の踏み込み（攻撃側が少し前に出て戻る）
@@ -1131,6 +1295,37 @@ function drawSquad(app, sq, x, y, s, tm, idle) {
   ctx.moveTo(x - half + r, y - half + 1.5);
   ctx.lineTo(x + half - r, y - half + 1.5);
   ctx.stroke();
+  // 自分の部隊には、指示のステータスの小さな印（未指示: 白 / 指示中: 金の半円 / 完了: 緑のチェック）
+  if (mine && !app.ui.executing && !selected && size >= 18) {
+    const kind = orderStatus(app, sq);
+    const rr = Math.max(4, size * 0.16);
+    const bx = x + half - rr * 0.4;
+    const by = y - half + rr * 0.4;
+    ctx.beginPath();
+    ctx.arc(bx, by, rr + 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = INK;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx, by, rr, 0, Math.PI * 2);
+    ctx.fillStyle = kind === 'done' ? '#6fcf8f' : kind === 'doing' ? '#3a3448' : kind === 'off' ? '#5a5466' : '#d8d0ee';
+    ctx.fill();
+    if (kind === 'doing') {
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.arc(bx, by, rr, -Math.PI / 2, Math.PI / 2);
+      ctx.closePath();
+      ctx.fillStyle = ACCENT;
+      ctx.fill();
+    } else if (kind === 'done') {
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = Math.max(1.2, rr * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(bx - rr * 0.45, by);
+      ctx.lineTo(bx - rr * 0.1, by + rr * 0.38);
+      ctx.lineTo(bx + rr * 0.5, by - rr * 0.38);
+      ctx.stroke();
+    }
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -1187,7 +1382,11 @@ function strokeLine(ctx, pts) {
   ctx.stroke();
 }
 
-/** 経路のプレビュー: 出発地から線が伸びる。今日届く分は金の実線、翌日以降は点線。日の変わり目に番号、終点に到着予定のピン */
+/**
+ * 経路のプレビュー: ヘックスの中心をたどる折れ線が、出発地から伸びる（stroke-dashoffset を 0 へ動かすのと同じ見え方。
+ * 1 マス 60ms・上限 500ms。カメラが寄りきってから始める＝notePlan / openTile が t0 を後ろへずらす）。
+ * 今日届く分は金の実線、翌日以降は点線。日の変わり目に日数の丸、終点に到着予定日の旗
+ */
 function drawPath(app, sq, plan, s, tm) {
   const ctx = V.ctx;
   const pts = pathPoints(app, plan.from, plan.path);
@@ -1205,9 +1404,21 @@ function drawPath(app, sq, plan, s, tm) {
   for (let j = 1; j < pts.length; j++) if (dayOf[j] > 1) { split = j - 1; break; }
 
   const mo = motion();
-  const t0 = V.pathFx ? V.pathFx.t0 : 0;
-  const k = mo ? Math.min(1, (tm - t0) / PATH_MS) : 1;
-  const grow = 1 - Math.pow(1 - k, 3);
+  const fxp = V.pathFx;
+  const t0 = fxp ? fxp.t0 : 0;
+  const dur = fxp ? fxp.dur : 1;
+  // カメラが寄っている間は、出発地の点だけ（線はまだ伸ばさない）
+  if (mo && tm < t0) {
+    const p0 = pts[0];
+    const pk = (tm % 700) / 700;
+    ctx.fillStyle = alpha(ACCENT_HI, 0.9);
+    ctx.beginPath();
+    ctx.arc(p0.x, p0.y, Math.max(3, s * 0.12) * (1 + pk * 0.3), 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  const k = mo ? Math.min(1, (tm - t0) / dur) : 1;
+  const grow = 1 - Math.pow(1 - k, 2);
   const total = polyLength(pts);
   const shown = cutPolyline(pts, total * grow);
   const lastIdx = shown[shown.length - 1].cut ? shown[shown.length - 1].i - 1 : pts.length - 1;
@@ -1242,6 +1453,13 @@ function drawPath(app, sq, plan, s, tm) {
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
   }
+  // 通るヘックスの中心に小さな点（線がヘックスをたどっていると分かる）
+  for (let j = 1; j < pts.length - 1 && j <= lastIdx; j++) {
+    ctx.fillStyle = dayOf[j] === 1 ? 'rgba(255,248,225,.9)' : alpha(LATER, 0.9);
+    ctx.beginPath();
+    ctx.arc(pts[j].x, pts[j].y, Math.max(1.6, lw * 0.32), 0, Math.PI * 2);
+    ctx.fill();
+  }
   // 今日の分を流れる光の粒
   if (mo && k >= 1 && today.length >= 2) {
     const L = polyLength(today);
@@ -1258,7 +1476,7 @@ function drawPath(app, sq, plan, s, tm) {
     }
   }
   // 日の変わり目（翌日以降の最初の歩の手前）に日数の丸
-  const fs = Math.max(9, s * 0.3);
+  const fs = Math.max(11, s * 0.3);
   ctx.font = `900 ${fs}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -1284,43 +1502,72 @@ function drawPath(app, sq, plan, s, tm) {
     ctx.fill();
     return;
   }
-  // 到着予定のピン（落ちてきて弾む）
+  // 到着予定日の旗（伸びきったら、立って弾む）
   const end = pts[pts.length - 1];
-  const pk = mo ? Math.min(1, (tm - t0 - PATH_MS) / 360) : 1;
-  const drop = mo ? (1 - (1 + 2.6 * Math.pow(pk - 1, 3) + 1.6 * Math.pow(pk - 1, 2))) * s * 0.9 : 0;
-  ctx.fillStyle = 'rgba(0,0,0,.4)';
-  ctx.beginPath();
-  ctx.ellipse(end.x, end.y, Math.max(4, s * 0.22) * (0.6 + 0.4 * pk), Math.max(2, s * 0.08), 0, 0, Math.PI * 2);
-  ctx.fill();
   const days = plan.days != null ? plan.days : dayOf[dayOf.length - 1];
+  // 旗は、選んだタイルの点線より手前に描く（draw の最後で）
+  const pk = mo ? Math.min(1, (tm - t0 - dur) / 360) : 1;
+  V.flagDraw = () => drawDayFlag(ctx, app, end, days, s, pk, mo);
+}
+
+/** 到着予定日の旗: 竿の先に高さ 22px の旗。「2日」を 12px で（SPEC-112 §3） */
+function drawDayFlag(ctx, app, end, days, s, pk, mo) {
+  const e = mo ? 1 + 2.6 * Math.pow(pk - 1, 3) + 1.6 * Math.pow(pk - 1, 2) : 1;
   const label = fmt(t(app, 'map.daysUnit'), { n: days }).replace(/\s+/g, '');
-  const pfs = Math.max(10, s * 0.36);
-  ctx.font = `900 ${pfs}px "Hiragino Sans","Noto Sans JP",sans-serif`;
-  const tw = ctx.measureText(label).width;
-  const bw = tw + pfs * 0.9;
-  const bh = pfs * 1.5;
-  const by = end.y - s * 0.55 - bh - drop;
   const col = days <= 1 ? ACCENT : LATER;
-  // 吹き出しの足
-  ctx.fillStyle = col;
+  const FH = 22;
+  const pole = 32 * Math.max(0.2, e);
+  const base = { x: end.x, y: end.y };
+  // 足もとの影と台座
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
   ctx.beginPath();
-  ctx.moveTo(end.x - pfs * 0.35, by + bh - 1);
-  ctx.lineTo(end.x + pfs * 0.35, by + bh - 1);
-  ctx.lineTo(end.x, end.y - s * 0.1 - drop);
+  ctx.ellipse(base.x, base.y + 1, 7 * (0.6 + 0.4 * pk), 2.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // 竿
+  ctx.strokeStyle = '#f2ecfa';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(base.x, base.y);
+  ctx.lineTo(base.x, base.y - pole);
+  ctx.stroke();
+  ctx.fillStyle = '#f2ecfa';
+  ctx.beginPath();
+  ctx.arc(base.x, base.y - pole, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  // 旗（竿の右へ。端は燕尾）
+  ctx.font = `900 12px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  const tw = ctx.measureText(label).width;
+  const fw = tw + 16;
+  const fx0 = base.x + 1;
+  const fy0 = base.y - pole + 1;
+  const wave = mo ? Math.sin(now() / 260) * 1.2 : 0;
+  ctx.beginPath();
+  ctx.moveTo(fx0, fy0);
+  ctx.lineTo(fx0 + fw, fy0 + wave);
+  ctx.lineTo(fx0 + fw - 5, fy0 + FH / 2 + wave * 0.5);
+  ctx.lineTo(fx0 + fw, fy0 + FH + wave);
+  ctx.lineTo(fx0, fy0 + FH);
   ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.shadowColor = 'rgba(0,0,0,.5)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
   ctx.fill();
-  roundRect(ctx, end.x - bw / 2, by, bw, bh, bh / 2);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.5)';
+  ctx.shadowColor = 'transparent';
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  // 上辺の光
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(end.x - bw / 2 + bh / 2, by + 1.5);
-  ctx.lineTo(end.x + bw / 2 - bh / 2, by + 1.5);
+  ctx.moveTo(fx0 + 2, fy0 + 1.5);
+  ctx.lineTo(fx0 + fw - 3, fy0 + 1.5 + wave);
   ctx.stroke();
   ctx.fillStyle = INK;
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(label, end.x, by + bh / 2 + 0.5);
+  ctx.fillText(label, fx0 + 6, fy0 + FH / 2 + 0.5 + wave * 0.5);
 }
 
 /** 攻撃のプレビュー: 部隊から目標へ弧を描く線と、回る照準 */
@@ -1337,7 +1584,7 @@ function drawAim(app, sq, plan, s, tm) {
   const pb = { x: pa.x + dx * z, y: pa.y + (b.y - a.y) * z };
   const col = plan.ok ? ENEMY_COLOR : '#cfc6e4';
   const mo = motion();
-  const k = mo && V.pathFx ? Math.min(1, (tm - V.pathFx.t0) / PATH_MS) : 1;
+  const k = mo && V.pathFx ? Math.max(0, Math.min(1, (tm - V.pathFx.t0) / V.pathFx.dur)) : 1;
   const e = 1 - Math.pow(1 - k, 3);
   // 弧
   const mx = (pa.x + pb.x) / 2;
@@ -1443,7 +1690,10 @@ function makePlan(app, sq, tile) {
 function notePlan(plan) {
   if (!V) return;
   const key = plan ? `${plan.squad}:${plan.from}:${plan.tile}:${plan.kind}` : null;
-  if (key && (!V.pathFx || V.pathFx.key !== key)) V.pathFx = { key, t0: now() };
+  if (key && (!V.pathFx || V.pathFx.key !== key)) {
+    const steps = plan.path ? plan.path.length : 4;
+    V.pathFx = { key, t0: now() + (motion() ? ROUTE_CAM_MS : 0), dur: Math.min(PATH_MAX_MS, Math.max(PATH_STEP_MS * 2, PATH_STEP_MS * steps)) };
+  }
   if (!key) V.pathFx = null;
 }
 
@@ -1479,10 +1729,36 @@ function applyPlan(app) {
   ui.plan = null;
   notePlan(null);
   if (V) V.reach = null;
-  if (V && V.guide) guideStep(app, 'done');
+  // 経路を確定したら案内は役目を終える（自動で閉じる）
+  if (V && V.guide) endGuide(true);
   renderSheet(app);
   renderOverlay(app);
   requestDraw();
+  // AP を使い切ったら、ロスターの順で次の動けるヒーローへ選び直す（少し待って、確定の手応えを見せてから）
+  if (V && (sq.ap || 0) <= 0) {
+    later(() => {
+      if (!V || app.ui.executing || app.ui.selectedSquad !== sq.id) return;
+      const nx = nextActive(app, sq.id);
+      if (nx) {
+        app.ui.tile = null;
+        renderSheet(app);
+        selectSquad(app, nx.id);
+      } else {
+        renderOverlay(app);
+      }
+    }, 650);
+  }
+}
+
+/** マウントしている間だけのタイマー（外したら止める） */
+function later(fn, ms) {
+  if (!V) return 0;
+  const id = setTimeout(() => {
+    if (V) V.timers.delete(id);
+    fn();
+  }, Math.max(0, ms));
+  V.timers.add(id);
+  return id;
 }
 
 function selectSquad(app, id, { fly = true } = {}) {
@@ -1515,8 +1791,16 @@ function openTile(app, tile) {
   ui.plan = sq && tile !== projectedTile(sq) ? makePlan(app, sq, tile) : null;
   notePlan(ui.plan);
   renderSheet(app, { swap: prevTile != null && prevTile !== tile });
+  updateGuide(app);
   requestDraw();
-  requestAnimationFrame(() => ensureVisible(app, tile, ui.plan ? ui.plan.from : null));
+  // カメラを寄せきってから線を伸ばす（--t-page 600ms の前半でカメラ、後半で線）
+  const fxp = V ? V.pathFx : null;
+  requestAnimationFrame(() => {
+    if (!V) return;
+    const moved = ensureVisible(app, tile, ui.plan ? ui.plan.from : null, ROUTE_CAM_MS);
+    if (fxp && V.pathFx === fxp) fxp.t0 = now() + (moved ? ROUTE_CAM_MS : 0);
+    requestDraw();
+  });
 }
 
 function closeSheet(app) {
@@ -1524,7 +1808,15 @@ function closeSheet(app) {
   mv(app).plan = null;
   notePlan(null);
   renderSheet(app);
+  updateGuide(app);
   requestDraw();
+}
+
+/** 「＜ 戻る」: 1 つ前へ（凡例 → シート → 地図 → ホーム。SPEC-112 §7.5.1） */
+function goBack(app) {
+  if (V && V.legendOpen) { toggleLegend(app, false); return; }
+  if (app.ui.tile != null) { closeSheet(app); return; }
+  go('home');
 }
 
 // ------------------------------------------------------------
@@ -1584,8 +1876,9 @@ function planBlock(app, plan) {
         h('span', { class: 'map-plan__by' }, hero ? hero.name : sq.id),
         h('span', { class: 'map-plan__arrow', 'aria-hidden': 'true' }),
         h('p', { class: 'map-plan__target' }, plan.name)),
-      note ? h('p', { class: 'map-plan__note' }, note) : null,
-      h('button', { class: ['btn-primary', 'map-plan__go', 'map-plan__go--attack'], type: 'button', disabled: !plan.ok, onClick: () => applyPlan(app) }, label));
+      plan.ok
+        ? h('button', { class: ['btn-primary', 'map-plan__go', 'map-plan__go--attack'], type: 'button', 'data-ripple': 'accent', onClick: () => applyPlan(app) }, label)
+        : altButton(app, sq, note));
   }
   if (!plan.path) return h('div', { class: 'map-plan is-ng' }, h('p', { class: 'map-plan__note' }, t(app, 'map.unreachable')));
   const over = (plan.cost || 0) > (sq.ap || 0);
@@ -1597,8 +1890,32 @@ function planBlock(app, plan) {
     h('div', { class: 'map-plan__key', 'aria-hidden': 'true' },
       h('span', { class: 'map-plan__line map-plan__line--today' }), tx(app, 'map.legendRouteToday', '今日届く'),
       h('span', { class: 'map-plan__line map-plan__line--later' }), tx(app, 'map.legendRouteLater', '翌日以降')),
-    plan.ok ? null : h('p', { class: 'map-plan__note' }, rejectText(app, sq, plan.reason)),
-    h('button', { class: 'btn-primary map-plan__go', type: 'button', disabled: !plan.ok, onClick: () => applyPlan(app) }, t(app, 'map.go')));
+    plan.ok
+      ? h('button', { class: 'btn-primary map-plan__go', type: 'button', 'data-ripple': 'accent', onClick: () => applyPlan(app) }, t(app, 'map.go'))
+      : altButton(app, sq, rejectText(app, sq, plan.reason)));
+}
+
+/**
+ * できないとき: 主役の金のボタンは出さず、副ボタン「別のヒーローを選ぶ」に差し替える。理由はボタンの中の 2 行目（SPEC-112 §7）。
+ * 押すと、ロスターの順で次の動けるヒーローを選び、同じタイルへの経路を引き直す。動けるヒーローがいなければ「閉じる」
+ */
+function altButton(app, sq, reason) {
+  const nx = nextActive(app, sq.id);
+  const hero = nx ? heroOf(app.db, nx) : null;
+  const main = nx
+    ? fmt(tx(app, 'map.pickOther', '別のヒーローを選ぶ（{name}）'), { name: hero ? hero.name : nx.id })
+    : tx(app, 'map.closeSheet', '閉じる');
+  return h('button', {
+    class: 'btn-secondary map-plan__alt', type: 'button', dataset: { act: nx ? 'other' : 'close' },
+    onClick: () => {
+      if (!nx) { closeSheet(app); return; }
+      const tile = app.ui.tile;
+      selectSquad(app, nx.id, { fly: false });
+      if (tile != null) openTile(app, tile);
+    },
+  },
+  h('span', { class: 'map-plan__alt-main' }, nx ? h('span', { class: 'map-plan__alt-face' }, heroThumb(hero, 'map-plan__alt-img', 24)) : null, main),
+  reason ? h('span', { class: 'map-plan__alt-why' }, reason) : null);
 }
 
 function renderSheet(app, { swap = false } = {}) {
@@ -1699,11 +2016,12 @@ function sheetGhost(el) {
   setTimeout(done, fx.token('--t-flip', 380) + 120);
 }
 
-/** シートの高さを CSS へ（ターン終了ボタンと案内をシートの上へ逃がす） */
+/** シートの高さを CSS へ（案内をシートの上へ、ターン終了をシートの間だけ隠す） */
 function syncSheetHeight() {
   if (!V) return;
   const hgt = V.sheet && !V.sheet.hidden ? V.sheet.offsetHeight : 0;
   V.el.style.setProperty('--sheet-h', `${hgt}px`);
+  V.el.style.setProperty('--dock-h', `${V.dock && !V.dock.hidden ? V.dock.offsetHeight : 0}px`);
   V.el.classList.toggle('has-sheet', hgt > 0);
 }
 
@@ -1711,9 +2029,11 @@ function renderOverlay(app) {
   if (!V) return;
   const ui = mv(app);
   const st = app.state;
+  const exec = !!app.ui.executing;
   clear(V.chip);
-  updateGuide(app);
-  const sq = !app.ui.executing ? selectedSquad(app) : null;
+  V.back.hidden = exec;
+  const sq = !exec ? selectedSquad(app) : null;
+  const anyone = !exec && !!nextActive(app);
   if (sq) {
     const hero = heroOf(app.db, sq);
     const n = (sq.orders || []).length;
@@ -1724,27 +2044,35 @@ function renderOverlay(app) {
     const pips = max > 0 && max <= 12
       ? h('span', { class: 'map-chip__pips', 'aria-hidden': 'true' }, Array.from({ length: max }, (_, i) => h('i', { class: i < ap ? 'is-on' : null })))
       : null;
-    V.chip.appendChild(h('div', { class: ['map-chip', 'panel', 'panel--glass', fresh ? 'is-new' : null], style: { '--land': landColor(app.db, sq.land) } },
-      h('span', { class: 'map-chip__face' }, heroThumb(hero, 'map-chip__img', 36)),
-      h('span', { class: 'map-chip__text' },
-        h('span', { class: 'map-chip__name' }, hero ? hero.name : sq.id, n ? h('span', { class: 'map-chip__orders num' }, `${t(app, 'map.orders')} ${n}`) : null),
-        h('span', { class: 'map-chip__ap num' }, h('b', null, `${t(app, 'map.apLeft')} ${ap}`), pips),
-        h('span', { class: 'map-chip__sub' }, t(app, 'map.pickHint'))),
-      h('button', { class: 'btn-ghost map-chip__x', type: 'button', 'aria-label': t(app, 'map.deselect'), onClick: () => selectSquad(app, null) }, '×')));
-  } else if (!app.ui.executing) {
+    // AP が無いヒーローを選んだときは、それを先に言う（行き先をタップさせて断らない）
+    const sub = ap > 0 ? t(app, 'map.pickHint')
+      : anyone ? tx(app, 'map.noApPick', 'AP がありません（ロスターから別のヒーローを）')
+        : tx(app, 'map.allDone', '全員の指示が済みました → ターン終了');
+    V.chip.appendChild(h('div', {
+      class: ['map-chip', 'panel', 'panel--glass', fresh ? 'is-new' : null, ap > 0 ? null : 'is-empty'],
+      style: { '--land': landColor(app.db, sq.land) },
+    },
+    h('span', { class: 'map-chip__face' }, heroThumb(hero, 'map-chip__img', 36)),
+    h('span', { class: 'map-chip__text' },
+      h('span', { class: 'map-chip__name' }, h('span', { class: 'map-chip__nm' }, hero ? hero.name : sq.id), n ? h('span', { class: 'map-chip__orders num' }, `${t(app, 'map.orders')} ${n}`) : null),
+      h('span', { class: 'map-chip__ap num' }, h('b', null, `${t(app, 'map.apLeft')} ${ap}`), pips),
+      h('span', { class: 'map-chip__sub' }, sub))));
+  } else if (!exec) {
     V.chipFor = null;
-    if (!V.guide) V.chip.appendChild(h('p', { class: 'map-hint panel panel--glass' }, h('span', { class: 'map-hint__dot', 'aria-hidden': 'true' }), t(app, 'map.selectHint')));
+    const text = anyone ? t(app, 'map.selectHint') : tx(app, 'map.allDone', '全員の指示が済みました → ターン終了');
+    if (!V.guide || !anyone) V.chip.appendChild(h('p', { class: ['map-hint', 'panel', 'panel--glass', anyone ? null : 'is-done'] }, h('span', { class: 'map-hint__dot', 'aria-hidden': 'true' }), text));
   }
+  updateGuide(app);
 
   clear(V.tools);
-  if (!app.ui.executing) {
+  if (!exec) {
     V.tools.appendChild(h('button', {
       class: ['map-app__legend-btn', 'panel', 'panel--glass', V.legendOpen ? 'is-on' : null], type: 'button',
       'aria-label': tx(app, 'map.legendTitle', '地図の見かた'), 'aria-expanded': V.legendOpen ? 'true' : 'false',
       onClick: () => toggleLegend(app),
     }, '?'));
   }
-  if (ui.debug && !app.ui.executing) {
+  if (ui.debug && !exec) {
     V.tools.appendChild(h('button', {
       class: 'btn-secondary map-tools__btn', type: 'button', 'aria-expanded': ui.menu ? 'true' : 'false',
       onClick: () => { ui.menu = !ui.menu; renderOverlay(app); },
@@ -1757,22 +2085,71 @@ function renderOverlay(app) {
         }, t(app, key)))));
     }
   }
-  // ターン終了: 指示待ちの部隊の数。全員に指示を出したら金に光る
-  V.fab.hidden = !!app.ui.executing;
-  if (!app.ui.executing) {
-    const idle = idleSquads(st).length;
-    V.fab.classList.toggle('is-ready', idle === 0);
-    let badge = V.fab.querySelector('.map-app__end-badge');
-    if (idle > 0) {
-      if (!badge) { badge = h('span', { class: 'map-app__end-badge num' }); V.fab.appendChild(badge); }
-      badge.textContent = String(idle);
-      badge.setAttribute('aria-label', fmt(tx(app, 'map.idleSquads', '指示待ち {n}'), { n: idle }));
-      V.fab.title = fmt(tx(app, 'map.idleSquads', '指示待ち {n}'), { n: idle });
-    } else {
-      if (badge) badge.remove();
-      V.fab.removeAttribute('title');
-    }
+  renderDock(app);
+}
+
+/**
+ * 下の帯: ヒーローの並び（ロスター）と、右端の「ターン終了」（SPEC-112 §7.5.2）。
+ * ターン終了は、まだ動けるヒーローがいる間は控えめ（副ボタン + 残りの数）、全員済んだら金の主役になって光る
+ */
+function renderDock(app) {
+  if (!V || !V.dock) return;
+  const st = app.state;
+  const exec = !!app.ui.executing;
+  V.dock.hidden = exec;
+  clear(V.roster);
+  if (exec) { syncSheetHeight(); return; }
+  const cur = app.ui.selectedSquad;
+  for (const s of rosterSquads(st)) {
+    const hero = heroOf(app.db, s);
+    const kind = orderStatus(app, s);
+    const max = hero ? apMax(hero, s, app.db) : 0;
+    const p = max > 0 ? Math.max(0, Math.min(1, (s.ap || 0) / max)) : 0;
+    const on = s.id === cur;
+    V.roster.appendChild(h('li', null, h('button', {
+      class: ['map-roster__btn', `is-${kind}`, on ? 'is-current' : null, (s.ap || 0) > 0 ? null : 'is-empty'], type: 'button',
+      dataset: { squad: s.id, status: kind }, 'aria-current': on ? 'true' : null,
+      'aria-label': `${hero ? hero.name : s.id}・${t(app, `home.status.${kind}`)}・AP ${s.ap || 0}/${max}`,
+      onClick: () => pickRoster(app, s.id),
+    },
+    h('span', { class: 'map-roster__ring', style: { '--p': p.toFixed(3), '--land': landColor(app.db, s.land) } }, heroThumb(hero, 'map-roster__img', 32)),
+    h('span', { class: `map-roster__mark map-roster__mark--${kind}`, 'aria-hidden': 'true' }),
+    h('span', { class: 'map-roster__ap num', 'aria-hidden': 'true' }, String(s.ap || 0)))));
   }
+  const left = rosterSquads(st).filter((s) => canAct(app, s)).length;
+  const fab = V.fab;
+  const ready = left === 0;
+  fab.classList.toggle('btn-primary', ready);
+  fab.classList.toggle('btn-secondary', !ready);
+  fab.classList.toggle('is-ready', ready);
+  if (ready) fab.dataset.ripple = 'accent';
+  else delete fab.dataset.ripple;
+  let badge = fab.querySelector('.map-app__end-badge');
+  const label = fmt(tx(app, 'map.leftHeroes', 'あと {n} 人'), { n: left });
+  if (!ready) {
+    if (!badge) { badge = h('span', { class: 'map-app__end-badge num' }); fab.appendChild(badge); }
+    badge.textContent = label;
+    fab.title = fmt(tx(app, 'map.idleSquads', '指示待ち {n}'), { n: left });
+  } else {
+    if (badge) badge.remove();
+    fab.removeAttribute('title');
+  }
+  syncSheetHeight();
+}
+
+/** ロスターからヒーローを選ぶ（今のヒーローをもう一度押したら、その部隊へカメラが寄る） */
+function pickRoster(app, id) {
+  if (app.ui.selectedSquad === id) {
+    const sq = app.state.squads[id];
+    if (sq && V) {
+      const b = viewBand();
+      flyTo(app, sq.tile, { zoom: Math.max(app.ui.mapCam.zoom, ZOOM_FOCUS), offsetY: V.ch / 2 - (b.top + b.bottom) / 2 });
+    }
+    return;
+  }
+  // 選び直したら開いているシートは閉じる（前のヒーローの経路を残さない）
+  if (app.ui.tile != null) { app.ui.tile = null; renderSheet(app); }
+  selectSquad(app, id);
 }
 
 // ---------- 凡例（右上の「?」） ----------
@@ -1828,10 +2205,22 @@ function legendPanel(app) {
       item(hexSw(null, 'is-fog'), tx(app, 'map.legendFog', '未探索（霧）'))));
 }
 
-// ---------- 初回だけの案内（ナビゲーターが「部隊をタップ → 行き先をタップ」を一度だけ） ----------
+// ---------- 初回だけの案内（ナビゲーターが「部隊 → 行き先 → 確定」を一度だけ） ----------
+//
+// 位置はいつも 1 か所: 画面下の UI（ロスターの帯か、開いていればシート）のすぐ上。地図の上へは跳ばない。
+// 段は操作で進む（タップするたびに今の段を選び直す）: 部隊を選ぶ → 行き先をタップ → 「この経路で行く」。
+// 経路を確定したら役目を終えて閉じる（二度と出さない）。
 
 function guideWanted(app) {
   return !app.ui.executing && getSetting(GUIDE_KEY, false) !== true;
+}
+
+/** 今の操作の段（選んでいない → 'squad'、選んだ → 'dest'、経路が出た → 'go'） */
+function guideStage(app) {
+  const sel = selectedSquad(app);
+  const plan = mv(app).plan;
+  if (plan && sel && plan.squad === sel.id) return 'go';
+  return sel ? 'dest' : 'squad';
 }
 
 function updateGuide(app) {
@@ -1842,8 +2231,7 @@ function updateGuide(app) {
     V.guideShown = true;
   }
   if (app.ui.executing) { endGuide(false); return; }
-  if (V.guide.step === 'done') return;
-  guideStep(app, selectedSquad(app) ? 'dest' : 'squad');
+  guideStep(app, guideStage(app));
 }
 
 function guideStep(app, step) {
@@ -1852,27 +2240,32 @@ function guideStep(app, step) {
   g.step = step;
   const st = app.state;
   if (step === 'squad') {
-    const first = idleSquads(st)[0] || mySquads(st)[0];
+    const first = nextActive(app) || idleSquads(st)[0] || mySquads(st)[0];
     g.tile = first ? first.tile : null;
   } else g.tile = null;
-  const text = step === 'squad' ? tx(app, 'map.guideSquad', 'まずは自分の部隊をタップしてね。光っているところにいるよ')
-    : step === 'dest' ? tx(app, 'map.guideDest', '次は行き先のタイルをタップ。線が伸びたら「この経路で行く」で決まり')
-      : tx(app, 'map.guideDone', 'その調子。全員に指示を出したら「ターン終了」で 1 日が進むよ');
+  const text = step === 'squad' ? tx(app, 'map.guideSquad2', 'まずは光っている自分の部隊をタップしてね')
+    : step === 'dest' ? tx(app, 'map.guideDest2', '次は行き先のタイルをタップ。今日届くところは明るく光っているよ')
+      : tx(app, 'map.guideGo', '旗の数字が到着予定日。下の「この経路で行く」で決まり');
   if (!g.el) {
     const pic = h('img', { class: 'map-guide__navi hero-img', src: img(NAVI.point), alt: '', width: 96, height: 128 });
     pic.addEventListener('error', () => pic.remove(), { once: true });
     const bubble = h('p', { class: 'map-guide__text' });
     const ok = h('button', { class: 'btn-ghost map-guide__ok', type: 'button', onClick: () => endGuide(true) }, tx(app, 'map.guideOk', 'わかった'));
+    const steps = h('span', { class: 'map-guide__steps', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'));
     g.el = h('aside', { class: 'map-guide', 'aria-live': 'polite' },
       pic,
       h('div', { class: 'map-guide__bubble panel panel--raised' },
-        h('span', { class: 'map-guide__name' }, tx(app, 'chat.mine', 'マインちゃん')), bubble, ok));
+        h('span', { class: 'map-guide__head' }, h('span', { class: 'map-guide__name' }, tx(app, 'navi.name', 'マインちゃん')), steps),
+        bubble, ok));
     g.pic = pic;
     g.bubble = bubble;
+    g.steps = steps;
     V.stage.appendChild(g.el);
   } else if (motion() && g.el.animate) {
     g.el.querySelector('.map-guide__bubble').animate([{ transform: 'scale(.94)' }, { transform: 'scale(1.03)' }, { transform: 'none' }], { duration: fx.token('--t-ui', 240) * 1.4, easing: 'ease-out' });
   }
+  const idx = step === 'squad' ? 0 : step === 'dest' ? 1 : 2;
+  [...g.steps.children].forEach((n, i) => { n.className = i < idx ? 'is-done' : i === idx ? 'is-on' : ''; });
   // 話している間は口を動かす
   if (g.typing) g.typing.cancel();
   clearInterval(g.timer);
@@ -1880,17 +2273,11 @@ function guideStep(app, step) {
   if (motion() && g.pic) {
     g.timer = setInterval(() => { f += 1; if (g.pic) g.pic.src = img(NAVI.talk[f % 2]); }, 140);
   }
-  const rest = step === 'done' ? NAVI.smile : NAVI.point;
   g.typing = fx.typeText(g.bubble, text, { cps: 34, skipOn: g.el });
   g.typing.done.then(() => {
     clearInterval(g.timer);
-    if (g.pic && V && V.guide === g) g.pic.src = img(rest);
+    if (g.pic && V && V.guide === g) g.pic.src = img(NAVI.point);
   });
-  if (step === 'done') {
-    setSetting(GUIDE_KEY, true);
-    clearTimeout(g.closeTimer);
-    g.closeTimer = setTimeout(() => { if (V && V.guide === g) endGuide(true); }, 4200);
-  }
   requestDraw();
 }
 
@@ -2087,10 +2474,15 @@ export function render(app) {
   if (app.ui.executing) ui.plan = null;
   const canvas = h('canvas', { class: 'map-app__canvas', role: 'img', tabindex: '0', 'aria-label': t(app, 'map.mapLabel'), 'data-ripple': 'off' });
   const chip = h('div', { class: 'map-app__chip' });
+  const back = h('button', { class: 'map-back panel panel--glass', type: 'button', 'aria-label': tx(app, 'map.backLabel', '戻る（1 つ前へ）'), onClick: () => goBack(app) },
+    h('span', { class: 'map-back__chev', 'aria-hidden': 'true' }), h('span', { class: 'map-back__label' }, tx(app, 'common.back', '戻る')));
+  const top = h('div', { class: 'map-app__top' }, back, chip);
   const tools = h('div', { class: 'map-app__tools' });
-  const fab = h('button', { class: 'btn-primary map-app__end', type: 'button', onClick: () => endTurn() }, h('span', { class: 'map-app__end-label' }, t(app, 'map.endTurn')));
+  const fab = h('button', { class: 'btn-secondary map-app__end', type: 'button', onClick: () => endTurn() }, h('span', { class: 'map-app__end-label' }, t(app, 'map.endTurn')));
+  const roster = h('ol', { class: 'map-roster', 'aria-label': tx(app, 'chat.roster', 'ヒーローの並び') });
+  const dock = h('div', { class: 'map-dock panel panel--glass' }, roster, fab);
   const vignette = h('div', { class: 'map-app__vignette', 'aria-hidden': 'true' });
-  const stage = h('div', { class: 'map-app__stage' }, canvas, vignette, chip, tools, fab);
+  const stage = h('div', { class: 'map-app__stage' }, canvas, vignette, top, tools, dock);
   const sheet = h('section', { class: 'map-sheet panel panel--glass', 'aria-labelledby': 'map-sheet-title', hidden: true });
   return h('section', { class: 'map-app', dataset: { executing: app.ui.executing ? '1' : '0' } }, stage, sheet);
 }
@@ -2106,16 +2498,34 @@ export function mount(app, el) {
     ctx: canvas.getContext('2d'),
     sheet: el.querySelector('.map-sheet'),
     chip: el.querySelector('.map-app__chip'),
+    topEl: el.querySelector('.map-app__top'),
+    back: el.querySelector('.map-back'),
     tools: el.querySelector('.map-app__tools'),
     fab: el.querySelector('.map-app__end'),
+    dock: el.querySelector('.map-dock'),
+    roster: el.querySelector('.map-roster'),
     cw: 0, ch: 0, dpr: 0, raf: 0, dirty: true, lastDraw: 0, sc: null, sctx: null, staticKey: '', staticDirty: true,
     pointers: new Map(), drag: null, pinch: null,
     anims: new Map(), lunges: new Map(), floats: [], taps: [], shake: null, camAnim: null, reach: null,
     selFx: null, pathFx: null, chipFor: null, legend: null, legendOpen: false,
     guide: null, guideShown: false, guideClosed: false, lastHit: null, cutins: Promise.resolve(),
     claims: [], offs: [], ro: null,
+    timers: new Set(), holds: new Map(), flagFx: [], camHold: 0, beatEnd: 0, falls: new Map(), exec: null,
   };
   const ui = mv(app);
+  // 開いたとき、選んでいるヒーローが動けない（AP 0）か誰も選んでいなければ、ロスターの順で動けるヒーローを選び直す
+  // （AP 0 のヒーローに「行き先をタップ」と案内して、引いた経路で断る、を起こさない。SPEC-112 E）
+  if (!app.ui.executing) {
+    const cur = selectedSquad(app);
+    if (!cur || (cur.ap || 0) <= 0) {
+      const nx = nextActive(app, cur ? cur.id : null);
+      if (nx) {
+        app.ui.selectedSquad = nx.id;
+        V.selFx = { id: nx.id, t0: now() };
+        if (app.ui.tile != null && cur && app.ui.tile === cur.tile) app.ui.tile = null;
+      }
+    }
+  }
   // Chat などから部隊を選んで来たら、その部隊へ寄る（タイルの指定があればそちらを優先）
   const sq = selectedSquad(app);
   if (sq && ui.focusedSquad !== sq.id && app.ui.tile == null) {
@@ -2131,6 +2541,9 @@ export function mount(app, el) {
     if (tile != null) centerOn(app, tile);
     // 戦闘の数字とエフェクトが読める寄り（引きすぎ・寄りすぎを直す）
     app.ui.mapCam.zoom = Math.min(1.2, Math.max(0.95, app.ui.mapCam.zoom || 1));
+    // 進み具合（execbar は mount の後に描かれるので、次の番で差す）
+    V.exec = { n: 0, total: estimateBeats(app) };
+    later(() => renderProgress(), 0);
   }
   clampCam(app);
 
@@ -2147,6 +2560,7 @@ export function mount(app, el) {
     V.ro = new ResizeObserver(() => { resize(); syncSheetHeight(); });
     V.ro.observe(stage);
     if (V.sheet) V.ro.observe(V.sheet);
+    if (V.dock) V.ro.observe(V.dock);
   }
   V.offs.push(on(window, 'resize', resize));
 
@@ -2171,6 +2585,7 @@ export function unmount() {
     if (V.guide.typing) V.guide.typing.cancel();
   }
   if (V.raf) cancelAnimationFrame(V.raf);
+  for (const id of V.timers) clearTimeout(id);
   for (const off of V.offs) { try { off(); } catch { /* 無視 */ } }
   if (V.ro) V.ro.disconnect();
   V = null;
@@ -2179,7 +2594,209 @@ export function unmount() {
 /** 陥落のカットイン（続けて落ちたら順に）。攻めたヒーローの絵が文字の手前に重なる */
 function fallCutin(opts) {
   if (!V) return;
-  V.cutins = V.cutins.then(() => fx.cutin(opts)).catch(() => {});
+  V.cutins = V.cutins.then(() => (V ? fx.cutin(opts) : null)).catch(() => {});
+}
+
+// ---------- 実行フェーズの進み具合（execbar に「3/12」とバー） ----------
+
+/** 残りの拍の数の見込み（まだ残っている指示から数える。移動は 1 マスで 1 拍、日の終わりに 1 拍） */
+function estimateBeats(app) {
+  const st = app.state;
+  const exp = exploredSet(st);
+  let n = 0;
+  for (const s of Object.values(st.squads || {})) {
+    const mine = s.land === st.playerLand;
+    for (const o of s.orders || []) {
+      if (o.type === 'move' && Array.isArray(o.path)) {
+        n += mine ? o.path.length : o.path.filter((i) => exp.has(i)).length;
+      } else if (mine || exp.has(s.tile)) n += o.type === 'attack' ? 2 : 1;
+    }
+  }
+  return Math.max(1, n + 1);
+}
+
+function noteBeat(app) {
+  if (!V) return;
+  if (!V.exec) V.exec = { n: 0, total: 1 };
+  V.exec.n += 1;
+  // エンジンは指示を消化しながら進むので、残っている指示から毎回数え直す（見えない拍のぶん、少しずつ締まる）
+  V.exec.total = V.exec.n + estimateBeats(app);
+  renderProgress();
+}
+
+/** execbar（phone.js が描く）の中に、進み具合を差す。描き直されて消えていたら差し直す */
+function renderProgress(done = false) {
+  if (!V || !V.exec || typeof document === 'undefined') return;
+  const bar = document.querySelector('.phone__execbar .execbar');
+  if (!bar) return;
+  let el = bar.querySelector('.map-exec');
+  if (!el) {
+    el = h('span', { class: 'map-exec', role: 'progressbar', 'aria-valuemin': '0' },
+      h('span', { class: 'map-exec__track', 'aria-hidden': 'true' }, h('i', { class: 'map-exec__fill' })),
+      h('b', { class: 'map-exec__n num' }));
+    const label = bar.querySelector('.execbar__label');
+    if (label && label.nextSibling) bar.insertBefore(el, label.nextSibling);
+    else bar.appendChild(el);
+  }
+  const n = done ? V.exec.total : Math.min(V.exec.n, V.exec.total);
+  el.setAttribute('aria-valuemax', String(V.exec.total));
+  el.setAttribute('aria-valuenow', String(n));
+  el.querySelector('.map-exec__fill').style.transform = `scaleX(${(n / V.exec.total).toFixed(3)})`;
+  el.querySelector('.map-exec__n').textContent = `${n}/${V.exec.total}`;
+}
+
+/** 2 タイルの中点（ワールド座標。東西ループは近い写しで） */
+function midWorld(st, a, b) {
+  const pa = tileWorld(st, a);
+  const pb = tileWorld(st, b);
+  const P = period(st);
+  let dx = pb.x - pa.x;
+  dx = ((dx % P) + P * 1.5) % P - P / 2;
+  return { x: pa.x + dx / 2, y: (pa.y + pb.y) / 2 };
+}
+
+/** カメラをワールド座標へ寄せる（ズームは変えない） */
+function flyToWorld(app, w, dur) {
+  const cam = app.ui.mapCam;
+  const P = period(app.state);
+  let dx = w.x - cam.x;
+  dx = ((dx % P) + P * 1.5) % P - P / 2;
+  if (!motion()) { cam.x += dx; cam.y = w.y; clampCam(app); requestDraw(); return; }
+  V.camAnim = { fx: cam.x, fy: cam.y, fz: cam.zoom, tx: cam.x + dx, ty: w.y, tz: cam.zoom, t0: now(), dur };
+  requestDraw();
+}
+
+/**
+ * 戦闘の 1 拍（SPEC-112 §3）。時間の並び:
+ *   0      カメラが攻撃側と守備側の中点へ寄る（400ms）
+ *   +400   スキルがあれば、数字の 28px 上にスキル名の帯（600ms。数字と同時に出さない）
+ *   その後 攻撃側が前に出る → 命中: エフェクトのスプライト + ダメージの数字が弾む（読めるまで 900ms）
+ *   陥落   砦の旗の色が変わる（300ms）→ カットイン（fort_fallen のイベントが来たら、この時刻に合わせて出す）
+ * main.js は 350ms ごとに次のイベントを渡してくるので、前の拍を見せ終えるまでは次の戦闘を待たせ（最大 1.5 秒）、
+ * その間はカメラを移動に付いていかせない（camHold）。
+ */
+function playBattle(app, ev, tm) {
+  const st = app.state;
+  const mo = motion();
+  const z = app.ui.mapCam.zoom;
+  const attacker = st.squads[ev.attacker];
+  const at = tileWorld(st, ev.at);
+  const from = attacker && attacker.tile != null ? attacker.tile : null;
+  const d = mo ? Math.min(1500, Math.max(0, V.beatEnd - tm)) : 0;
+  const camMs = mo ? BATTLE_CAM_MS : 0;
+  const skillMs = mo && ev.skill && ev.skill.name ? SKILL_LABEL_MS : 0;
+  const hitT = d + camMs + skillMs + (mo ? 130 : 0);
+  // 1. カメラ（前の拍が終わってから）
+  const fly = () => { if (V) flyToWorld(app, from != null ? midWorld(st, from, ev.at) : at, camMs || 1); };
+  if (d > 0) later(fly, d); else fly();
+  // 2. スキル名の帯（数字と同時に出さない）
+  // （動きを減らすときは待たずに数字と一緒に出す。帯は数字の 28px 上なので重ならない）
+  if (ev.skill && ev.skill.name) V.floats.push({ kind: 'label', wx: at.x, wy: at.y, text: ev.skill.name, t0: tm + d + camMs, dur: skillMs || 1000, dy: 0 });
+  // 3. 攻撃側が少し前に出てから戻る
+  if (attacker && mo && from !== ev.at) {
+    const a = tileWorld(st, from);
+    const P = period(st);
+    let dx = at.x - a.x;
+    dx = ((dx % P) + P * 1.5) % P - P / 2;
+    const len = Math.hypot(dx, at.y - a.y) || 1;
+    later(() => { if (V) { V.lunges.set(attacker.id, { ux: dx / len, uy: (at.y - a.y) / len, t0: now(), dur: 360 }); requestDraw(); } }, hitT - 130);
+  }
+  // 4. 命中: スプライト・数字・揺れ
+  const add = (wx, wy, text, color, scale, dy, delay, shine) => V.floats.push({ wx, wy, text, color, scale, dy, t0: tm + delay, dur: 1150, shine });
+  if (ev.ambush) add(at.x, at.y, t(app, 'execute.ambush'), '#ffd34d', 0.5, -BASE * z * 0.7, hitT, false);
+  add(at.x, at.y, ev.evaded ? t(app, 'execute.evaded') : `-${ev.dmg}`, ev.evaded ? '#6fd8e8' : '#ff6464', ev.evaded ? 0.55 : 0.75, 0, hitT, !ev.evaded);
+  if (!ev.evaded) {
+    later(() => {
+      if (!V) return;
+      const pt = tileClient(app, ev.at);
+      const size = Math.max(120, Math.round(BASE * app.ui.mapCam.zoom * 3.4));
+      if (pt) fx.spriteOnce(ev.skill && ev.skill.name ? '02_area_damage' : '01_single_damage', clampClient(pt, size * 0.3), { size });
+      if (mo) V.shake = { t0: now(), dur: 220, amp: ev.result ? 5 : 2.5 };
+      requestDraw();
+    }, hitT);
+  }
+  if (ev.counter && attacker) {
+    const ap = tileWorld(st, from);
+    add(ap.x, ap.y, ev.counter.evaded ? t(app, 'execute.evaded') : `-${ev.counter.dmg}`, ev.counter.evaded ? '#6fd8e8' : '#ff6464', 0.55, 0, hitT + 260, !ev.counter.evaded);
+    if (!ev.counter.evaded) {
+      later(() => {
+        if (!V) return;
+        const pt = tileClient(app, from);
+        if (pt) fx.spriteOnce('01_single_damage', clampClient(pt, 30), { size: Math.max(96, Math.round(BASE * app.ui.mapCam.zoom * 2.6)) });
+      }, hitT + 260);
+    }
+  }
+  let endT = hitT + (mo ? HIT_READ_MS : 0);
+  let beat = hitT + (mo ? 520 : 0);
+  // 5. 陥落: 旗の色を、数字が読めてから変える。そのあとカットイン
+  const fall = (ev.followups || []).find((e) => e.t === 'fort_fallen' || e.t === 'home_fallen');
+  if (fall) {
+    const flagT = endT;
+    const tile = fall.t === 'fort_fallen' ? (st.forts[fall.fort] && st.forts[fall.fort].tile) : (st.lands[fall.land] && st.lands[fall.land].home);
+    if (fall.t === 'fort_fallen' && st.forts[fall.fort] && mo) {
+      // 今の state はもう落ちた後なので、旗の色が変わる時刻まで前の持ち主で描く
+      V.holds.set(fall.fort, { fort: fall.fort, tile, owner: fall.from || ENEMY, tileOwner: fall.from === ENEMY ? (st.map.tiles[tile] || {}).owner : fall.from, until: tm + flagT });
+      V.staticDirty = true;
+    }
+    later(() => {
+      if (!V) return;
+      V.holds.delete(fall.fort);
+      V.staticDirty = true;
+      if (tile != null) V.flagFx.push({ tile, color: landColor(app.db, fall.by), t0: now(), dur: FLAG_MS + 200 });
+      if (mo) V.shake = { t0: now(), dur: 420, amp: 7 };
+      const pt = tile != null ? tileClient(app, tile) : null;
+      if (pt) fx.spriteOnce('04_buff', clampClient(pt, 40), { size: Math.max(140, Math.round(BASE * app.ui.mapCam.zoom * 4)) });
+      requestDraw();
+    }, flagT);
+    endT = flagT + (mo ? FLAG_MS : 0);
+    beat = endT + (mo ? 900 : 0);
+    V.falls.set(fallKey(fall), { t: tm + endT, attacker: ev.attacker });
+  }
+  V.camHold = Math.max(V.camHold, tm + endT);
+  V.beatEnd = Math.max(V.beatEnd, tm + beat);
+}
+
+function fallKey(e) {
+  return e.t === 'fort_fallen' ? `f:${e.fort}` : `h:${e.land}`;
+}
+
+/** スプライトの中心を、端末の画面の内側へ寄せる（半分切れないように） */
+function clampClient(pt, pad) {
+  if (!V || !V.canvas) return pt;
+  const r = V.canvas.getBoundingClientRect();
+  const m = FLOAT_MARGIN + pad;
+  return { x: Math.min(r.right - m, Math.max(r.left + m, pt.x)), y: Math.min(r.bottom - m, Math.max(r.top + m, pt.y)) };
+}
+
+/** 陥落の知らせ（帯 / カットイン）。戦闘の演出の後に出す */
+function showFall(app, ev) {
+  if (!V) return;
+  const st = app.state;
+  const me = st.playerLand;
+  const n = noticesFrom(st, app.db, [ev]);
+  const hit = V.lastHit;
+  // 攻めたヒーロー（その陥落を起こした戦闘の攻撃側。無ければ攻めたランドの部隊）
+  const plan = V.falls.get(fallKey(ev));
+  let sq = plan && st.squads[plan.attacker] ? st.squads[plan.attacker] : (hit && hit.land === ev.by ? st.squads[hit.attacker] : null);
+  if (!sq) sq = Object.values(st.squads || {}).find((s) => s.land === ev.by) || null;
+  const hero = heroOf(app.db, sq);
+  let title;
+  let text;
+  if (ev.t === 'fort_fallen') {
+    const f = st.forts[ev.fort];
+    const fname = f ? (f.name || t(app, `fort.${f.rank}`)) : t(app, 'map.fort');
+    title = tx(app, 'map.fortFallen', '砦 陥落');
+    // 誰が落としたかを文で言う（絵がエネミーかヒーローか迷わないように）
+    text = hero ? fmt(tx(app, 'map.fellBy', '{hero}が{target}を落としました'), { hero: hero.name, target: fname })
+      : (n[0] ? n[0].text : ev.by === me ? `${fname}を落としました` : `${landName(app, ev.by)}が${fname}を落としました`);
+  } else {
+    title = tx(app, 'map.homeFallen', '本拠地 陥落');
+    text = n[0] ? n[0].text : t(app, 'end.home_fallen');
+  }
+  const side = ev.by === me ? 'ally' : 'opponent';
+  const major = ev.by === me || ev.from === me || ev.land === me;
+  if (!hero || !major) band(text, { kind: side === 'ally' ? 'good' : 'bad', slim: !major, ms: major ? undefined : 900 });
+  else fallCutin({ image: hero.image, title, sub: text, side, se: null, major: true });
 }
 
 /** 実行フェーズの 1 歩（SPEC-111 §8、SPEC-112 §3） */
@@ -2190,91 +2807,39 @@ export function onEvent(app, ev) {
   const mo = motion();
   const step = (mo ? STEP_MS : 120) || 350;
   const z = app.ui.mapCam.zoom;
+  noteBeat(app);
   switch (ev.t) {
     case 'move': {
       if (mo) V.anims.set(ev.squad, { from: ev.from, to: ev.to, t0: tm, dur: step * 0.85 });
       const sq = st.squads[ev.squad];
-      if (sq && sq.land === st.playerLand) {
-        // 自分の部隊の動きにカメラが付いていく
-        const to = tileWorld(st, ev.to);
-        const cam = app.ui.mapCam;
-        const P = period(st);
-        let dx = to.x - cam.x;
-        dx = ((dx % P) + P * 1.5) % P - P / 2;
-        if (mo) V.camAnim = { fx: cam.x, fy: cam.y, fz: cam.zoom, tx: cam.x + dx, ty: to.y, tz: cam.zoom, t0: tm, dur: step * 0.9 };
-        else { cam.x += dx; cam.y = to.y; clampCam(app); }
-      }
+      // 自分の部隊の動きにカメラが付いていく（戦闘の拍を見せている間は動かさない）
+      if (sq && sq.land === st.playerLand && tm >= V.camHold) flyToWorld(app, tileWorld(st, ev.to), mo ? step * 0.9 : 1);
       break;
     }
     case 'battle': {
-      const at = tileWorld(st, ev.at);
       const attacker = st.squads[ev.attacker];
-      const mineAtk = attacker && attacker.land === st.playerLand;
-      const hitDelay = mo ? 130 : 0;
-      const add = (wx, wy, text, color, scale = 0.62, dy = 0, delay = 0, shine = false) => V.floats.push({ wx, wy, text, color, scale, dy, t0: tm + delay, dur: 1150 + delay, shine });
-      // 攻撃側が少し前に出てから戻る
-      if (attacker && mo && attacker.tile !== ev.at) {
-        const a = tileWorld(st, attacker.tile);
-        const P = period(st);
-        let dx = at.x - a.x;
-        dx = ((dx % P) + P * 1.5) % P - P / 2;
-        const len = Math.hypot(dx, at.y - a.y) || 1;
-        V.lunges.set(attacker.id, { ux: dx / len, uy: (at.y - a.y) / len, t0: tm, dur: 360 });
-      }
-      if (ev.ambush) add(at.x, at.y, t(app, 'execute.ambush'), '#ffd34d', 0.5, -BASE * z * 0.7);
-      add(at.x, at.y, ev.evaded ? t(app, 'execute.evaded') : `-${ev.dmg}`, ev.evaded ? '#6fd8e8' : '#ff6464', ev.evaded ? 0.55 : 0.75, 0, hitDelay, !ev.evaded);
-      if (ev.skill && ev.skill.name) add(at.x, at.y, ev.skill.name, '#fff1c8', 0.36, BASE * z * 0.9, hitDelay);
-      // MCH のバトルエフェクトを 1 回。スキルは別の絵
-      if (!ev.evaded) {
-        const pt = tileClient(app, ev.at);
-        const size = Math.max(120, Math.round(BASE * z * 3.4));
-        if (pt) setTimeout(() => { if (V) fx.spriteOnce(ev.skill && ev.skill.name ? '02_area_damage' : '01_single_damage', pt, { size }); }, hitDelay);
-        if (mo) V.shake = { t0: tm + hitDelay, dur: 220, amp: ev.result ? 5 : 2.5 };
-      }
-      if (ev.counter && attacker) {
-        const ap = tileWorld(st, attacker.tile);
-        add(ap.x, ap.y, ev.counter.evaded ? t(app, 'execute.evaded') : `-${ev.counter.dmg}`, ev.counter.evaded ? '#6fd8e8' : '#ff6464', 0.55, 0, hitDelay + 220, !ev.counter.evaded);
-        const pt = !ev.counter.evaded ? tileClient(app, attacker.tile) : null;
-        if (pt) setTimeout(() => { if (V) fx.spriteOnce('01_single_damage', pt, { size: Math.max(96, Math.round(BASE * z * 2.6)) }); }, hitDelay + 220);
-      }
-      // 自分の部隊が戦っていて画面の外なら寄る
-      if (mineAtk && !tileClient(app, ev.at)) flyTo(app, ev.at, { dur: step * 0.9 });
+      playBattle(app, ev, tm);
       V.lastHit = { attacker: ev.attacker, land: attacker ? attacker.land : null, at: ev.at, result: ev.result || null };
       break;
     }
     default:
-      if (BAND_EVENTS.has(ev.t)) {
-        // 通知の文があればそれを使う（自分が落とした砦は通知が battle 側に付くので、ここで文を組む）
-        const n = noticesFrom(st, app.db, [ev]);
-        let fallback = ev.t === 'clear' ? t(app, 'end.clear') : ev.t === 'home_fallen' ? t(app, 'end.home_fallen') : t(app, 'map.fort');
-        let title = null;
-        if (ev.t === 'fort_fallen') {
-          const f = st.forts[ev.fort];
-          const fname = f ? (f.name || t(app, `fort.${f.rank}`)) : t(app, 'map.fort');
-          fallback = ev.by === st.playerLand ? `${fname}を落としました` : `${landName(app, ev.by)}が${fname}を落としました`;
-          title = tx(app, 'map.fortFallen', '砦 陥落');
-        } else if (ev.t === 'home_fallen') {
-          title = tx(app, 'map.homeFallen', '本拠地 陥落');
-        }
-        const text = n[0] ? n[0].text : fallback;
-        if (title) {
-          // 攻めたヒーロー（直前の戦闘の攻撃側。無ければ攻めたランドの部隊）
-          const hit = V.lastHit;
-          let sq = hit && hit.land === ev.by ? st.squads[hit.attacker] : null;
-          if (!sq) sq = Object.values(st.squads || {}).find((s) => s.land === ev.by) || null;
-          const hero = heroOf(app.db, sq);
-          const side = ev.by === st.playerLand ? 'ally' : 'opponent';
+      if (ev.t === 'fort_fallen' || ev.t === 'home_fallen') {
+        // 戦闘の演出（数字 → 旗の色）が終わってから知らせる。戦闘が見えていなかったらすぐ
+        const plan = V.falls.get(fallKey(ev));
+        const wait = plan ? Math.max(0, plan.t - tm) : 0;
+        if (!plan) {
+          const tile = ev.t === 'fort_fallen' && st.forts[ev.fort] ? st.forts[ev.fort].tile : (st.lands[ev.land] && st.lands[ev.land].home);
           if (mo) V.shake = { t0: tm, dur: 420, amp: 7 };
-          const at = ev.t === 'fort_fallen' && st.forts[ev.fort] ? st.forts[ev.fort].tile : (st.lands[ev.land] && st.lands[ev.land].home);
-          if (at != null) {
-            const pt = tileClient(app, at);
-            if (pt) fx.spriteOnce('04_buff', pt, { size: Math.max(140, Math.round(BASE * z * 4)) });
-          }
-          if (hero) fallCutin({ image: hero.image, title, sub: text, side, se: null });
-          else band(text, { kind: side === 'ally' ? 'good' : 'bad' });
-        } else {
-          band(text, { kind: 'good' });
+          const pt = tile != null ? tileClient(app, tile) : null;
+          if (pt) fx.spriteOnce('04_buff', clampClient(pt, 40), { size: Math.max(140, Math.round(BASE * z * 4)) });
         }
+        // 帯で済む知らせは同期で出す（main.js が積んだカットインの印を取り消すため）。カットインは後で
+        const me = st.playerLand;
+        const major = ev.by === me || ev.from === me || ev.land === me;
+        if (wait <= 0 || !major) showFall(app, ev);
+        else later(() => showFall(app, ev), wait);
+      } else if (ev.t === 'clear') {
+        band(noticesFrom(st, app.db, [ev])[0]?.text || t(app, 'end.clear'), { kind: 'good' });
       } else if (ev.t === 'claim') {
         if (ev.land === st.playerLand) {
           V.claims.push(ev);
@@ -2298,7 +2863,7 @@ export function onEvent(app, ev) {
         if (sq && sq.land === st.playerLand) {
           toast(`${heroOf(app.db, sq)?.name || ''} ${t(app, 'cmd.rest')} +${ev.amount || 0}`, { key: 'ev-rest', kind: 'good' });
           const pt = tileClient(app, sq.tile);
-          if (pt) fx.spriteOnce('03_heal_resurrection', pt, { size: Math.max(100, Math.round(BASE * z * 2.6)) });
+          if (pt) fx.spriteOnce('03_heal_resurrection', clampClient(pt, 30), { size: Math.max(100, Math.round(BASE * z * 2.6)) });
         }
       } else {
         const n = noticesFrom(st, app.db, [ev]);
@@ -2311,6 +2876,16 @@ export function onEvent(app, ev) {
 
 export function onExecuteEnd() {
   if (!V) return;
+  renderProgress(true);
+  for (const id of V.timers) clearTimeout(id);
+  V.timers.clear();
+  V.holds.clear();
+  V.flagFx = [];
+  V.falls.clear();
+  V.camHold = 0;
+  V.beatEnd = 0;
+  V.exec = null;
+  V.staticDirty = true;
   V.anims.clear();
   V.lunges.clear();
   V.floats = [];

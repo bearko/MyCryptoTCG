@@ -527,7 +527,7 @@ function resRow(app, land, ff) {
   }));
 }
 
-const KIND_FACE = { soul: 'is-gold', ext: 'is-gold', food: 'is-bad', hero: 'is-info', end: 'is-ok' };
+const KIND_FACE = { soul: 'is-accent', ext: 'is-accent', food: 'is-bad', hero: 'is-info', end: 'is-ok' };
 
 function todoCard(app, it, i) {
   const art = it.kind === 'hero' && it.hero

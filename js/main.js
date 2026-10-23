@@ -223,6 +223,8 @@ export function render() {
   }
   // 切り替えの準備: 消える画面を写しとして残す（押した場所を先に測る）
   const plan = changed ? planTransition(shell, prev, app.ui.app) : null;
+  // 画面を移ったら、前の画面の知らせ（カットイン）は畳む
+  if (changed) fx.dismissCutins();
   clear(shell.screen);
   if (el) shell.screen.appendChild(el);
   if (changed) shell.screen.scrollTop = 0;
