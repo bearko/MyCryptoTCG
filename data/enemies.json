@@ -1,0 +1,5420 @@
+[
+  {
+    "id": 101,
+    "name": "クリーパー ショート",
+    "image": "Image/Enemies/101.png",
+    "power": 20
+  },
+  {
+    "id": 102,
+    "name": "クリーパー トール",
+    "image": "Image/Enemies/102.png",
+    "power": 24
+  },
+  {
+    "id": 103,
+    "name": "クリーパー グランデ",
+    "image": "Image/Enemies/103.png",
+    "power": 24
+  },
+  {
+    "id": 104,
+    "name": "クリーパー ヴェンティ",
+    "image": "Image/Enemies/104.png",
+    "power": 28
+  },
+  {
+    "id": 105,
+    "name": "クリーパー マキアート",
+    "image": "Image/Enemies/105.png",
+    "power": 24
+  },
+  {
+    "id": 106,
+    "name": "クリーパー フラペチーノ",
+    "image": "Image/Enemies/106.png",
+    "power": 52
+  },
+  {
+    "id": 111,
+    "name": "エルククローナ ショート",
+    "image": "Image/Enemies/111.png",
+    "power": 20
+  },
+  {
+    "id": 112,
+    "name": "エルククローナ トール",
+    "image": "Image/Enemies/112.png",
+    "power": 24
+  },
+  {
+    "id": 113,
+    "name": "エルククローナ グランデ",
+    "image": "Image/Enemies/113.png",
+    "power": 24
+  },
+  {
+    "id": 114,
+    "name": "エルククローナ ヴェンティ",
+    "image": "Image/Enemies/114.png",
+    "power": 28
+  },
+  {
+    "id": 115,
+    "name": "エルククローナ マキアート",
+    "image": "Image/Enemies/115.png",
+    "power": 24
+  },
+  {
+    "id": 116,
+    "name": "エルククローナ フラペチーノ",
+    "image": "Image/Enemies/116.png",
+    "power": 52
+  },
+  {
+    "id": 121,
+    "name": "ハートブリード ショート",
+    "image": "Image/Enemies/121.png",
+    "power": 20
+  },
+  {
+    "id": 122,
+    "name": "ハートブリード トール",
+    "image": "Image/Enemies/122.png",
+    "power": 24
+  },
+  {
+    "id": 123,
+    "name": "ハートブリード グランデ",
+    "image": "Image/Enemies/123.png",
+    "power": 24
+  },
+  {
+    "id": 124,
+    "name": "ハートブリード ヴェンティ",
+    "image": "Image/Enemies/124.png",
+    "power": 28
+  },
+  {
+    "id": 125,
+    "name": "ハートブリード マキアート",
+    "image": "Image/Enemies/125.png",
+    "power": 24
+  },
+  {
+    "id": 126,
+    "name": "ハートブリード フラペチーノ",
+    "image": "Image/Enemies/126.png",
+    "power": 52
+  },
+  {
+    "id": 131,
+    "name": "メリッサ ショート",
+    "image": "Image/Enemies/131.png",
+    "power": 20
+  },
+  {
+    "id": 132,
+    "name": "メリッサ トール",
+    "image": "Image/Enemies/132.png",
+    "power": 24
+  },
+  {
+    "id": 133,
+    "name": "メリッサ グランデ",
+    "image": "Image/Enemies/133.png",
+    "power": 24
+  },
+  {
+    "id": 134,
+    "name": "メリッサ ヴェンティ",
+    "image": "Image/Enemies/134.png",
+    "power": 28
+  },
+  {
+    "id": 135,
+    "name": "メリッサ マキアート",
+    "image": "Image/Enemies/135.png",
+    "power": 24
+  },
+  {
+    "id": 136,
+    "name": "メリッサ フラペチーノ",
+    "image": "Image/Enemies/136.png",
+    "power": 52
+  },
+  {
+    "id": 137,
+    "name": "メリッサ グランデ",
+    "image": "Image/Enemies/133.png",
+    "power": 24
+  },
+  {
+    "id": 138,
+    "name": "メリッサ ヴェンティ",
+    "image": "Image/Enemies/134.png",
+    "power": 28
+  },
+  {
+    "id": 141,
+    "name": "クリーパー トール ドッピオ",
+    "image": "Image/Enemies/141.png",
+    "power": 24
+  },
+  {
+    "id": 142,
+    "name": "メリッサ トール ドッピオ",
+    "image": "Image/Enemies/142.png",
+    "power": 24
+  },
+  {
+    "id": 143,
+    "name": "クリーパー グランデ ドッピオ",
+    "image": "Image/Enemies/143.png",
+    "power": 24
+  },
+  {
+    "id": 144,
+    "name": "メリッサ グランデ ドッピオ",
+    "image": "Image/Enemies/144.png",
+    "power": 24
+  },
+  {
+    "id": 145,
+    "name": "クリーパー ヴェンティ ドッピオ",
+    "image": "Image/Enemies/145.png",
+    "power": 28
+  },
+  {
+    "id": 146,
+    "name": "メリッサ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/146.png",
+    "power": 28
+  },
+  {
+    "id": 147,
+    "name": "クリーパー フラペチーノ ドッピオ",
+    "image": "Image/Enemies/147.png",
+    "power": 52
+  },
+  {
+    "id": 148,
+    "name": "メリッサ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/148.png",
+    "power": 52
+  },
+  {
+    "id": 149,
+    "name": "エルククローナ トール ドッピオ",
+    "image": "Image/Enemies/149.png",
+    "power": 24
+  },
+  {
+    "id": 150,
+    "name": "エルククローナ グランデ ドッピオ",
+    "image": "Image/Enemies/150.png",
+    "power": 24
+  },
+  {
+    "id": 151,
+    "name": "エルククローナ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/151.png",
+    "power": 28
+  },
+  {
+    "id": 152,
+    "name": "エルククローナ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/152.png",
+    "power": 52
+  },
+  {
+    "id": 153,
+    "name": "ハートブリード トール ドッピオ",
+    "image": "Image/Enemies/153.png",
+    "power": 24
+  },
+  {
+    "id": 154,
+    "name": "ハートブリード グランデ ドッピオ",
+    "image": "Image/Enemies/154.png",
+    "power": 24
+  },
+  {
+    "id": 155,
+    "name": "ハートブリード ヴェンティ ドッピオ",
+    "image": "Image/Enemies/155.png",
+    "power": 28
+  },
+  {
+    "id": 156,
+    "name": "ハートブリード フラペチーノ ドッピオ",
+    "image": "Image/Enemies/156.png",
+    "power": 52
+  },
+  {
+    "id": 161,
+    "name": "バイトバンディット ショート",
+    "image": "Image/Enemies/161.png",
+    "power": 24
+  },
+  {
+    "id": 162,
+    "name": "バイトバンディット トール",
+    "image": "Image/Enemies/162.png",
+    "power": 30
+  },
+  {
+    "id": 163,
+    "name": "バイトバンディット グランデ",
+    "image": "Image/Enemies/163.png",
+    "power": 26
+  },
+  {
+    "id": 164,
+    "name": "バイトバンディット ヴェンティ",
+    "image": "Image/Enemies/164.png",
+    "power": 36
+  },
+  {
+    "id": 165,
+    "name": "バイトバンディット マキアート",
+    "image": "Image/Enemies/165.png",
+    "power": 30
+  },
+  {
+    "id": 166,
+    "name": "バイトバンディット フラペチーノ",
+    "image": "Image/Enemies/166.png",
+    "power": 56
+  },
+  {
+    "id": 167,
+    "name": "バイトバンディット トール ドッピオ",
+    "image": "Image/Enemies/167.png",
+    "power": 30
+  },
+  {
+    "id": 168,
+    "name": "バイトバンディット グランデ ドッピオ",
+    "image": "Image/Enemies/168.png",
+    "power": 26
+  },
+  {
+    "id": 169,
+    "name": "バイトバンディット ヴェンティ ドッピオ",
+    "image": "Image/Enemies/169.png",
+    "power": 34
+  },
+  {
+    "id": 170,
+    "name": "バイトバンディット フラペチーノ ドッピオ",
+    "image": "Image/Enemies/170.png",
+    "power": 56
+  },
+  {
+    "id": 181,
+    "name": "ベーグル ショート",
+    "image": "Image/Enemies/181.png",
+    "power": 29
+  },
+  {
+    "id": 182,
+    "name": "ベーグル トール",
+    "image": "Image/Enemies/182.png",
+    "power": 34
+  },
+  {
+    "id": 183,
+    "name": "ベーグル グランデ",
+    "image": "Image/Enemies/183.png",
+    "power": 30
+  },
+  {
+    "id": 184,
+    "name": "ベーグル ヴェンティ",
+    "image": "Image/Enemies/184.png",
+    "power": 39
+  },
+  {
+    "id": 185,
+    "name": "ベーグル マキアート",
+    "image": "Image/Enemies/185.png",
+    "power": 34
+  },
+  {
+    "id": 186,
+    "name": "ベーグル フラペチーノ",
+    "image": "Image/Enemies/186.png",
+    "power": 59
+  },
+  {
+    "id": 310,
+    "name": "クリーパー ショート",
+    "image": "Image/Enemies/101.png",
+    "power": 20
+  },
+  {
+    "id": 311,
+    "name": "クリーパー トール",
+    "image": "Image/Enemies/102.png",
+    "power": 24
+  },
+  {
+    "id": 312,
+    "name": "クリーパー グランデ",
+    "image": "Image/Enemies/103.png",
+    "power": 24
+  },
+  {
+    "id": 313,
+    "name": "クリーパー ヴェンティ",
+    "image": "Image/Enemies/104.png",
+    "power": 28
+  },
+  {
+    "id": 314,
+    "name": "クリーパー マキアート",
+    "image": "Image/Enemies/105.png",
+    "power": 24
+  },
+  {
+    "id": 315,
+    "name": "クリーパー フラペチーノ",
+    "image": "Image/Enemies/106.png",
+    "power": 52
+  },
+  {
+    "id": 316,
+    "name": "クリーパー トール ドッピオ",
+    "image": "Image/Enemies/141.png",
+    "power": 24
+  },
+  {
+    "id": 317,
+    "name": "クリーパー グランデ ドッピオ",
+    "image": "Image/Enemies/143.png",
+    "power": 24
+  },
+  {
+    "id": 318,
+    "name": "クリーパー ヴェンティ ドッピオ",
+    "image": "Image/Enemies/145.png",
+    "power": 28
+  },
+  {
+    "id": 319,
+    "name": "クリーパー フラペチーノ ドッピオ",
+    "image": "Image/Enemies/147.png",
+    "power": 52
+  },
+  {
+    "id": 320,
+    "name": "エルククローナ ショート",
+    "image": "Image/Enemies/111.png",
+    "power": 20
+  },
+  {
+    "id": 321,
+    "name": "エルククローナ トール",
+    "image": "Image/Enemies/112.png",
+    "power": 24
+  },
+  {
+    "id": 322,
+    "name": "エルククローナ グランデ",
+    "image": "Image/Enemies/113.png",
+    "power": 24
+  },
+  {
+    "id": 323,
+    "name": "エルククローナ ヴェンティ",
+    "image": "Image/Enemies/114.png",
+    "power": 28
+  },
+  {
+    "id": 324,
+    "name": "エルククローナ マキアート",
+    "image": "Image/Enemies/115.png",
+    "power": 24
+  },
+  {
+    "id": 325,
+    "name": "エルククローナ フラペチーノ",
+    "image": "Image/Enemies/116.png",
+    "power": 52
+  },
+  {
+    "id": 326,
+    "name": "エルククローナ トール ドッピオ",
+    "image": "Image/Enemies/149.png",
+    "power": 24
+  },
+  {
+    "id": 327,
+    "name": "エルククローナ グランデ ドッピオ",
+    "image": "Image/Enemies/150.png",
+    "power": 24
+  },
+  {
+    "id": 328,
+    "name": "エルククローナ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/151.png",
+    "power": 28
+  },
+  {
+    "id": 329,
+    "name": "エルククローナ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/152.png",
+    "power": 52
+  },
+  {
+    "id": 330,
+    "name": "ハートブリード ショート",
+    "image": "Image/Enemies/121.png",
+    "power": 20
+  },
+  {
+    "id": 331,
+    "name": "ハートブリード トール",
+    "image": "Image/Enemies/122.png",
+    "power": 24
+  },
+  {
+    "id": 332,
+    "name": "ハートブリード グランデ",
+    "image": "Image/Enemies/123.png",
+    "power": 24
+  },
+  {
+    "id": 333,
+    "name": "ハートブリード ヴェンティ",
+    "image": "Image/Enemies/124.png",
+    "power": 28
+  },
+  {
+    "id": 334,
+    "name": "ハートブリード マキアート",
+    "image": "Image/Enemies/125.png",
+    "power": 24
+  },
+  {
+    "id": 335,
+    "name": "ハートブリード フラペチーノ",
+    "image": "Image/Enemies/126.png",
+    "power": 52
+  },
+  {
+    "id": 336,
+    "name": "ハートブリード トール ドッピオ",
+    "image": "Image/Enemies/153.png",
+    "power": 24
+  },
+  {
+    "id": 337,
+    "name": "ハートブリード グランデ ドッピオ",
+    "image": "Image/Enemies/154.png",
+    "power": 24
+  },
+  {
+    "id": 338,
+    "name": "ハートブリード ヴェンティ ドッピオ",
+    "image": "Image/Enemies/155.png",
+    "power": 28
+  },
+  {
+    "id": 339,
+    "name": "ハートブリード フラペチーノ ドッピオ",
+    "image": "Image/Enemies/156.png",
+    "power": 52
+  },
+  {
+    "id": 340,
+    "name": "メリッサ ショート",
+    "image": "Image/Enemies/131.png",
+    "power": 20
+  },
+  {
+    "id": 341,
+    "name": "メリッサ トール",
+    "image": "Image/Enemies/132.png",
+    "power": 24
+  },
+  {
+    "id": 342,
+    "name": "メリッサ グランデ",
+    "image": "Image/Enemies/133.png",
+    "power": 24
+  },
+  {
+    "id": 343,
+    "name": "メリッサ ヴェンティ",
+    "image": "Image/Enemies/134.png",
+    "power": 28
+  },
+  {
+    "id": 344,
+    "name": "メリッサ マキアート",
+    "image": "Image/Enemies/135.png",
+    "power": 24
+  },
+  {
+    "id": 345,
+    "name": "メリッサ フラペチーノ",
+    "image": "Image/Enemies/136.png",
+    "power": 52
+  },
+  {
+    "id": 346,
+    "name": "メリッサ トール ドッピオ",
+    "image": "Image/Enemies/142.png",
+    "power": 24
+  },
+  {
+    "id": 347,
+    "name": "メリッサ グランデ ドッピオ",
+    "image": "Image/Enemies/144.png",
+    "power": 24
+  },
+  {
+    "id": 348,
+    "name": "メリッサ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/146.png",
+    "power": 28
+  },
+  {
+    "id": 349,
+    "name": "メリッサ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/148.png",
+    "power": 52
+  },
+  {
+    "id": 350,
+    "name": "バイトバンディット ショート",
+    "image": "Image/Enemies/161.png",
+    "power": 24
+  },
+  {
+    "id": 351,
+    "name": "バイトバンディット トール",
+    "image": "Image/Enemies/162.png",
+    "power": 30
+  },
+  {
+    "id": 352,
+    "name": "バイトバンディット グランデ",
+    "image": "Image/Enemies/163.png",
+    "power": 26
+  },
+  {
+    "id": 353,
+    "name": "バイトバンディット ヴェンティ",
+    "image": "Image/Enemies/164.png",
+    "power": 36
+  },
+  {
+    "id": 354,
+    "name": "バイトバンディット マキアート",
+    "image": "Image/Enemies/165.png",
+    "power": 30
+  },
+  {
+    "id": 355,
+    "name": "バイトバンディット フラペチーノ",
+    "image": "Image/Enemies/166.png",
+    "power": 56
+  },
+  {
+    "id": 356,
+    "name": "バイトバンディット トール ドッピオ",
+    "image": "Image/Enemies/167.png",
+    "power": 30
+  },
+  {
+    "id": 357,
+    "name": "バイトバンディット グランデ ドッピオ",
+    "image": "Image/Enemies/168.png",
+    "power": 26
+  },
+  {
+    "id": 358,
+    "name": "バイトバンディット ヴェンティ ドッピオ",
+    "image": "Image/Enemies/169.png",
+    "power": 34
+  },
+  {
+    "id": 359,
+    "name": "バイトバンディット フラペチーノ ドッピオ",
+    "image": "Image/Enemies/170.png",
+    "power": 56
+  },
+  {
+    "id": 360,
+    "name": "ベーグル ショート",
+    "image": "Image/Enemies/181.png",
+    "power": 29
+  },
+  {
+    "id": 361,
+    "name": "ベーグル トール",
+    "image": "Image/Enemies/182.png",
+    "power": 34
+  },
+  {
+    "id": 362,
+    "name": "ベーグル グランデ",
+    "image": "Image/Enemies/183.png",
+    "power": 30
+  },
+  {
+    "id": 363,
+    "name": "ベーグル ヴェンティ",
+    "image": "Image/Enemies/184.png",
+    "power": 39
+  },
+  {
+    "id": 364,
+    "name": "ベーグル マキアート",
+    "image": "Image/Enemies/185.png",
+    "power": 34
+  },
+  {
+    "id": 365,
+    "name": "ベーグル フラペチーノ",
+    "image": "Image/Enemies/186.png",
+    "power": 59
+  },
+  {
+    "id": 366,
+    "name": "ベーグル トール ドッピオ",
+    "image": "Image/Enemies/366.png",
+    "power": 34
+  },
+  {
+    "id": 367,
+    "name": "ベーグル グランデ ドッピオ",
+    "image": "Image/Enemies/367.png",
+    "power": 30
+  },
+  {
+    "id": 368,
+    "name": "ベーグル ヴェンティ ドッピオ",
+    "image": "Image/Enemies/368.png",
+    "power": 39
+  },
+  {
+    "id": 369,
+    "name": "ベーグル フラペチーノ ドッピオ",
+    "image": "Image/Enemies/369.png",
+    "power": 59
+  },
+  {
+    "id": 375,
+    "name": "カスケード ショート",
+    "image": "Image/Enemies/375.png",
+    "power": 20
+  },
+  {
+    "id": 376,
+    "name": "カスケード トール",
+    "image": "Image/Enemies/376.png",
+    "power": 24
+  },
+  {
+    "id": 377,
+    "name": "カスケード グランデ",
+    "image": "Image/Enemies/377.png",
+    "power": 24
+  },
+  {
+    "id": 378,
+    "name": "カスケード ヴェンティ",
+    "image": "Image/Enemies/378.png",
+    "power": 28
+  },
+  {
+    "id": 379,
+    "name": "カスケード マキアート",
+    "image": "Image/Enemies/379.png",
+    "power": 24
+  },
+  {
+    "id": 380,
+    "name": "カスケード フラペチーノ",
+    "image": "Image/Enemies/380.png",
+    "power": 52
+  },
+  {
+    "id": 381,
+    "name": "カスケード トール ドッピオ",
+    "image": "Image/Enemies/381.png",
+    "power": 24
+  },
+  {
+    "id": 382,
+    "name": "カスケード グランデ ドッピオ",
+    "image": "Image/Enemies/382.png",
+    "power": 24
+  },
+  {
+    "id": 383,
+    "name": "カスケード ヴェンティ ドッピオ",
+    "image": "Image/Enemies/383.png",
+    "power": 28
+  },
+  {
+    "id": 384,
+    "name": "カスケード マキアート ドッピオ",
+    "image": "Image/Enemies/384.png",
+    "power": 52
+  },
+  {
+    "id": 385,
+    "name": "カスケード フラペチーノ ドッピオ",
+    "image": "Image/Enemies/385.png",
+    "power": 52
+  },
+  {
+    "id": 386,
+    "name": "ラビット ショート",
+    "image": "Image/Enemies/386.png",
+    "power": 20
+  },
+  {
+    "id": 387,
+    "name": "ラビット トール",
+    "image": "Image/Enemies/387.png",
+    "power": 24
+  },
+  {
+    "id": 388,
+    "name": "ラビット グランデ",
+    "image": "Image/Enemies/388.png",
+    "power": 24
+  },
+  {
+    "id": 389,
+    "name": "ラビット ヴェンティ",
+    "image": "Image/Enemies/389.png",
+    "power": 28
+  },
+  {
+    "id": 390,
+    "name": "ラビット マキアート",
+    "image": "Image/Enemies/390.png",
+    "power": 24
+  },
+  {
+    "id": 391,
+    "name": "ラビット フラペチーノ",
+    "image": "Image/Enemies/391.png",
+    "power": 52
+  },
+  {
+    "id": 392,
+    "name": "ラビット トール ドッピオ",
+    "image": "Image/Enemies/392.png",
+    "power": 24
+  },
+  {
+    "id": 393,
+    "name": "ラビット グランデ ドッピオ",
+    "image": "Image/Enemies/393.png",
+    "power": 24
+  },
+  {
+    "id": 394,
+    "name": "ラビット ヴェンティ ドッピオ",
+    "image": "Image/Enemies/394.png",
+    "power": 28
+  },
+  {
+    "id": 395,
+    "name": "ラビット マキアート ドッピオ",
+    "image": "Image/Enemies/395.png",
+    "power": 52
+  },
+  {
+    "id": 396,
+    "name": "ラビット フラペチーノ ドッピオ",
+    "image": "Image/Enemies/396.png",
+    "power": 52
+  },
+  {
+    "id": 397,
+    "name": "ラブレター ショート",
+    "image": "Image/Enemies/397.png",
+    "power": 20
+  },
+  {
+    "id": 398,
+    "name": "ラブレター トール",
+    "image": "Image/Enemies/398.png",
+    "power": 24
+  },
+  {
+    "id": 399,
+    "name": "ラブレター グランデ",
+    "image": "Image/Enemies/399.png",
+    "power": 28
+  },
+  {
+    "id": 400,
+    "name": "ラブレター ヴェンティ",
+    "image": "Image/Enemies/400.png",
+    "power": 24
+  },
+  {
+    "id": 401,
+    "name": "ラブレター マキアート",
+    "image": "Image/Enemies/401.png",
+    "power": 52
+  },
+  {
+    "id": 402,
+    "name": "ラブレター フラペチーノ",
+    "image": "Image/Enemies/402.png",
+    "power": 24
+  },
+  {
+    "id": 403,
+    "name": "ラブレター トール ドッピオ",
+    "image": "Image/Enemies/403.png",
+    "power": 24
+  },
+  {
+    "id": 404,
+    "name": "ラブレター グランデ ドッピオ",
+    "image": "Image/Enemies/404.png",
+    "power": 28
+  },
+  {
+    "id": 405,
+    "name": "ラブレター ヴェンティ ドッピオ",
+    "image": "Image/Enemies/405.png",
+    "power": 52
+  },
+  {
+    "id": 406,
+    "name": "ラブレター マキアート ドッピオ",
+    "image": "Image/Enemies/406.png",
+    "power": 52
+  },
+  {
+    "id": 407,
+    "name": "ラブレター フラペチーノ ドッピオ",
+    "image": "Image/Enemies/407.png",
+    "power": 24
+  },
+  {
+    "id": 408,
+    "name": "カメレオン ショート",
+    "image": "Image/Enemies/408.png",
+    "power": 20
+  },
+  {
+    "id": 409,
+    "name": "カメレオン トール",
+    "image": "Image/Enemies/409.png",
+    "power": 24
+  },
+  {
+    "id": 410,
+    "name": "カメレオン グランデ",
+    "image": "Image/Enemies/410.png",
+    "power": 24
+  },
+  {
+    "id": 411,
+    "name": "カメレオン ヴェンティ",
+    "image": "Image/Enemies/411.png",
+    "power": 28
+  },
+  {
+    "id": 412,
+    "name": "カメレオン マキアート",
+    "image": "Image/Enemies/412.png",
+    "power": 24
+  },
+  {
+    "id": 413,
+    "name": "カメレオン フラペチーノ",
+    "image": "Image/Enemies/413.png",
+    "power": 52
+  },
+  {
+    "id": 414,
+    "name": "カメレオン トール ドッピオ",
+    "image": "Image/Enemies/414.png",
+    "power": 24
+  },
+  {
+    "id": 415,
+    "name": "カメレオン グランデ ドッピオ",
+    "image": "Image/Enemies/415.png",
+    "power": 24
+  },
+  {
+    "id": 416,
+    "name": "カメレオン ヴェンティ ドッピオ",
+    "image": "Image/Enemies/416.png",
+    "power": 28
+  },
+  {
+    "id": 417,
+    "name": "カメレオン マキアート ドッピオ",
+    "image": "Image/Enemies/417.png",
+    "power": 52
+  },
+  {
+    "id": 418,
+    "name": "カメレオン フラペチーノ ドッピオ",
+    "image": "Image/Enemies/418.png",
+    "power": 52
+  },
+  {
+    "id": 421,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 438
+  },
+  {
+    "id": 422,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 427
+  },
+  {
+    "id": 423,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 534
+  },
+  {
+    "id": 424,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 535
+  },
+  {
+    "id": 425,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 531
+  },
+  {
+    "id": 426,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1245
+  },
+  {
+    "id": 427,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1309
+  },
+  {
+    "id": 428,
+    "name": "ゴースト・安倍晴明",
+    "image": "Image/Enemies/428.png",
+    "power": 1017
+  },
+  {
+    "id": 429,
+    "name": "ゴースト・ジャンヌ・ダルク",
+    "image": "Image/Enemies/429.png",
+    "power": 760
+  },
+  {
+    "id": 430,
+    "name": "ゴースト・チュン姉妹",
+    "image": "Image/Enemies/430.png",
+    "power": 633
+  },
+  {
+    "id": 431,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 571
+  },
+  {
+    "id": 432,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 403
+  },
+  {
+    "id": 433,
+    "name": "ゴースト・クレオパトラ",
+    "image": "Image/Enemies/433.png",
+    "power": 714
+  },
+  {
+    "id": 434,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 403
+  },
+  {
+    "id": 435,
+    "name": "ゴースト・楊貴妃",
+    "image": "Image/Enemies/435.png",
+    "power": 454
+  },
+  {
+    "id": 436,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 467
+  },
+  {
+    "id": 437,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 424
+  },
+  {
+    "id": 438,
+    "name": "ゴースト・土方歳三",
+    "image": "Image/Enemies/438.png",
+    "power": 477
+  },
+  {
+    "id": 439,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 592
+  },
+  {
+    "id": 440,
+    "name": "ゴースト・バッハ",
+    "image": "Image/Enemies/440.png",
+    "power": 702
+  },
+  {
+    "id": 441,
+    "name": "ゴースト・モーツァルト",
+    "image": "Image/Enemies/441.png",
+    "power": 665
+  },
+  {
+    "id": 442,
+    "name": "ゴースト・皇帝ネロ",
+    "image": "Image/Enemies/442.png",
+    "power": 568
+  },
+  {
+    "id": 443,
+    "name": "ゴースト・カール大帝",
+    "image": "Image/Enemies/443.png",
+    "power": 770
+  },
+  {
+    "id": 444,
+    "name": "ゴースト・カエサル",
+    "image": "Image/Enemies/444.png",
+    "power": 584
+  },
+  {
+    "id": 445,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 682
+  },
+  {
+    "id": 446,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 601
+  },
+  {
+    "id": 447,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 761
+  },
+  {
+    "id": 448,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 697
+  },
+  {
+    "id": 449,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 646
+  },
+  {
+    "id": 450,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 669
+  },
+  {
+    "id": 451,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 619
+  },
+  {
+    "id": 452,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 628
+  },
+  {
+    "id": 453,
+    "name": "ゴースト・坂本龍馬",
+    "image": "Image/Enemies/453.png",
+    "power": 660
+  },
+  {
+    "id": 454,
+    "name": "ゴースト・張飛",
+    "image": "Image/Enemies/454.png",
+    "power": 651
+  },
+  {
+    "id": 455,
+    "name": "ゴースト・劉備",
+    "image": "Image/Enemies/455.png",
+    "power": 659
+  },
+  {
+    "id": 456,
+    "name": "ゴースト・関羽",
+    "image": "Image/Enemies/456.png",
+    "power": 592
+  },
+  {
+    "id": 457,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 697
+  },
+  {
+    "id": 458,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 646
+  },
+  {
+    "id": 459,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 669
+  },
+  {
+    "id": 460,
+    "name": "ゴースト・ランスロット",
+    "image": "Image/Enemies/460.png",
+    "power": 601
+  },
+  {
+    "id": 461,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 680
+  },
+  {
+    "id": 462,
+    "name": "ゴースト・パーシヴァル",
+    "image": "Image/Enemies/462.png",
+    "power": 671
+  },
+  {
+    "id": 463,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 510
+  },
+  {
+    "id": 464,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 665
+  },
+  {
+    "id": 465,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 460
+  },
+  {
+    "id": 466,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 731
+  },
+  {
+    "id": 467,
+    "name": "ゴースト・曹操",
+    "image": "Image/Enemies/467.png",
+    "power": 824
+  },
+  {
+    "id": 468,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 812
+  },
+  {
+    "id": 469,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 605
+  },
+  {
+    "id": 470,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 704
+  },
+  {
+    "id": 471,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 596
+  },
+  {
+    "id": 472,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 2019
+  },
+  {
+    "id": 473,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 959
+  },
+  {
+    "id": 474,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1865
+  },
+  {
+    "id": 475,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1465
+  },
+  {
+    "id": 476,
+    "name": "ゴースト・平将門",
+    "image": "Image/Enemies/476.png",
+    "power": 579
+  },
+  {
+    "id": 477,
+    "name": "ゴースト・孫権",
+    "image": "Image/Enemies/477.png",
+    "power": 1098
+  },
+  {
+    "id": 478,
+    "name": "ゴースト・カメハメハ大王",
+    "image": "Image/Enemies/478.png",
+    "power": 1117
+  },
+  {
+    "id": 479,
+    "name": "ゴースト・ダーウィン",
+    "image": "Image/Enemies/479.png",
+    "power": 1228
+  },
+  {
+    "id": 480,
+    "name": "ゴースト・マルコ・ポーロ",
+    "image": "Image/Enemies/480.png",
+    "power": 1111
+  },
+  {
+    "id": 481,
+    "name": "ゴースト・呂布",
+    "image": "Image/Enemies/481.png",
+    "power": 1252
+  },
+  {
+    "id": 482,
+    "name": "ゴースト・キュリー夫人",
+    "image": "Image/Enemies/482.png",
+    "power": 1157
+  },
+  {
+    "id": 483,
+    "name": "ゴースト・チャイコフスキー",
+    "image": "Image/Enemies/483.png",
+    "power": 1136
+  },
+  {
+    "id": 484,
+    "name": "ゴースト・王キ",
+    "image": "Image/Enemies/484.png",
+    "power": 1235
+  },
+  {
+    "id": 485,
+    "name": "ゴースト・巴御前",
+    "image": "Image/Enemies/485.png",
+    "power": 1220
+  },
+  {
+    "id": 486,
+    "name": "ゴースト・伊達政宗",
+    "image": "Image/Enemies/486.png",
+    "power": 1343
+  },
+  {
+    "id": 487,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 1251
+  },
+  {
+    "id": 488,
+    "name": "ゴースト・ヤマトタケル",
+    "image": "Image/Enemies/488.png",
+    "power": 1310
+  },
+  {
+    "id": 489,
+    "name": "ゴースト・勝海舟",
+    "image": "Image/Enemies/489.png",
+    "power": 1524
+  },
+  {
+    "id": 490,
+    "name": "ゴースト・佐々木小次郎",
+    "image": "Image/Enemies/490.png",
+    "power": 1291
+  },
+  {
+    "id": 491,
+    "name": "ゴースト・トーマス・エジソン",
+    "image": "Image/Enemies/491.png",
+    "power": 1308
+  },
+  {
+    "id": 492,
+    "name": "ゴースト・韓信",
+    "image": "Image/Enemies/492.png",
+    "power": 1472
+  },
+  {
+    "id": 493,
+    "name": "ゴースト・マルクス",
+    "image": "Image/Enemies/493.png",
+    "power": 1289
+  },
+  {
+    "id": 494,
+    "name": "ゴースト・カラミティ・ジェーン",
+    "image": "Image/Enemies/494.png",
+    "power": 1292
+  },
+  {
+    "id": 495,
+    "name": "ゴースト・ナイチンゲール",
+    "image": "Image/Enemies/495.png",
+    "power": 1150
+  },
+  {
+    "id": 496,
+    "name": "ゴースト・趙雲",
+    "image": "Image/Enemies/496.png",
+    "power": 913
+  },
+  {
+    "id": 497,
+    "name": "ゴースト・ファーブル",
+    "image": "Image/Enemies/497.png",
+    "power": 1041
+  },
+  {
+    "id": 499,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 766
+  },
+  {
+    "id": 500,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1044
+  },
+  {
+    "id": 501,
+    "name": "ゴースト・クレオパトラ",
+    "image": "Image/Enemies/433.png",
+    "power": 1318
+  },
+  {
+    "id": 502,
+    "name": "ゴースト・曹操",
+    "image": "Image/Enemies/467.png",
+    "power": 1350
+  },
+  {
+    "id": 503,
+    "name": "ゴースト・カール大帝",
+    "image": "Image/Enemies/443.png",
+    "power": 1188
+  },
+  {
+    "id": 504,
+    "name": "ゴースト・マリー・アントワネット",
+    "image": "Image/Enemies/504.png",
+    "power": 925
+  },
+  {
+    "id": 505,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1281
+  },
+  {
+    "id": 506,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1110
+  },
+  {
+    "id": 507,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 2142
+  },
+  {
+    "id": 508,
+    "name": "ゴースト・黄忠",
+    "image": "Image/Enemies/508.png",
+    "power": 924
+  },
+  {
+    "id": 509,
+    "name": "ゴースト・岳飛",
+    "image": "Image/Enemies/509.png",
+    "power": 764
+  },
+  {
+    "id": 510,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 987
+  },
+  {
+    "id": 511,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 817
+  },
+  {
+    "id": 512,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 817
+  },
+  {
+    "id": 513,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 893
+  },
+  {
+    "id": 514,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 902
+  },
+  {
+    "id": 515,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 921
+  },
+  {
+    "id": 516,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 943
+  },
+  {
+    "id": 517,
+    "name": "ゴースト・伊達政宗",
+    "image": "Image/Enemies/486.png",
+    "power": 1083
+  },
+  {
+    "id": 518,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1005
+  },
+  {
+    "id": 519,
+    "name": "ゴースト・武田信玄",
+    "image": "Image/Enemies/519.png",
+    "power": 949
+  },
+  {
+    "id": 520,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 945
+  },
+  {
+    "id": 521,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 926
+  },
+  {
+    "id": 522,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 578
+  },
+  {
+    "id": 523,
+    "name": "ゴースト・土方歳三",
+    "image": "Image/Enemies/438.png",
+    "power": 525
+  },
+  {
+    "id": 524,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 598
+  },
+  {
+    "id": 525,
+    "name": "ゴースト・チャイコフスキー",
+    "image": "Image/Enemies/483.png",
+    "power": 736
+  },
+  {
+    "id": 526,
+    "name": "ゴースト・ダーウィン",
+    "image": "Image/Enemies/479.png",
+    "power": 830
+  },
+  {
+    "id": 527,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 843
+  },
+  {
+    "id": 528,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 925
+  },
+  {
+    "id": 529,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1015
+  },
+  {
+    "id": 530,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 956
+  },
+  {
+    "id": 531,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 907
+  },
+  {
+    "id": 532,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1139
+  },
+  {
+    "id": 533,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 913
+  },
+  {
+    "id": 534,
+    "name": "ゴースト・カール大帝",
+    "image": "Image/Enemies/443.png",
+    "power": 992
+  },
+  {
+    "id": 535,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1224
+  },
+  {
+    "id": 536,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 1142
+  },
+  {
+    "id": 537,
+    "name": "ゴースト・武田信玄",
+    "image": "Image/Enemies/519.png",
+    "power": 1283
+  },
+  {
+    "id": 538,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1022
+  },
+  {
+    "id": 539,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1088
+  },
+  {
+    "id": 540,
+    "name": "ゴースト・カラミティ・ジェーン",
+    "image": "Image/Enemies/494.png",
+    "power": 1006
+  },
+  {
+    "id": 541,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 1012
+  },
+  {
+    "id": 542,
+    "name": "ゴースト・カラミティ・ジェーン",
+    "image": "Image/Enemies/494.png",
+    "power": 1038
+  },
+  {
+    "id": 543,
+    "name": "ゴースト・韓信",
+    "image": "Image/Enemies/492.png",
+    "power": 745
+  },
+  {
+    "id": 544,
+    "name": "ゴースト・王キ",
+    "image": "Image/Enemies/484.png",
+    "power": 726
+  },
+  {
+    "id": 545,
+    "name": "ゴースト・王キ",
+    "image": "Image/Enemies/484.png",
+    "power": 726
+  },
+  {
+    "id": 546,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1188
+  },
+  {
+    "id": 547,
+    "name": "ゴースト・孫堅",
+    "image": "Image/Enemies/547.png",
+    "power": 890
+  },
+  {
+    "id": 548,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 907
+  },
+  {
+    "id": 549,
+    "name": "ゴースト・孫権",
+    "image": "Image/Enemies/477.png",
+    "power": 1083
+  },
+  {
+    "id": 550,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 922
+  },
+  {
+    "id": 551,
+    "name": "ゴースト・ヤマトタケル",
+    "image": "Image/Enemies/488.png",
+    "power": 893
+  },
+  {
+    "id": 552,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 922
+  },
+  {
+    "id": 553,
+    "name": "ゴースト・平賀源内",
+    "image": "Image/Enemies/553.png",
+    "power": 901
+  },
+  {
+    "id": 554,
+    "name": "ゴースト・平将門",
+    "image": "Image/Enemies/476.png",
+    "power": 1005
+  },
+  {
+    "id": 555,
+    "name": "ゴースト・平賀源内",
+    "image": "Image/Enemies/553.png",
+    "power": 940
+  },
+  {
+    "id": 556,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 952
+  },
+  {
+    "id": 557,
+    "name": "ゴースト・ファーブル",
+    "image": "Image/Enemies/497.png",
+    "power": 913
+  },
+  {
+    "id": 558,
+    "name": "ゴースト・ダーウィン",
+    "image": "Image/Enemies/479.png",
+    "power": 1006
+  },
+  {
+    "id": 559,
+    "name": "ゴースト・平賀源内",
+    "image": "Image/Enemies/553.png",
+    "power": 1001
+  },
+  {
+    "id": 560,
+    "name": "ゴースト・ニコラ・テスラ",
+    "image": "Image/Enemies/560.png",
+    "power": 961
+  },
+  {
+    "id": 561,
+    "name": "ゴースト・トーマス・エジソン",
+    "image": "Image/Enemies/491.png",
+    "power": 927
+  },
+  {
+    "id": 562,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 920
+  },
+  {
+    "id": 563,
+    "name": "ゴースト・アンデルセン",
+    "image": "Image/Enemies/563.png",
+    "power": 881
+  },
+  {
+    "id": 564,
+    "name": "ゴースト・イソップ",
+    "image": "Image/Enemies/564.png",
+    "power": 941
+  },
+  {
+    "id": 565,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 606
+  },
+  {
+    "id": 566,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 650
+  },
+  {
+    "id": 567,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 628
+  },
+  {
+    "id": 568,
+    "name": "ゴースト・森蘭丸",
+    "image": "Image/Enemies/568.png",
+    "power": 1155
+  },
+  {
+    "id": 569,
+    "name": "ゴースト・明智光秀",
+    "image": "Image/Enemies/569.png",
+    "power": 1281
+  },
+  {
+    "id": 570,
+    "name": "ゴースト・ダルタニャン",
+    "image": "Image/Enemies/570.png",
+    "power": 866
+  },
+  {
+    "id": 571,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 855
+  },
+  {
+    "id": 572,
+    "name": "ゴースト・ナイチンゲール",
+    "image": "Image/Enemies/495.png",
+    "power": 976
+  },
+  {
+    "id": 573,
+    "name": "ゴースト・西郷隆盛",
+    "image": "Image/Enemies/573.png",
+    "power": 1014
+  },
+  {
+    "id": 575,
+    "name": "ゴースト・勝海舟",
+    "image": "Image/Enemies/489.png",
+    "power": 924
+  },
+  {
+    "id": 576,
+    "name": "ゴースト・楊貴妃",
+    "image": "Image/Enemies/435.png",
+    "power": 889
+  },
+  {
+    "id": 577,
+    "name": "ゴースト・佐々木小次郎",
+    "image": "Image/Enemies/490.png",
+    "power": 910
+  },
+  {
+    "id": 578,
+    "name": "ゴースト・マリー・アントワネット",
+    "image": "Image/Enemies/504.png",
+    "power": 966
+  },
+  {
+    "id": 579,
+    "name": "ゴースト・マルコ・ポーロ",
+    "image": "Image/Enemies/480.png",
+    "power": 992
+  },
+  {
+    "id": 580,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1068
+  },
+  {
+    "id": 581,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1044
+  },
+  {
+    "id": 582,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1128
+  },
+  {
+    "id": 583,
+    "name": "ゴースト・チュン姉妹",
+    "image": "Image/Enemies/430.png",
+    "power": 1128
+  },
+  {
+    "id": 584,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1134
+  },
+  {
+    "id": 585,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 916
+  },
+  {
+    "id": 586,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 976
+  },
+  {
+    "id": 587,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 989
+  },
+  {
+    "id": 588,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 958
+  },
+  {
+    "id": 589,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 958
+  },
+  {
+    "id": 590,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1057
+  },
+  {
+    "id": 591,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1005
+  },
+  {
+    "id": 592,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 971
+  },
+  {
+    "id": 593,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 705
+  },
+  {
+    "id": 594,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 805
+  },
+  {
+    "id": 595,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 1316
+  },
+  {
+    "id": 596,
+    "name": "ゴースト・諸葛亮",
+    "image": "Image/Enemies/596.png",
+    "power": 920
+  },
+  {
+    "id": 597,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 952
+  },
+  {
+    "id": 598,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1016
+  },
+  {
+    "id": 599,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 957
+  },
+  {
+    "id": 600,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1103
+  },
+  {
+    "id": 601,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1026
+  },
+  {
+    "id": 602,
+    "name": "ゴースト・ランスロット",
+    "image": "Image/Enemies/460.png",
+    "power": 1282
+  },
+  {
+    "id": 603,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 1819
+  },
+  {
+    "id": 604,
+    "name": "ゴースト・ランスロット",
+    "image": "Image/Enemies/460.png",
+    "power": 1301
+  },
+  {
+    "id": 605,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1245
+  },
+  {
+    "id": 606,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1713
+  },
+  {
+    "id": 607,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1591
+  },
+  {
+    "id": 608,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1801
+  },
+  {
+    "id": 609,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1889
+  },
+  {
+    "id": 610,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1285
+  },
+  {
+    "id": 611,
+    "name": "クリーパー ショート",
+    "image": "Image/Enemies/101.png",
+    "power": 20
+  },
+  {
+    "id": 612,
+    "name": "クリーパー トール",
+    "image": "Image/Enemies/102.png",
+    "power": 24
+  },
+  {
+    "id": 613,
+    "name": "クリーパー グランデ",
+    "image": "Image/Enemies/103.png",
+    "power": 24
+  },
+  {
+    "id": 614,
+    "name": "クリーパー ヴェンティ",
+    "image": "Image/Enemies/104.png",
+    "power": 28
+  },
+  {
+    "id": 615,
+    "name": "クリーパー マキアート",
+    "image": "Image/Enemies/105.png",
+    "power": 24
+  },
+  {
+    "id": 616,
+    "name": "クリーパー フラペチーノ",
+    "image": "Image/Enemies/106.png",
+    "power": 52
+  },
+  {
+    "id": 617,
+    "name": "クリーパー トール ドッピオ",
+    "image": "Image/Enemies/141.png",
+    "power": 24
+  },
+  {
+    "id": 618,
+    "name": "クリーパー グランデ ドッピオ",
+    "image": "Image/Enemies/143.png",
+    "power": 24
+  },
+  {
+    "id": 619,
+    "name": "クリーパー ヴェンティ ドッピオ",
+    "image": "Image/Enemies/145.png",
+    "power": 28
+  },
+  {
+    "id": 620,
+    "name": "クリーパー フラペチーノ ドッピオ",
+    "image": "Image/Enemies/147.png",
+    "power": 52
+  },
+  {
+    "id": 621,
+    "name": "エルククローナ ショート",
+    "image": "Image/Enemies/111.png",
+    "power": 20
+  },
+  {
+    "id": 622,
+    "name": "エルククローナ トール",
+    "image": "Image/Enemies/112.png",
+    "power": 24
+  },
+  {
+    "id": 623,
+    "name": "エルククローナ グランデ",
+    "image": "Image/Enemies/113.png",
+    "power": 24
+  },
+  {
+    "id": 624,
+    "name": "エルククローナ ヴェンティ",
+    "image": "Image/Enemies/114.png",
+    "power": 28
+  },
+  {
+    "id": 625,
+    "name": "エルククローナ マキアート",
+    "image": "Image/Enemies/115.png",
+    "power": 24
+  },
+  {
+    "id": 626,
+    "name": "エルククローナ フラペチーノ",
+    "image": "Image/Enemies/116.png",
+    "power": 52
+  },
+  {
+    "id": 627,
+    "name": "エルククローナ トール ドッピオ",
+    "image": "Image/Enemies/149.png",
+    "power": 24
+  },
+  {
+    "id": 628,
+    "name": "エルククローナ グランデ ドッピオ",
+    "image": "Image/Enemies/150.png",
+    "power": 24
+  },
+  {
+    "id": 629,
+    "name": "エルククローナ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/151.png",
+    "power": 28
+  },
+  {
+    "id": 630,
+    "name": "エルククローナ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/152.png",
+    "power": 52
+  },
+  {
+    "id": 631,
+    "name": "ハートブリード ショート",
+    "image": "Image/Enemies/121.png",
+    "power": 20
+  },
+  {
+    "id": 632,
+    "name": "ハートブリード トール",
+    "image": "Image/Enemies/122.png",
+    "power": 24
+  },
+  {
+    "id": 633,
+    "name": "ハートブリード グランデ",
+    "image": "Image/Enemies/123.png",
+    "power": 24
+  },
+  {
+    "id": 634,
+    "name": "ハートブリード ヴェンティ",
+    "image": "Image/Enemies/124.png",
+    "power": 28
+  },
+  {
+    "id": 635,
+    "name": "ハートブリード マキアート",
+    "image": "Image/Enemies/125.png",
+    "power": 24
+  },
+  {
+    "id": 636,
+    "name": "ハートブリード フラペチーノ",
+    "image": "Image/Enemies/126.png",
+    "power": 52
+  },
+  {
+    "id": 637,
+    "name": "ハートブリード トール ドッピオ",
+    "image": "Image/Enemies/153.png",
+    "power": 24
+  },
+  {
+    "id": 638,
+    "name": "ハートブリード グランデ ドッピオ",
+    "image": "Image/Enemies/154.png",
+    "power": 24
+  },
+  {
+    "id": 639,
+    "name": "ハートブリード ヴェンティ ドッピオ",
+    "image": "Image/Enemies/155.png",
+    "power": 28
+  },
+  {
+    "id": 640,
+    "name": "ハートブリード フラペチーノ ドッピオ",
+    "image": "Image/Enemies/156.png",
+    "power": 52
+  },
+  {
+    "id": 641,
+    "name": "メリッサ ショート",
+    "image": "Image/Enemies/131.png",
+    "power": 20
+  },
+  {
+    "id": 642,
+    "name": "メリッサ トール",
+    "image": "Image/Enemies/132.png",
+    "power": 24
+  },
+  {
+    "id": 643,
+    "name": "メリッサ グランデ",
+    "image": "Image/Enemies/133.png",
+    "power": 24
+  },
+  {
+    "id": 644,
+    "name": "メリッサ ヴェンティ",
+    "image": "Image/Enemies/134.png",
+    "power": 28
+  },
+  {
+    "id": 645,
+    "name": "メリッサ マキアート",
+    "image": "Image/Enemies/135.png",
+    "power": 24
+  },
+  {
+    "id": 646,
+    "name": "メリッサ フラペチーノ",
+    "image": "Image/Enemies/136.png",
+    "power": 52
+  },
+  {
+    "id": 647,
+    "name": "メリッサ トール ドッピオ",
+    "image": "Image/Enemies/142.png",
+    "power": 24
+  },
+  {
+    "id": 648,
+    "name": "メリッサ グランデ ドッピオ",
+    "image": "Image/Enemies/144.png",
+    "power": 24
+  },
+  {
+    "id": 649,
+    "name": "メリッサ ヴェンティ ドッピオ",
+    "image": "Image/Enemies/146.png",
+    "power": 28
+  },
+  {
+    "id": 650,
+    "name": "メリッサ フラペチーノ ドッピオ",
+    "image": "Image/Enemies/148.png",
+    "power": 52
+  },
+  {
+    "id": 651,
+    "name": "バイトバンディット ショート",
+    "image": "Image/Enemies/161.png",
+    "power": 24
+  },
+  {
+    "id": 652,
+    "name": "バイトバンディット トール",
+    "image": "Image/Enemies/162.png",
+    "power": 30
+  },
+  {
+    "id": 653,
+    "name": "バイトバンディット グランデ",
+    "image": "Image/Enemies/163.png",
+    "power": 26
+  },
+  {
+    "id": 654,
+    "name": "バイトバンディット ヴェンティ",
+    "image": "Image/Enemies/164.png",
+    "power": 36
+  },
+  {
+    "id": 655,
+    "name": "バイトバンディット マキアート",
+    "image": "Image/Enemies/165.png",
+    "power": 30
+  },
+  {
+    "id": 656,
+    "name": "バイトバンディット フラペチーノ",
+    "image": "Image/Enemies/166.png",
+    "power": 56
+  },
+  {
+    "id": 657,
+    "name": "バイトバンディット トール ドッピオ",
+    "image": "Image/Enemies/167.png",
+    "power": 30
+  },
+  {
+    "id": 658,
+    "name": "バイトバンディット グランデ ドッピオ",
+    "image": "Image/Enemies/168.png",
+    "power": 26
+  },
+  {
+    "id": 659,
+    "name": "バイトバンディット ヴェンティ ドッピオ",
+    "image": "Image/Enemies/169.png",
+    "power": 34
+  },
+  {
+    "id": 660,
+    "name": "バイトバンディット フラペチーノ ドッピオ",
+    "image": "Image/Enemies/170.png",
+    "power": 56
+  },
+  {
+    "id": 661,
+    "name": "ベーグル ショート",
+    "image": "Image/Enemies/181.png",
+    "power": 29
+  },
+  {
+    "id": 662,
+    "name": "ベーグル トール",
+    "image": "Image/Enemies/182.png",
+    "power": 34
+  },
+  {
+    "id": 663,
+    "name": "ベーグル グランデ",
+    "image": "Image/Enemies/183.png",
+    "power": 30
+  },
+  {
+    "id": 664,
+    "name": "ベーグル ヴェンティ",
+    "image": "Image/Enemies/184.png",
+    "power": 39
+  },
+  {
+    "id": 665,
+    "name": "ベーグル マキアート",
+    "image": "Image/Enemies/185.png",
+    "power": 34
+  },
+  {
+    "id": 666,
+    "name": "ベーグル フラペチーノ",
+    "image": "Image/Enemies/186.png",
+    "power": 59
+  },
+  {
+    "id": 667,
+    "name": "ベーグル トール ドッピオ",
+    "image": "Image/Enemies/366.png",
+    "power": 34
+  },
+  {
+    "id": 668,
+    "name": "ベーグル グランデ ドッピオ",
+    "image": "Image/Enemies/367.png",
+    "power": 30
+  },
+  {
+    "id": 669,
+    "name": "ベーグル ヴェンティ ドッピオ",
+    "image": "Image/Enemies/368.png",
+    "power": 39
+  },
+  {
+    "id": 670,
+    "name": "ベーグル フラペチーノ ドッピオ",
+    "image": "Image/Enemies/369.png",
+    "power": 59
+  },
+  {
+    "id": 672,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 355
+  },
+  {
+    "id": 673,
+    "name": "ゴースト・皇帝ネロ",
+    "image": "Image/Enemies/442.png",
+    "power": 480
+  },
+  {
+    "id": 674,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 427
+  },
+  {
+    "id": 675,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 504
+  },
+  {
+    "id": 676,
+    "name": "カメレオン フラペチーノ ドッピオ",
+    "image": "Image/Enemies/418.png",
+    "power": 532
+  },
+  {
+    "id": 677,
+    "name": "カメレオン フラペチーノ ドッピオ",
+    "image": "Image/Enemies/418.png",
+    "power": 531
+  },
+  {
+    "id": 678,
+    "name": "ゴースト・ジャンヌ・ダルク",
+    "image": "Image/Enemies/429.png",
+    "power": 728
+  },
+  {
+    "id": 679,
+    "name": "ゴースト・劉備",
+    "image": "Image/Enemies/455.png",
+    "power": 625
+  },
+  {
+    "id": 680,
+    "name": "ゴースト・坂本龍馬",
+    "image": "Image/Enemies/453.png",
+    "power": 579
+  },
+  {
+    "id": 681,
+    "name": "カメレオン パッション",
+    "image": "Image/Enemies/681.png",
+    "power": 590
+  },
+  {
+    "id": 683,
+    "name": "ゴースト・伊能忠敬",
+    "image": "Image/Enemies/683.png",
+    "power": 888
+  },
+  {
+    "id": 684,
+    "name": "ゴースト・コナン・ドイル",
+    "image": "Image/Enemies/684.png",
+    "power": 900
+  },
+  {
+    "id": 685,
+    "name": "ゴースト・シートン",
+    "image": "Image/Enemies/685.png",
+    "power": 1024
+  },
+  {
+    "id": 686,
+    "name": "ゴースト・ダビデ",
+    "image": "Image/Enemies/686.png",
+    "power": 998
+  },
+  {
+    "id": 687,
+    "name": "ゴースト・福沢諭吉",
+    "image": "Image/Enemies/687.png",
+    "power": 804
+  },
+  {
+    "id": 688,
+    "name": "ゴースト・孫尚香",
+    "image": "Image/Enemies/688.png",
+    "power": 833
+  },
+  {
+    "id": 689,
+    "name": "ゴースト・コナン・ドイル",
+    "image": "Image/Enemies/684.png",
+    "power": 806
+  },
+  {
+    "id": 690,
+    "name": "ゴースト・パスカル",
+    "image": "Image/Enemies/690.png",
+    "power": 708
+  },
+  {
+    "id": 691,
+    "name": "ゴースト・福沢諭吉",
+    "image": "Image/Enemies/687.png",
+    "power": 833
+  },
+  {
+    "id": 692,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 888
+  },
+  {
+    "id": 693,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 734
+  },
+  {
+    "id": 694,
+    "name": "ゴースト・シートン",
+    "image": "Image/Enemies/685.png",
+    "power": 834
+  },
+  {
+    "id": 695,
+    "name": "ゴースト・シートン",
+    "image": "Image/Enemies/685.png",
+    "power": 1042
+  },
+  {
+    "id": 696,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 926
+  },
+  {
+    "id": 697,
+    "name": "ゴースト・甲斐姫",
+    "image": "Image/Enemies/697.png",
+    "power": 692
+  },
+  {
+    "id": 698,
+    "name": "ゴースト・孫尚香",
+    "image": "Image/Enemies/688.png",
+    "power": 1032
+  },
+  {
+    "id": 699,
+    "name": "ゴースト・福沢諭吉",
+    "image": "Image/Enemies/687.png",
+    "power": 854
+  },
+  {
+    "id": 700,
+    "name": "ゴースト・ダビデ",
+    "image": "Image/Enemies/686.png",
+    "power": 940
+  },
+  {
+    "id": 701,
+    "name": "ゴースト・シートン",
+    "image": "Image/Enemies/685.png",
+    "power": 1024
+  },
+  {
+    "id": 702,
+    "name": "ゴースト・甲斐姫",
+    "image": "Image/Enemies/697.png",
+    "power": 849
+  },
+  {
+    "id": 703,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 890
+  },
+  {
+    "id": 704,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 892
+  },
+  {
+    "id": 705,
+    "name": "ゴースト・コナン・ドイル",
+    "image": "Image/Enemies/684.png",
+    "power": 922
+  },
+  {
+    "id": 706,
+    "name": "ゴースト・甲斐姫",
+    "image": "Image/Enemies/697.png",
+    "power": 754
+  },
+  {
+    "id": 707,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 821
+  },
+  {
+    "id": 708,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 819
+  },
+  {
+    "id": 709,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 803
+  },
+  {
+    "id": 710,
+    "name": "ゴースト・MCHアーティスト",
+    "image": "Image/Enemies/712.png",
+    "power": 747
+  },
+  {
+    "id": 711,
+    "name": "ゴースト・ピタゴラス",
+    "image": "Image/Enemies/711.png",
+    "power": 1203
+  },
+  {
+    "id": 712,
+    "name": "ゴースト・MCHウォーリアー",
+    "image": "Image/Enemies/710.png",
+    "power": 1024
+  },
+  {
+    "id": 713,
+    "name": "ゴースト・一休",
+    "image": "Image/Enemies/713.png",
+    "power": 915
+  },
+  {
+    "id": 714,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 928
+  },
+  {
+    "id": 716,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 885
+  },
+  {
+    "id": 717,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 885
+  },
+  {
+    "id": 718,
+    "name": "ゴースト・金太郎",
+    "image": "Image/Enemies/718.png",
+    "power": 1333
+  },
+  {
+    "id": 719,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 956
+  },
+  {
+    "id": 720,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1012
+  },
+  {
+    "id": 721,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1206
+  },
+  {
+    "id": 722,
+    "name": "ゴースト・許褚",
+    "image": "Image/Enemies/722.png",
+    "power": 1378
+  },
+  {
+    "id": 723,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 959
+  },
+  {
+    "id": 724,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 959
+  },
+  {
+    "id": 725,
+    "name": "ゴースト・ライト兄弟",
+    "image": "Image/Enemies/725.png",
+    "power": 917
+  },
+  {
+    "id": 726,
+    "name": "ゴースト・ライト兄弟",
+    "image": "Image/Enemies/725.png",
+    "power": 917
+  },
+  {
+    "id": 727,
+    "name": "ゴースト・ライト兄弟",
+    "image": "Image/Enemies/725.png",
+    "power": 917
+  },
+  {
+    "id": 728,
+    "name": "ゴースト・一休",
+    "image": "Image/Enemies/713.png",
+    "power": 1140
+  },
+  {
+    "id": 729,
+    "name": "ゴースト・モンテスキュー",
+    "image": "Image/Enemies/729.png",
+    "power": 935
+  },
+  {
+    "id": 730,
+    "name": "ゴースト・アンデルセン",
+    "image": "Image/Enemies/563.png",
+    "power": 1058
+  },
+  {
+    "id": 731,
+    "name": "ゴースト・サロメ",
+    "image": "Image/Enemies/731.png",
+    "power": 1126
+  },
+  {
+    "id": 732,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 884
+  },
+  {
+    "id": 733,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 884
+  },
+  {
+    "id": 734,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1056
+  },
+  {
+    "id": 735,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1056
+  },
+  {
+    "id": 736,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1026
+  },
+  {
+    "id": 737,
+    "name": "ゴースト・ドストエフスキー",
+    "image": "Image/Enemies/737.png",
+    "power": 1879
+  },
+  {
+    "id": 738,
+    "name": "ゴースト・ドストエフスキー",
+    "image": "Image/Enemies/737.png",
+    "power": 1879
+  },
+  {
+    "id": 739,
+    "name": "ゴースト・モンゴメリ",
+    "image": "Image/Enemies/739.png",
+    "power": 1256
+  },
+  {
+    "id": 740,
+    "name": "ゴースト・張遼",
+    "image": "Image/Enemies/692.png",
+    "power": 1282
+  },
+  {
+    "id": 741,
+    "name": "ゴースト・樋口一葉",
+    "image": "Image/Enemies/741.png",
+    "power": 998
+  },
+  {
+    "id": 742,
+    "name": "ゴースト・樋口一葉",
+    "image": "Image/Enemies/741.png",
+    "power": 998
+  },
+  {
+    "id": 743,
+    "name": "ゴースト・ゲーテ",
+    "image": "Image/Enemies/743.png",
+    "power": 1118
+  },
+  {
+    "id": 744,
+    "name": "ゴースト・豊臣秀吉",
+    "image": "Image/Enemies/744.png",
+    "power": 992
+  },
+  {
+    "id": 746,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1206
+  },
+  {
+    "id": 747,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 979
+  },
+  {
+    "id": 748,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 959
+  },
+  {
+    "id": 749,
+    "name": "ゴースト・金太郎",
+    "image": "Image/Enemies/718.png",
+    "power": 1211
+  },
+  {
+    "id": 750,
+    "name": "ゴースト・豊臣秀吉",
+    "image": "Image/Enemies/744.png",
+    "power": 1031
+  },
+  {
+    "id": 751,
+    "name": "ゴースト・豊臣秀吉",
+    "image": "Image/Enemies/744.png",
+    "power": 947
+  },
+  {
+    "id": 752,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1034
+  },
+  {
+    "id": 753,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 1122
+  },
+  {
+    "id": 754,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 948
+  },
+  {
+    "id": 757,
+    "name": "ゴースト・サロメ",
+    "image": "Image/Enemies/731.png",
+    "power": 1125
+  },
+  {
+    "id": 758,
+    "name": "ゴースト・高杉晋作",
+    "image": "Image/Enemies/758.png",
+    "power": 1147
+  },
+  {
+    "id": 759,
+    "name": "ゴースト・高杉晋作",
+    "image": "Image/Enemies/758.png",
+    "power": 1147
+  },
+  {
+    "id": 760,
+    "name": "ゴースト・高杉晋作",
+    "image": "Image/Enemies/758.png",
+    "power": 1147
+  },
+  {
+    "id": 761,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 1190
+  },
+  {
+    "id": 762,
+    "name": "ゴースト・茶々",
+    "image": "Image/Enemies/762.png",
+    "power": 1087
+  },
+  {
+    "id": 763,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 1282
+  },
+  {
+    "id": 764,
+    "name": "ゴースト・明智光秀",
+    "image": "Image/Enemies/569.png",
+    "power": 1231
+  },
+  {
+    "id": 765,
+    "name": "ゴースト・アンデルセン",
+    "image": "Image/Enemies/563.png",
+    "power": 1176
+  },
+  {
+    "id": 766,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 1223
+  },
+  {
+    "id": 767,
+    "name": "ゴースト・ジャックザリッパー",
+    "image": "Image/Enemies/767.png",
+    "power": 3330
+  },
+  {
+    "id": 768,
+    "name": "ゴースト・ジャックザリッパー",
+    "image": "Image/Enemies/767.png",
+    "power": 3330
+  },
+  {
+    "id": 769,
+    "name": "ゴースト・ジャックザリッパー",
+    "image": "Image/Enemies/767.png",
+    "power": 3330
+  },
+  {
+    "id": 770,
+    "name": "ゴースト・チュン姉妹",
+    "image": "Image/Enemies/430.png",
+    "power": 1909
+  },
+  {
+    "id": 771,
+    "name": "ゴースト・チュン姉妹",
+    "image": "Image/Enemies/430.png",
+    "power": 1978
+  },
+  {
+    "id": 772,
+    "name": "ゴースト・チュン姉妹",
+    "image": "Image/Enemies/430.png",
+    "power": 1909
+  },
+  {
+    "id": 773,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1256
+  },
+  {
+    "id": 774,
+    "name": "ゴースト・石川五右衛門",
+    "image": "Image/Enemies/774.png",
+    "power": 1292
+  },
+  {
+    "id": 775,
+    "name": "ゴースト・パーシヴァル",
+    "image": "Image/Enemies/462.png",
+    "power": 1392
+  },
+  {
+    "id": 776,
+    "name": "ゴースト・イワン雷帝",
+    "image": "Image/Enemies/776.png",
+    "power": 1286
+  },
+  {
+    "id": 777,
+    "name": "ゴースト・太公望",
+    "image": "Image/Enemies/777.png",
+    "power": 1162
+  },
+  {
+    "id": 778,
+    "name": "ゴースト・平賀源内",
+    "image": "Image/Enemies/553.png",
+    "power": 1130
+  },
+  {
+    "id": 779,
+    "name": "ゴースト・黄忠",
+    "image": "Image/Enemies/508.png",
+    "power": 1362
+  },
+  {
+    "id": 780,
+    "name": "ゴースト・ポカホンタス",
+    "image": "Image/Enemies/780.png",
+    "power": 1246
+  },
+  {
+    "id": 781,
+    "name": "ゴースト・ポカホンタス",
+    "image": "Image/Enemies/780.png",
+    "power": 1348
+  },
+  {
+    "id": 782,
+    "name": "ゴースト・武蔵坊弁慶",
+    "image": "Image/Enemies/782.png",
+    "power": 1216
+  },
+  {
+    "id": 783,
+    "name": "ゴースト・孫堅",
+    "image": "Image/Enemies/547.png",
+    "power": 1244
+  },
+  {
+    "id": 784,
+    "name": "ゴースト・孫堅",
+    "image": "Image/Enemies/547.png",
+    "power": 1184
+  },
+  {
+    "id": 788,
+    "name": "ゴースト・イワン雷帝",
+    "image": "Image/Enemies/776.png",
+    "power": 1352
+  },
+  {
+    "id": 789,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1316
+  },
+  {
+    "id": 790,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1230
+  },
+  {
+    "id": 791,
+    "name": "ゴースト・真田幸村",
+    "image": "Image/Enemies/791.png",
+    "power": 1284
+  },
+  {
+    "id": 792,
+    "name": "ゴースト・ニュートン",
+    "image": "Image/Enemies/792.png",
+    "power": 1324
+  },
+  {
+    "id": 793,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1196
+  },
+  {
+    "id": 794,
+    "name": "ゴースト・孫堅",
+    "image": "Image/Enemies/547.png",
+    "power": 1350
+  },
+  {
+    "id": 795,
+    "name": "ゴースト・孫堅",
+    "image": "Image/Enemies/547.png",
+    "power": 1284
+  },
+  {
+    "id": 796,
+    "name": "ゴースト・メアリ・リード",
+    "image": "Image/Enemies/796.png",
+    "power": 1314
+  },
+  {
+    "id": 797,
+    "name": "ゴースト・ラファエロ",
+    "image": "Image/Enemies/797.png",
+    "power": 1254
+  },
+  {
+    "id": 798,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1534
+  },
+  {
+    "id": 799,
+    "name": "ゴースト・ラファエロ",
+    "image": "Image/Enemies/797.png",
+    "power": 1204
+  },
+  {
+    "id": 800,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1208
+  },
+  {
+    "id": 801,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1191
+  },
+  {
+    "id": 802,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1187
+  },
+  {
+    "id": 803,
+    "name": "ゴースト・黄忠",
+    "image": "Image/Enemies/508.png",
+    "power": 1302
+  },
+  {
+    "id": 804,
+    "name": "ゴースト・猿飛佐助",
+    "image": "Image/Enemies/804.png",
+    "power": 1442
+  },
+  {
+    "id": 805,
+    "name": "ゴースト・ポカホンタス",
+    "image": "Image/Enemies/780.png",
+    "power": 1270
+  },
+  {
+    "id": 806,
+    "name": "ゴースト・メアリ・リード",
+    "image": "Image/Enemies/796.png",
+    "power": 1360
+  },
+  {
+    "id": 807,
+    "name": "ゴースト・メアリ・リード",
+    "image": "Image/Enemies/796.png",
+    "power": 1366
+  },
+  {
+    "id": 808,
+    "name": "ゴースト・メアリ・リード",
+    "image": "Image/Enemies/796.png",
+    "power": 1334
+  },
+  {
+    "id": 809,
+    "name": "ゴースト・太公望",
+    "image": "Image/Enemies/777.png",
+    "power": 1264
+  },
+  {
+    "id": 810,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1214
+  },
+  {
+    "id": 811,
+    "name": "ゴースト・イワン雷帝",
+    "image": "Image/Enemies/776.png",
+    "power": 1420
+  },
+  {
+    "id": 812,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1212
+  },
+  {
+    "id": 813,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1212
+  },
+  {
+    "id": 814,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1280
+  },
+  {
+    "id": 815,
+    "name": "ゴースト・コロンブス",
+    "image": "Image/Enemies/815.png",
+    "power": 1458
+  },
+  {
+    "id": 816,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1288
+  },
+  {
+    "id": 817,
+    "name": "ゴースト・メアリ・リード",
+    "image": "Image/Enemies/796.png",
+    "power": 1344
+  },
+  {
+    "id": 818,
+    "name": "ゴースト・ベル・スター",
+    "image": "Image/Enemies/818.png",
+    "power": 1330
+  },
+  {
+    "id": 819,
+    "name": "ゴースト・ベル・スター",
+    "image": "Image/Enemies/818.png",
+    "power": 1418
+  },
+  {
+    "id": 820,
+    "name": "ゴースト・ベル・スター",
+    "image": "Image/Enemies/818.png",
+    "power": 1316
+  },
+  {
+    "id": 821,
+    "name": "ゴースト・マゼラン",
+    "image": "Image/Enemies/821.png",
+    "power": 1581
+  },
+  {
+    "id": 822,
+    "name": "ゴースト・天草四郎",
+    "image": "Image/Enemies/822.png",
+    "power": 1613
+  },
+  {
+    "id": 823,
+    "name": "ゴースト・天草四郎",
+    "image": "Image/Enemies/822.png",
+    "power": 1613
+  },
+  {
+    "id": 824,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1282
+  },
+  {
+    "id": 825,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1260
+  },
+  {
+    "id": 826,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1202
+  },
+  {
+    "id": 827,
+    "name": "ゴースト・皇帝ネロ",
+    "image": "Image/Enemies/442.png",
+    "power": 2287
+  },
+  {
+    "id": 828,
+    "name": "ゴースト・ロビンフッド",
+    "image": "Image/Enemies/828.png",
+    "power": 1293
+  },
+  {
+    "id": 829,
+    "name": "ゴースト・皇帝ネロ",
+    "image": "Image/Enemies/442.png",
+    "power": 2278
+  },
+  {
+    "id": 830,
+    "name": "ゴースト・アン・ボニー",
+    "image": "Image/Enemies/830.png",
+    "power": 1434
+  },
+  {
+    "id": 831,
+    "name": "ゴースト・シェイクスピア",
+    "image": "Image/Enemies/831.png",
+    "power": 2754
+  },
+  {
+    "id": 832,
+    "name": "ゴースト・アン・ボニー",
+    "image": "Image/Enemies/830.png",
+    "power": 1482
+  },
+  {
+    "id": 833,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1272
+  },
+  {
+    "id": 834,
+    "name": "ゴースト・モーツァルト",
+    "image": "Image/Enemies/441.png",
+    "power": 1674
+  },
+  {
+    "id": 835,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1334
+  },
+  {
+    "id": 836,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1780
+  },
+  {
+    "id": 837,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1780
+  },
+  {
+    "id": 838,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1780
+  },
+  {
+    "id": 839,
+    "name": "ゴースト・張飛",
+    "image": "Image/Enemies/454.png",
+    "power": 2192
+  },
+  {
+    "id": 840,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1222
+  },
+  {
+    "id": 841,
+    "name": "ゴースト・チャイコフスキー",
+    "image": "Image/Enemies/483.png",
+    "power": 1350
+  },
+  {
+    "id": 842,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1158
+  },
+  {
+    "id": 843,
+    "name": "ゴースト・真田幸村",
+    "image": "Image/Enemies/791.png",
+    "power": 1752
+  },
+  {
+    "id": 844,
+    "name": "ゴースト・ハンニバル",
+    "image": "Image/Enemies/844.png",
+    "power": 1510
+  },
+  {
+    "id": 845,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1416
+  },
+  {
+    "id": 846,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1414
+  },
+  {
+    "id": 847,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1336
+  },
+  {
+    "id": 848,
+    "name": "ゴースト・武田信玄",
+    "image": "Image/Enemies/519.png",
+    "power": 1716
+  },
+  {
+    "id": 849,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1712
+  },
+  {
+    "id": 850,
+    "name": "ゴースト・ニコラ・テスラ",
+    "image": "Image/Enemies/560.png",
+    "power": 1600
+  },
+  {
+    "id": 851,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1480
+  },
+  {
+    "id": 852,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1422
+  },
+  {
+    "id": 853,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1488
+  },
+  {
+    "id": 854,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 1663
+  },
+  {
+    "id": 855,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 1680
+  },
+  {
+    "id": 856,
+    "name": "ゴースト・ビリー・ザ・キッド",
+    "image": "Image/Enemies/487.png",
+    "power": 1652
+  },
+  {
+    "id": 857,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1460
+  },
+  {
+    "id": 858,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1358
+  },
+  {
+    "id": 859,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 1484
+  },
+  {
+    "id": 860,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1430
+  },
+  {
+    "id": 861,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1740
+  },
+  {
+    "id": 862,
+    "name": "ゴースト・徳川慶喜",
+    "image": "Image/Enemies/422.png",
+    "power": 1442
+  },
+  {
+    "id": 863,
+    "name": "ゴースト・呂布",
+    "image": "Image/Enemies/481.png",
+    "power": 1564
+  },
+  {
+    "id": 864,
+    "name": "ゴースト・呂布",
+    "image": "Image/Enemies/481.png",
+    "power": 1538
+  },
+  {
+    "id": 865,
+    "name": "ゴースト・呂布",
+    "image": "Image/Enemies/481.png",
+    "power": 1504
+  },
+  {
+    "id": 866,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1760
+  },
+  {
+    "id": 867,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1294
+  },
+  {
+    "id": 868,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1514
+  },
+  {
+    "id": 869,
+    "name": "ゴースト・伊達政宗",
+    "image": "Image/Enemies/486.png",
+    "power": 2335
+  },
+  {
+    "id": 870,
+    "name": "ゴースト・西郷隆盛",
+    "image": "Image/Enemies/573.png",
+    "power": 1680
+  },
+  {
+    "id": 871,
+    "name": "ゴースト・西郷隆盛",
+    "image": "Image/Enemies/573.png",
+    "power": 1570
+  },
+  {
+    "id": 872,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1544
+  },
+  {
+    "id": 873,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1430
+  },
+  {
+    "id": 874,
+    "name": "ゴースト・勝海舟",
+    "image": "Image/Enemies/489.png",
+    "power": 1672
+  },
+  {
+    "id": 875,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1688
+  },
+  {
+    "id": 876,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1348
+  },
+  {
+    "id": 877,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1294
+  },
+  {
+    "id": 878,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1346
+  },
+  {
+    "id": 879,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1460
+  },
+  {
+    "id": 880,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1462
+  },
+  {
+    "id": 883,
+    "name": "ゴースト・韓信",
+    "image": "Image/Enemies/492.png",
+    "power": 1982
+  },
+  {
+    "id": 884,
+    "name": "ゴースト・ファーブル",
+    "image": "Image/Enemies/497.png",
+    "power": 1666
+  },
+  {
+    "id": 885,
+    "name": "ゴースト・鉄腕アトム",
+    "image": "Image/Enemies/885.png",
+    "power": 1628
+  },
+  {
+    "id": 886,
+    "name": "ゴースト・ランスロット",
+    "image": "Image/Enemies/460.png",
+    "power": 1922
+  },
+  {
+    "id": 887,
+    "name": "ゴースト・ナイチンゲール",
+    "image": "Image/Enemies/495.png",
+    "power": 2326
+  },
+  {
+    "id": 888,
+    "name": "ゴースト・巴御前",
+    "image": "Image/Enemies/485.png",
+    "power": 2098
+  },
+  {
+    "id": 889,
+    "name": "ゴースト・巴御前",
+    "image": "Image/Enemies/485.png",
+    "power": 2098
+  },
+  {
+    "id": 890,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1582
+  },
+  {
+    "id": 891,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1591
+  },
+  {
+    "id": 892,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1580
+  },
+  {
+    "id": 893,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1614
+  },
+  {
+    "id": 894,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1632
+  },
+  {
+    "id": 895,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1604
+  },
+  {
+    "id": 896,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1572
+  },
+  {
+    "id": 897,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1572
+  },
+  {
+    "id": 898,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1500
+  },
+  {
+    "id": 899,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1772
+  },
+  {
+    "id": 900,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1534
+  },
+  {
+    "id": 901,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1206
+  },
+  {
+    "id": 902,
+    "name": "ゴースト・安倍晴明",
+    "image": "Image/Enemies/428.png",
+    "power": 1874
+  },
+  {
+    "id": 903,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1734
+  },
+  {
+    "id": 904,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1606
+  },
+  {
+    "id": 905,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1752
+  },
+  {
+    "id": 906,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 1710
+  },
+  {
+    "id": 907,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1426
+  },
+  {
+    "id": 908,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1692
+  },
+  {
+    "id": 909,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1582
+  },
+  {
+    "id": 910,
+    "name": "ゴースト・坂本龍馬",
+    "image": "Image/Enemies/453.png",
+    "power": 1666
+  },
+  {
+    "id": 911,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1630
+  },
+  {
+    "id": 912,
+    "name": "ゴースト・劉備",
+    "image": "Image/Enemies/455.png",
+    "power": 1536
+  },
+  {
+    "id": 913,
+    "name": "ゴースト・バッハ",
+    "image": "Image/Enemies/440.png",
+    "power": 1608
+  },
+  {
+    "id": 914,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1768
+  },
+  {
+    "id": 915,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1656
+  },
+  {
+    "id": 916,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1708
+  },
+  {
+    "id": 917,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1708
+  },
+  {
+    "id": 918,
+    "name": "ゴースト・安倍晴明",
+    "image": "Image/Enemies/428.png",
+    "power": 1476
+  },
+  {
+    "id": 919,
+    "name": "ゴースト・坂本龍馬",
+    "image": "Image/Enemies/453.png",
+    "power": 1502
+  },
+  {
+    "id": 920,
+    "name": "ゴースト・坂本龍馬",
+    "image": "Image/Enemies/453.png",
+    "power": 1704
+  },
+  {
+    "id": 921,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1886
+  },
+  {
+    "id": 922,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1350
+  },
+  {
+    "id": 923,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1808
+  },
+  {
+    "id": 924,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1542
+  },
+  {
+    "id": 925,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1741
+  },
+  {
+    "id": 926,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1610
+  },
+  {
+    "id": 927,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1785
+  },
+  {
+    "id": 928,
+    "name": "ゴースト・ラスプーチン",
+    "image": "Image/Enemies/475.png",
+    "power": 1610
+  },
+  {
+    "id": 929,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1556
+  },
+  {
+    "id": 930,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1586
+  },
+  {
+    "id": 931,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1618
+  },
+  {
+    "id": 932,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1752
+  },
+  {
+    "id": 933,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1608
+  },
+  {
+    "id": 934,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1458
+  },
+  {
+    "id": 935,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1588
+  },
+  {
+    "id": 936,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1514
+  },
+  {
+    "id": 937,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1810
+  },
+  {
+    "id": 938,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1574
+  },
+  {
+    "id": 939,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1506
+  },
+  {
+    "id": 940,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1580
+  },
+  {
+    "id": 941,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 1575
+  },
+  {
+    "id": 942,
+    "name": "ゴースト・カール大帝",
+    "image": "Image/Enemies/443.png",
+    "power": 1584
+  },
+  {
+    "id": 943,
+    "name": "ゴースト・安倍晴明",
+    "image": "Image/Enemies/428.png",
+    "power": 1768
+  },
+  {
+    "id": 944,
+    "name": "ゴースト・曹操",
+    "image": "Image/Enemies/467.png",
+    "power": 1657
+  },
+  {
+    "id": 945,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1632
+  },
+  {
+    "id": 946,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1502
+  },
+  {
+    "id": 947,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1356
+  },
+  {
+    "id": 948,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1570
+  },
+  {
+    "id": 949,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1432
+  },
+  {
+    "id": 950,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1574
+  },
+  {
+    "id": 951,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1734
+  },
+  {
+    "id": 952,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 1740
+  },
+  {
+    "id": 953,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1572
+  },
+  {
+    "id": 954,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1547
+  },
+  {
+    "id": 955,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1548
+  },
+  {
+    "id": 956,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 1739
+  },
+  {
+    "id": 957,
+    "name": "ゴースト・勝海舟",
+    "image": "Image/Enemies/489.png",
+    "power": 1548
+  },
+  {
+    "id": 958,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 1639
+  },
+  {
+    "id": 959,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1536
+  },
+  {
+    "id": 960,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1500
+  },
+  {
+    "id": 961,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1676
+  },
+  {
+    "id": 962,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1596
+  },
+  {
+    "id": 963,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1836
+  },
+  {
+    "id": 964,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1633
+  },
+  {
+    "id": 965,
+    "name": "ゴースト・曹操",
+    "image": "Image/Enemies/467.png",
+    "power": 1795
+  },
+  {
+    "id": 966,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1508
+  },
+  {
+    "id": 967,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1540
+  },
+  {
+    "id": 968,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1590
+  },
+  {
+    "id": 969,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1618
+  },
+  {
+    "id": 970,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1590
+  },
+  {
+    "id": 971,
+    "name": "ゴースト・ジャンヌ・ダルク",
+    "image": "Image/Enemies/429.png",
+    "power": 1790
+  },
+  {
+    "id": 972,
+    "name": "ゴースト・曹操",
+    "image": "Image/Enemies/467.png",
+    "power": 1631
+  },
+  {
+    "id": 973,
+    "name": "ゴースト・ジャンヌ・ダルク",
+    "image": "Image/Enemies/429.png",
+    "power": 1830
+  },
+  {
+    "id": 974,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1692
+  },
+  {
+    "id": 975,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1632
+  },
+  {
+    "id": 976,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 1765
+  },
+  {
+    "id": 977,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1582
+  },
+  {
+    "id": 978,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1536
+  },
+  {
+    "id": 979,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1552
+  },
+  {
+    "id": 980,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1652
+  },
+  {
+    "id": 981,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1771
+  },
+  {
+    "id": 982,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1508
+  },
+  {
+    "id": 983,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1602
+  },
+  {
+    "id": 984,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1611
+  },
+  {
+    "id": 985,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1535
+  },
+  {
+    "id": 986,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1632
+  },
+  {
+    "id": 987,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1710
+  },
+  {
+    "id": 988,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1670
+  },
+  {
+    "id": 989,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1661
+  },
+  {
+    "id": 990,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1784
+  },
+  {
+    "id": 991,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1532
+  },
+  {
+    "id": 992,
+    "name": "ゴースト・クレオパトラ",
+    "image": "Image/Enemies/433.png",
+    "power": 1968
+  },
+  {
+    "id": 993,
+    "name": "ゴースト・クレオパトラ",
+    "image": "Image/Enemies/433.png",
+    "power": 2048
+  },
+  {
+    "id": 994,
+    "name": "ゴースト・クレオパトラ",
+    "image": "Image/Enemies/433.png",
+    "power": 1970
+  },
+  {
+    "id": 995,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1574
+  },
+  {
+    "id": 996,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1898
+  },
+  {
+    "id": 997,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1632
+  },
+  {
+    "id": 998,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1611
+  },
+  {
+    "id": 999,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1550
+  },
+  {
+    "id": 1000,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1752
+  },
+  {
+    "id": 1001,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 2032
+  },
+  {
+    "id": 1002,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1880
+  },
+  {
+    "id": 1003,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1880
+  },
+  {
+    "id": 1004,
+    "name": "ゴースト・劉邦",
+    "image": "Image/Enemies/1004.png",
+    "power": 1992
+  },
+  {
+    "id": 1005,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1718
+  },
+  {
+    "id": 1006,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1802
+  },
+  {
+    "id": 1011,
+    "name": "バイトバンディット ショート",
+    "image": "Image/Enemies/161.png",
+    "power": 24
+  },
+  {
+    "id": 1012,
+    "name": "バイトバンディット トール",
+    "image": "Image/Enemies/162.png",
+    "power": 30
+  },
+  {
+    "id": 1013,
+    "name": "バイトバンディット グランデ",
+    "image": "Image/Enemies/163.png",
+    "power": 26
+  },
+  {
+    "id": 1014,
+    "name": "バイトバンディット ヴェンティ",
+    "image": "Image/Enemies/164.png",
+    "power": 36
+  },
+  {
+    "id": 1015,
+    "name": "バイトバンディット マキアート",
+    "image": "Image/Enemies/165.png",
+    "power": 30
+  },
+  {
+    "id": 1016,
+    "name": "バイトバンディット フラペチーノ",
+    "image": "Image/Enemies/166.png",
+    "power": 56
+  },
+  {
+    "id": 1017,
+    "name": "バイトバンディット トール ドッピオ",
+    "image": "Image/Enemies/167.png",
+    "power": 30
+  },
+  {
+    "id": 1018,
+    "name": "バイトバンディット グランデ ドッピオ",
+    "image": "Image/Enemies/168.png",
+    "power": 26
+  },
+  {
+    "id": 1019,
+    "name": "バイトバンディット ヴェンティ ドッピオ",
+    "image": "Image/Enemies/169.png",
+    "power": 34
+  },
+  {
+    "id": 1020,
+    "name": "バイトバンディット フラペチーノ ドッピオ",
+    "image": "Image/Enemies/170.png",
+    "power": 56
+  },
+  {
+    "id": 1021,
+    "name": "ベーグル ショート",
+    "image": "Image/Enemies/181.png",
+    "power": 29
+  },
+  {
+    "id": 1022,
+    "name": "ベーグル トール",
+    "image": "Image/Enemies/182.png",
+    "power": 34
+  },
+  {
+    "id": 1023,
+    "name": "ベーグル グランデ",
+    "image": "Image/Enemies/183.png",
+    "power": 30
+  },
+  {
+    "id": 1024,
+    "name": "ベーグル ヴェンティ",
+    "image": "Image/Enemies/184.png",
+    "power": 39
+  },
+  {
+    "id": 1025,
+    "name": "ベーグル マキアート",
+    "image": "Image/Enemies/185.png",
+    "power": 34
+  },
+  {
+    "id": 1026,
+    "name": "ベーグル フラペチーノ",
+    "image": "Image/Enemies/186.png",
+    "power": 59
+  },
+  {
+    "id": 1027,
+    "name": "ベーグル トール ドッピオ",
+    "image": "Image/Enemies/366.png",
+    "power": 34
+  },
+  {
+    "id": 1028,
+    "name": "ベーグル グランデ ドッピオ",
+    "image": "Image/Enemies/367.png",
+    "power": 30
+  },
+  {
+    "id": 1029,
+    "name": "ベーグル ヴェンティ ドッピオ",
+    "image": "Image/Enemies/368.png",
+    "power": 39
+  },
+  {
+    "id": 1030,
+    "name": "ベーグル フラペチーノ ドッピオ",
+    "image": "Image/Enemies/369.png",
+    "power": 59
+  },
+  {
+    "id": 1031,
+    "name": "ハートブリード ショート",
+    "image": "Image/Enemies/121.png",
+    "power": 20
+  },
+  {
+    "id": 1032,
+    "name": "ハートブリード トール",
+    "image": "Image/Enemies/122.png",
+    "power": 24
+  },
+  {
+    "id": 1033,
+    "name": "ハートブリード グランデ",
+    "image": "Image/Enemies/123.png",
+    "power": 24
+  },
+  {
+    "id": 1034,
+    "name": "ハートブリード ヴェンティ",
+    "image": "Image/Enemies/124.png",
+    "power": 28
+  },
+  {
+    "id": 1035,
+    "name": "ハートブリード マキアート",
+    "image": "Image/Enemies/125.png",
+    "power": 24
+  },
+  {
+    "id": 1036,
+    "name": "ハートブリード フラペチーノ",
+    "image": "Image/Enemies/126.png",
+    "power": 52
+  },
+  {
+    "id": 1037,
+    "name": "ハートブリード トール ドッピオ",
+    "image": "Image/Enemies/153.png",
+    "power": 24
+  },
+  {
+    "id": 1038,
+    "name": "ハートブリード グランデ ドッピオ",
+    "image": "Image/Enemies/154.png",
+    "power": 24
+  },
+  {
+    "id": 1039,
+    "name": "ハートブリード ヴェンティ ドッピオ",
+    "image": "Image/Enemies/155.png",
+    "power": 28
+  },
+  {
+    "id": 1040,
+    "name": "ハートブリード フラペチーノ ドッピオ",
+    "image": "Image/Enemies/156.png",
+    "power": 52
+  },
+  {
+    "id": 1041,
+    "name": "ゴースト・呂布",
+    "image": "Image/Enemies/481.png",
+    "power": 1568
+  },
+  {
+    "id": 1042,
+    "name": "ゴースト・ナポレオン・ボナパルト",
+    "image": "Image/Enemies/445.png",
+    "power": 1373
+  },
+  {
+    "id": 1043,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1039
+  },
+  {
+    "id": 1047,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 996
+  },
+  {
+    "id": 1048,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1032
+  },
+  {
+    "id": 1049,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 996
+  },
+  {
+    "id": 1050,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 931
+  },
+  {
+    "id": 1051,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 893
+  },
+  {
+    "id": 1052,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 909
+  },
+  {
+    "id": 1053,
+    "name": "ゴースト・ゲーテ",
+    "image": "Image/Enemies/743.png",
+    "power": 1171
+  },
+  {
+    "id": 1054,
+    "name": "ゴースト・ベンジャミン・フランクリン",
+    "image": "Image/Enemies/1054.png",
+    "power": 865
+  },
+  {
+    "id": 1055,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 953
+  },
+  {
+    "id": 1056,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 964
+  },
+  {
+    "id": 1057,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 978
+  },
+  {
+    "id": 1058,
+    "name": "ゴースト・孫策",
+    "image": "Image/Enemies/548.png",
+    "power": 894
+  },
+  {
+    "id": 1059,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1051
+  },
+  {
+    "id": 1060,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1071
+  },
+  {
+    "id": 1061,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1085
+  },
+  {
+    "id": 1062,
+    "name": "ゴースト・金太郎",
+    "image": "Image/Enemies/718.png",
+    "power": 944
+  },
+  {
+    "id": 1063,
+    "name": "ゴースト・花木蘭",
+    "image": "Image/Enemies/1063.png",
+    "power": 1004
+  },
+  {
+    "id": 1064,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1078
+  },
+  {
+    "id": 1065,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 945
+  },
+  {
+    "id": 1066,
+    "name": "ゴースト・スパルタクス",
+    "image": "Image/Enemies/1066.png",
+    "power": 1273
+  },
+  {
+    "id": 1067,
+    "name": "ゴースト・ベンジャミン・フランクリン",
+    "image": "Image/Enemies/1054.png",
+    "power": 825
+  },
+  {
+    "id": 1068,
+    "name": "ゴースト・ライト兄弟",
+    "image": "Image/Enemies/725.png",
+    "power": 957
+  },
+  {
+    "id": 1069,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1039
+  },
+  {
+    "id": 1070,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 979
+  },
+  {
+    "id": 1071,
+    "name": "ゴースト・金太郎",
+    "image": "Image/Enemies/718.png",
+    "power": 996
+  },
+  {
+    "id": 1072,
+    "name": "ゴースト・ゲーテ",
+    "image": "Image/Enemies/743.png",
+    "power": 1182
+  },
+  {
+    "id": 1073,
+    "name": "ゴースト・樋口一葉",
+    "image": "Image/Enemies/741.png",
+    "power": 944
+  },
+  {
+    "id": 1074,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 1144
+  },
+  {
+    "id": 1075,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 1121
+  },
+  {
+    "id": 1076,
+    "name": "ゴースト・シュレディンガー",
+    "image": "Image/Enemies/714.png",
+    "power": 1102
+  },
+  {
+    "id": 1077,
+    "name": "ゴースト・ライト兄弟",
+    "image": "Image/Enemies/725.png",
+    "power": 975
+  },
+  {
+    "id": 1078,
+    "name": "ゴースト・プラトン",
+    "image": "Image/Enemies/704.png",
+    "power": 968
+  },
+  {
+    "id": 1079,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 925
+  },
+  {
+    "id": 1080,
+    "name": "ゴースト・モンテスキュー",
+    "image": "Image/Enemies/729.png",
+    "power": 951
+  },
+  {
+    "id": 1081,
+    "name": "ゴースト・ベンジャミン・フランクリン",
+    "image": "Image/Enemies/1054.png",
+    "power": 1011
+  },
+  {
+    "id": 1082,
+    "name": "ゴースト・出雲阿国",
+    "image": "Image/Enemies/696.png",
+    "power": 1073
+  },
+  {
+    "id": 1083,
+    "name": "ゴースト・グリム兄弟",
+    "image": "Image/Enemies/421.png",
+    "power": 1016
+  },
+  {
+    "id": 1084,
+    "name": "ゴースト・ベンジャミン・フランクリン",
+    "image": "Image/Enemies/1054.png",
+    "power": 828
+  },
+  {
+    "id": 1085,
+    "name": "ゴースト・スパルタクス",
+    "image": "Image/Enemies/1066.png",
+    "power": 1324
+  },
+  {
+    "id": 1086,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1007
+  },
+  {
+    "id": 1087,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1129
+  },
+  {
+    "id": 1088,
+    "name": "ゴースト・貂蝉",
+    "image": "Image/Enemies/432.png",
+    "power": 1017
+  },
+  {
+    "id": 1089,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1125
+  },
+  {
+    "id": 1090,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1303
+  },
+  {
+    "id": 1091,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1151
+  },
+  {
+    "id": 1092,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1107
+  },
+  {
+    "id": 1093,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1073
+  },
+  {
+    "id": 1094,
+    "name": "ゴースト・ポカホンタス",
+    "image": "Image/Enemies/780.png",
+    "power": 1061
+  },
+  {
+    "id": 1095,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1152
+  },
+  {
+    "id": 1096,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1124
+  },
+  {
+    "id": 1097,
+    "name": "ゴースト・猿飛佐助",
+    "image": "Image/Enemies/804.png",
+    "power": 1228
+  },
+  {
+    "id": 1098,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1169
+  },
+  {
+    "id": 1099,
+    "name": "ゴースト・猿飛佐助",
+    "image": "Image/Enemies/804.png",
+    "power": 1225
+  },
+  {
+    "id": 1100,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1171
+  },
+  {
+    "id": 1101,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1126
+  },
+  {
+    "id": 1102,
+    "name": "ゴースト・イワン雷帝",
+    "image": "Image/Enemies/776.png",
+    "power": 1424
+  },
+  {
+    "id": 1103,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1150
+  },
+  {
+    "id": 1104,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1059
+  },
+  {
+    "id": 1105,
+    "name": "ゴースト・小野小町",
+    "image": "Image/Enemies/434.png",
+    "power": 1157
+  },
+  {
+    "id": 1106,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1175
+  },
+  {
+    "id": 1107,
+    "name": "ゴースト・服部半蔵",
+    "image": "Image/Enemies/789.png",
+    "power": 1059
+  },
+  {
+    "id": 1108,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1123
+  },
+  {
+    "id": 1109,
+    "name": "ゴースト・ラクシュミー・バーイ",
+    "image": "Image/Enemies/431.png",
+    "power": 1117
+  },
+  {
+    "id": 1110,
+    "name": "ゴースト・猿飛佐助",
+    "image": "Image/Enemies/804.png",
+    "power": 1062
+  },
+  {
+    "id": 1111,
+    "name": "ゴースト・松尾芭蕉",
+    "image": "Image/Enemies/1111.png",
+    "power": 1208
+  },
+  {
+    "id": 1112,
+    "name": "ゴースト・ポカホンタス",
+    "image": "Image/Enemies/780.png",
+    "power": 1140
+  },
+  {
+    "id": 1113,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1194
+  },
+  {
+    "id": 1114,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1302
+  },
+  {
+    "id": 1115,
+    "name": "ゴースト・上杉謙信",
+    "image": "Image/Enemies/425.png",
+    "power": 1288
+  },
+  {
+    "id": 1116,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1343
+  },
+  {
+    "id": 1117,
+    "name": "ゴースト・武田信玄",
+    "image": "Image/Enemies/519.png",
+    "power": 1448
+  },
+  {
+    "id": 1118,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 1278
+  },
+  {
+    "id": 1119,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1295
+  },
+  {
+    "id": 1120,
+    "name": "ゴースト・ニコラ・テスラ",
+    "image": "Image/Enemies/560.png",
+    "power": 1317
+  },
+  {
+    "id": 1121,
+    "name": "ゴースト・沖田総司",
+    "image": "Image/Enemies/437.png",
+    "power": 1311
+  },
+  {
+    "id": 1122,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1395
+  },
+  {
+    "id": 1123,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1281
+  },
+  {
+    "id": 1124,
+    "name": "ゴースト・ゴッホ",
+    "image": "Image/Enemies/424.png",
+    "power": 1395
+  },
+  {
+    "id": 1125,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1281
+  },
+  {
+    "id": 1126,
+    "name": "ゴースト・ニコラ・テスラ",
+    "image": "Image/Enemies/560.png",
+    "power": 1255
+  },
+  {
+    "id": 1127,
+    "name": "ゴースト・武田信玄",
+    "image": "Image/Enemies/519.png",
+    "power": 1403
+  },
+  {
+    "id": 1128,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1370
+  },
+  {
+    "id": 1129,
+    "name": "ゴースト・鉄腕アトム",
+    "image": "Image/Enemies/885.png",
+    "power": 1370
+  },
+  {
+    "id": 1130,
+    "name": "ゴースト・周瑜",
+    "image": "Image/Enemies/1130.png",
+    "power": 1424
+  },
+  {
+    "id": 1131,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1247
+  },
+  {
+    "id": 1132,
+    "name": "ゴースト・ベートーヴェン",
+    "image": "Image/Enemies/423.png",
+    "power": 1201
+  },
+  {
+    "id": 1133,
+    "name": "ゴースト・エイブラハム・リンカーン",
+    "image": "Image/Enemies/505.png",
+    "power": 1275
+  },
+  {
+    "id": 1134,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1348
+  },
+  {
+    "id": 1135,
+    "name": "ゴースト・近藤勇",
+    "image": "Image/Enemies/436.png",
+    "power": 1382
+  },
+  {
+    "id": 1136,
+    "name": "ゴースト・黒髭",
+    "image": "Image/Enemies/506.png",
+    "power": 1558
+  },
+  {
+    "id": 1137,
+    "name": "ゴースト・ツタンカーメン",
+    "image": "Image/Enemies/500.png",
+    "power": 1651
+  },
+  {
+    "id": 1138,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1379
+  },
+  {
+    "id": 1139,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1413
+  },
+  {
+    "id": 1140,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1527
+  },
+  {
+    "id": 1141,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1527
+  },
+  {
+    "id": 1142,
+    "name": "ゴースト・ジャンヌ・ダルク",
+    "image": "Image/Enemies/429.png",
+    "power": 1613
+  },
+  {
+    "id": 1143,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1628
+  },
+  {
+    "id": 1144,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 1550
+  },
+  {
+    "id": 1145,
+    "name": "ゴースト・アーサー王",
+    "image": "Image/Enemies/461.png",
+    "power": 1546
+  },
+  {
+    "id": 1146,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1697
+  },
+  {
+    "id": 1147,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1585
+  },
+  {
+    "id": 1148,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1659
+  },
+  {
+    "id": 1149,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1520
+  },
+  {
+    "id": 1150,
+    "name": "ゴースト・項羽",
+    "image": "Image/Enemies/893.png",
+    "power": 1586
+  },
+  {
+    "id": 1151,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1470
+  },
+  {
+    "id": 1152,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1827
+  },
+  {
+    "id": 1153,
+    "name": "ゴースト・那須与一",
+    "image": "Image/Enemies/1153.png",
+    "power": 1577
+  },
+  {
+    "id": 1154,
+    "name": "ゴースト・ジョージ・ワシントン",
+    "image": "Image/Enemies/452.png",
+    "power": 1632
+  },
+  {
+    "id": 1155,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1606
+  },
+  {
+    "id": 1156,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1598
+  },
+  {
+    "id": 1157,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1666
+  },
+  {
+    "id": 1158,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1423
+  },
+  {
+    "id": 1159,
+    "name": "ゴースト・レオナルド・ダ・ビンチ",
+    "image": "Image/Enemies/464.png",
+    "power": 1696
+  },
+  {
+    "id": 1160,
+    "name": "ゴースト・ブリュンヒルド",
+    "image": "Image/Enemies/473.png",
+    "power": 1423
+  },
+  {
+    "id": 1161,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1716
+  },
+  {
+    "id": 1162,
+    "name": "ゴースト・リチャード1世",
+    "image": "Image/Enemies/426.png",
+    "power": 1576
+  },
+  {
+    "id": 1163,
+    "name": "ゴースト・源義経",
+    "image": "Image/Enemies/459.png",
+    "power": 1644
+  },
+  {
+    "id": 1164,
+    "name": "ゴースト・武則天",
+    "image": "Image/Enemies/1164.png",
+    "power": 1581
+  },
+  {
+    "id": 1165,
+    "name": "ゴースト・ヴァスコ・ダ・ガマ",
+    "image": "Image/Enemies/1165.png",
+    "power": 1611
+  },
+  {
+    "id": 1166,
+    "name": "ゴースト・武則天",
+    "image": "Image/Enemies/1164.png",
+    "power": 1571
+  },
+  {
+    "id": 1167,
+    "name": "ゴースト・アレキサンダー",
+    "image": "Image/Enemies/463.png",
+    "power": 1460
+  },
+  {
+    "id": 1168,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1658
+  },
+  {
+    "id": 1169,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1620
+  },
+  {
+    "id": 1170,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1639
+  },
+  {
+    "id": 1171,
+    "name": "ゴースト・那須与一",
+    "image": "Image/Enemies/1153.png",
+    "power": 1493
+  },
+  {
+    "id": 1172,
+    "name": "ゴースト・チンギス・ハン",
+    "image": "Image/Enemies/451.png",
+    "power": 1545
+  },
+  {
+    "id": 1173,
+    "name": "ゴースト・安倍晴明",
+    "image": "Image/Enemies/428.png",
+    "power": 1552
+  },
+  {
+    "id": 1174,
+    "name": "ゴースト・葛飾北斎",
+    "image": "Image/Enemies/895.png",
+    "power": 1660
+  },
+  {
+    "id": 1175,
+    "name": "ゴースト・諸葛亮",
+    "image": "Image/Enemies/596.png",
+    "power": 1652
+  },
+  {
+    "id": 1176,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1593
+  },
+  {
+    "id": 1177,
+    "name": "ゴースト・卑弥呼",
+    "image": "Image/Enemies/448.png",
+    "power": 1557
+  },
+  {
+    "id": 1178,
+    "name": "ゴースト・虞美人",
+    "image": "Image/Enemies/466.png",
+    "power": 1507
+  },
+  {
+    "id": 1179,
+    "name": "ゴースト・アインシュタイン",
+    "image": "Image/Enemies/427.png",
+    "power": 1608
+  },
+  {
+    "id": 1180,
+    "name": "ゴースト・織田信長",
+    "image": "Image/Enemies/450.png",
+    "power": 1656
+  },
+  {
+    "id": 1181,
+    "name": "ゴースト・始皇帝",
+    "image": "Image/Enemies/468.png",
+    "power": 1700
+  }
+]

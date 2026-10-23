@@ -1,199 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#121018" />
-  <title>MyCryptoTCG</title>
-
-  <!-- OGP -->
-  <meta property="og:title" content="MyCryptoTCG" />
-  <meta property="og:description" content="MyCryptoTCG — MCH ヒーローで戦う、 64×64 ピクセルアニメ × 高速カードバトル" />
-  <meta name="description" content="MyCryptoTCG — MCH ヒーローで戦う、 64×64 ピクセルアニメ × 高速カードバトル" />
-  <meta property="og:type" content="website" />
-  <meta property="og:image" content="og-image.png" />
-  <meta name="twitter:card" content="summary_large_image" />
-
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 fill=%22%23121018%22/><text x=%2232%22 y=%2244%22 text-anchor=%22middle%22 font-size=%2240%22 font-family=%22monospace%22 fill=%22%23e8e6f0%22>T</text></svg>" />
-
-  <link rel="stylesheet" href="css/base.css" />
-  <link rel="stylesheet" href="css/layout.css" />
-  <link rel="stylesheet" href="css/components.css" />
-  <link rel="stylesheet" href="css/battle.css" />
-  <link rel="stylesheet" href="css/effects.css" />
-  <link rel="stylesheet" href="css/responsive.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121018">
+  <meta name="color-scheme" content="dark">
+  <title>MyCryptoWars</title>
+  <meta name="description" content="MCH のヒーロー・ランド・エネミーで遊ぶ、ヘックスマップのターン制シミュレーション">
+  <link rel="icon" href="https://raw.githubusercontent.com/bearko/mycryptoheroes/main/Image/Icons/mch_icon.png">
+  <link rel="stylesheet" href="css/theme.css">
+  <link rel="stylesheet" href="css/phone.css">
+  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/apps.css">
 </head>
 <body>
-
-  <!-- ============================================================ -->
-  <!-- 1. Splash (= boot 中)                                          -->
-  <!-- ============================================================ -->
-  <div id="splash" class="splash">
-    <div class="splash__logo">MyCryptoTCG</div>
-    <div class="splash__loading" data-i18n="splash.loading">読み込み中…</div>
+  <div id="app"></div>
+  <div class="boot" role="status" aria-live="polite">
+    <span class="boot__title">MyCryptoWars</span>
+    <span>読み込み中</span>
   </div>
-
-  <!-- ============================================================ -->
-  <!-- 2. Title screen                                               -->
-  <!-- ============================================================ -->
-  <section id="titleScreen" class="title-screen hidden">
-    <h1 class="title-screen__title">MyCryptoTCG</h1>
-    <p class="title-screen__sub" data-i18n="title.subtitle">サブタイトル</p>
-
-    <div class="lang-toggle" id="langToggle">
-      <span class="lang-toggle-label" data-i18n="lang.toggle.label">Language / 言語</span>
-      <div class="lang-toggle-buttons">
-        <button class="lang-btn" data-lang="ja">JP：日本語</button>
-        <button class="lang-btn" data-lang="en">EN：English</button>
-      </div>
-    </div>
-
-    <button id="btnPressStart" class="title-screen__press" data-i18n="title.press">
-      Press to Start
-    </button>
-  </section>
-
-  <!-- ============================================================ -->
-  <!-- 3. Main app                                                    -->
-  <!-- ============================================================ -->
-  <main id="app" class="app hidden">
-    <header class="header">
-      <div class="header__left">
-        <span class="header__title">MyCryptoTCG</span>
-      </div>
-      <div class="header__center">
-        <span id="dateLabel">2018 年 1 月 1 週</span>
-      </div>
-      <div class="header__right">
-        <button id="btnLangToggle" class="btn btn--ghost" title="Language">JP/EN</button>
-        <button id="btnHelpOpen"   class="btn btn--ghost" title="Help">?</button>
-      </div>
-    </header>
-
-    <section class="stage">
-      <!-- ============================================================ -->
-      <!-- Battle screen (= SPEC-108 redesign)                            -->
-      <!-- 3 ゾーン: 盤面 (上半分) + 指示エリア (下半分) + 手札フッター   -->
-      <!-- ============================================================ -->
-      <div id="battleScreen" class="battle-screen hidden">
-
-        <!-- ============================================================ -->
-        <!-- Board area (= 上半分)                                         -->
-        <!-- ============================================================ -->
-        <div id="battleBoard" class="battle-board">
-          <div class="board-meta">
-            <span id="battleTurnLabel" class="board-meta__turn">Turn 1</span>
-            <span id="battlePhaseLabel" class="board-meta__phase"></span>
-          </div>
-
-          <!-- swappable content: idle overview / detail / skillPreview / targetPreview -->
-          <div id="boardContent" class="board-content">
-            <!-- 初期状態 (= idle) のオーバービューは render 時に挿入される -->
-          </div>
-
-          <div id="battleHint" class="battle-hint"></div>
-        </div>
-
-        <!-- ============================================================ -->
-        <!-- Instruction area (= 下半分)                                   -->
-        <!-- ============================================================ -->
-        <div id="battleInstruction" class="battle-instruction">
-
-          <!-- 敵ゾーン (= 上段) -->
-          <div class="instr-zone instr-zone--enemy">
-            <div class="instr-zone__label" data-i18n="instr.zone.enemy">敵</div>
-            <div class="instr-zone__slots">
-              <div class="instr-slot" id="instrCpuBack"   data-side="cpu"    data-target="back"></div>
-              <div class="instr-slot" id="instrCpuFront"  data-side="cpu"    data-target="front"></div>
-              <div class="instr-slot instr-slot--master" id="instrCpuMaster" data-side="cpu"    data-target="master"></div>
-            </div>
-          </div>
-
-          <!-- 味方ゾーン (= 下段) -->
-          <div class="instr-zone instr-zone--ally">
-            <div class="instr-zone__label" data-i18n="instr.zone.ally">味方</div>
-            <div class="instr-zone__slots">
-              <div class="instr-slot" id="instrPlayerBack"   data-side="player" data-target="back"></div>
-              <div class="instr-slot" id="instrPlayerFront"  data-side="player" data-target="front"></div>
-              <div class="instr-slot instr-slot--master" id="instrPlayerMaster" data-side="player" data-target="master"></div>
-            </div>
-          </div>
-
-          <!-- Skill chooser (= ally hero 選択時のみ表示) -->
-          <div id="skillChooser" class="skill-chooser hidden">
-            <div class="skill-chooser__label" data-i18n="skill.chooser.label">スキル選択</div>
-            <div id="skillChooserList" class="skill-chooser__list"></div>
-          </div>
-        </div>
-
-        <!-- ============================================================ -->
-        <!-- Footer (= 手札 + End Turn)                                    -->
-        <!-- ============================================================ -->
-        <div id="battleFooter" class="battle-footer">
-          <div id="playerHand" class="battle-hand battle-hand--player"></div>
-          <button id="btnEndTurn" class="btn btn--end-turn" data-i18n="battle.btn.endTurn">ターン終了</button>
-        </div>
-      </div>
-
-      <!-- Placeholder (= バトル外で表示する仮テキスト) -->
-      <p id="stagePlaceholder" data-i18n="stage.placeholder" class="hidden">ここにゲーム本体を描画する</p>
-    </section>
-  </main>
-
-  <!-- ============================================================ -->
-  <!-- 4. Help overlay                                               -->
-  <!-- ============================================================ -->
-  <div id="helpOverlay" class="help-overlay hidden">
-    <div class="help-card">
-      <h2 data-i18n="help.title">ヘルプ</h2>
-      <p data-i18n="help.body">ゲームの遊び方をここに書く。</p>
-      <p data-i18n="help.timeNote">ホーム画面で待機している間のみ時間が進行します。</p>
-      <button id="btnHelpClose" class="btn" data-i18n="btn.close">閉じる</button>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- 4-2. Game over overlay (= SPEC-107)                           -->
-  <!-- ============================================================ -->
-  <div id="gameOverOverlay" class="game-over-overlay hidden">
-    <div class="game-over-card">
-      <h2 id="gameOverTitle" class="game-over__title"></h2>
-      <div class="game-over__score-label" data-i18n="report.scoreLabel">SCORE</div>
-      <div id="gameOverScore" class="game-over__score">0</div>
-      <ul class="game-over__stats">
-        <li>
-          <span data-i18n="battle.label.turn">ターン</span>
-          <span id="goStatTurns" class="battle-info-num">0</span>
-        </li>
-        <li>
-          <span data-i18n="gameover.statMyHp">自軍 HP 残</span>
-          <span id="goStatMyHp" class="battle-info-num">0</span>
-        </li>
-        <li>
-          <span data-i18n="gameover.statOppHp">敵軍 HP 残</span>
-          <span id="goStatOppHp" class="battle-info-num">0</span>
-        </li>
-      </ul>
-      <div class="game-over__submit">
-        <label data-i18n="gameover.namelabel">プレイヤー名</label>
-        <input type="text" id="goNameInput" maxlength="30" />
-        <button id="btnSubmitRanking" class="btn" data-i18n="gameover.submit">ランキングに送信</button>
-        <div id="goSubmitStatus" class="game-over__status"></div>
-      </div>
-      <button id="btnReturnToTitle" class="btn btn--ghost" data-i18n="gameover.returnToTitle">タイトルに戻る</button>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- 5. Effect layers                                               -->
-  <!-- ============================================================ -->
-  <div id="confettiLayer" class="confetti-layer hidden"></div>
-  <div id="floatLayer"    class="float-layer hidden"></div>
-  <div id="notifLayer"    class="notif-layer"></div>
-
-  <!-- ============================================================ -->
-  <!-- 6. Boot                                                        -->
-  <!-- ============================================================ -->
+  <noscript><p class="boot boot--error">このゲームは JavaScript が必要です。</p></noscript>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

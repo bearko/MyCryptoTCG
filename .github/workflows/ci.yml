@@ -1,0 +1,25 @@
+# 構文の確認とテスト（node --test）。 npm 依存は無いので npm install はしない
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 構文の確認
+        run: for f in js/*.js js/engine/*.js js/ui/*.js; do [ -e "$f" ] || continue; node --check "$f" || exit 1; done
+      - name: JSON の確認
+        run: for f in data/*.json; do [ -e "$f" ] || continue; node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" || exit 1; done
+      - name: テスト
+        run: node --test tests/*.test.mjs

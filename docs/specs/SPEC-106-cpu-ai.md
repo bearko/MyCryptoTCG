@@ -1,7 +1,7 @@
 ---
 id: SPEC-106
 title: CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E)
-status: Implementing
+status: Cancelled
 pr: claude/day3-cpu-ai-and-gameover
 phase: Phase 1E
 kind: Added

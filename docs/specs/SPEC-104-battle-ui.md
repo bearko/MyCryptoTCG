@@ -1,7 +1,7 @@
 ---
 id: SPEC-104
 title: バトル画面 UI + 手札/場/マスター枠のタップ操作 (Day 2 Phase 1C)
-status: Implementing
+status: Cancelled
 pr: claude/day2-battle-ui-and-sprites
 phase: Phase 1C
 kind: Added

@@ -1,7 +1,7 @@
 ---
 id: SPEC-107
 title: 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F)
-status: Implementing
+status: Cancelled
 pr: claude/day3-cpu-ai-and-gameover
 phase: Phase 1F
 kind: Added

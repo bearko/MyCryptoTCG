@@ -1,0 +1,161 @@
+/* chat.css — MCH Chat（SPEC-111 §4）
+   メッセージアプリ風。トーク一覧 → トーク（見出し / 積んだ指示 / 吹き出し / サブメニュー / リッチメニュー）。
+   スマホの縦画面が基準。@media は使わない（中間は clamp()）。色は theme.css の変数だけ。 */
+
+/* ---------- トークの一覧 ---------- */
+.chat-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.chat-row {
+  width: 100%; display: flex; align-items: center; gap: .7rem;
+  min-height: 76px; padding: 6px 10px; text-align: left; cursor: pointer;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  transition: background 150ms var(--ease);
+}
+.chat-row:hover { background: var(--panel-2); }
+.chat-row--mai { border-color: var(--accent); }
+.chat-row__img { flex: 0 0 64px; width: 64px; height: 64px; object-fit: contain; border-radius: var(--radius-s); background: var(--panel-2); }
+.chat-row__img--mai { image-rendering: auto; }
+.chat-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-row__name { font-weight: 800; font-size: .95rem; display: flex; align-items: center; gap: .4rem; }
+.chat-row__last {
+  font-size: .8rem; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-row__ap {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end;
+  font-weight: 800; font-size: .95rem; color: var(--accent);
+}
+.chat-row__ap-label { font-size: .65rem; color: var(--muted); font-weight: 700; }
+.chat-row__badge {
+  flex: 0 0 auto; min-width: 22px; height: 22px; border-radius: 999px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ifrit); color: #fff; font-weight: 800; font-size: .75rem;
+}
+.chat-tag { font-size: .65rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; border: 1px solid currentColor; }
+.chat-tag--bad { color: var(--ifrit); }
+
+/* ---------- トーク（画面いっぱいの縦組み） ---------- */
+.chat--talk {
+  height: 100%; display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg);
+}
+.chat-head {
+  flex: 0 0 auto; display: flex; align-items: center; gap: .5rem;
+  padding: 4px 10px 4px 2px; background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.chat-head__back { font-size: .85rem; gap: .25rem; min-height: 44px; }
+.chat-head__chev {
+  display: inline-block; width: 9px; height: 9px;
+  border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+}
+.chat-head__img { width: 40px; height: 40px; object-fit: contain; border-radius: var(--radius-s); background: var(--panel-2); }
+.chat-head__img--mai { image-rendering: auto; }
+.chat-head__name { flex: 1 1 auto; min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-head__ap { flex: 0 0 auto; font-weight: 800; font-size: .85rem; color: var(--accent); }
+.chat-head__ap .muted { font-weight: 700; font-size: .72rem; }
+
+/* 積んだ指示 */
+.chat-queue {
+  flex: 0 0 auto; display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap;
+  padding: 6px 12px; font-size: .78rem;
+  background: var(--panel-2); border-bottom: 1px solid var(--border);
+}
+.chat-queue__label { font-weight: 800; color: var(--muted); }
+.chat-queue__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem; }
+.chat-queue__item { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; }
+.chat-queue__arrow { color: var(--accent); }
+
+/* 吹き出し */
+.chat-log {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; list-style: none; margin: 0;
+  padding: 10px clamp(8px, 3vw, 14px); display: flex; flex-direction: column; gap: 8px;
+}
+.chat-msg { display: flex; align-items: flex-end; gap: 6px; max-width: 100%; }
+.chat-msg--me { justify-content: flex-end; }
+.chat-msg__img { flex: 0 0 32px; width: 32px; height: 32px; object-fit: contain; border-radius: 50%; background: var(--panel-2); }
+.chat-msg__img--mai { image-rendering: auto; }
+.chat-bubble {
+  max-width: min(78%, 320px); padding: .45rem .7rem; font-size: .88rem; line-height: 1.45;
+  background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 14px 14px 14px 4px; overflow-wrap: anywhere;
+}
+.chat-bubble--me {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  border-radius: 14px 14px 4px 14px; font-weight: 700;
+}
+.chat-bubble__link {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: transparent; border: 0; padding: 0; text-align: left; cursor: pointer; font-size: inherit;
+}
+.chat-bubble__app { font-size: .7rem; font-weight: 800; color: var(--accent); }
+.chat-day, .chat-sys {
+  align-self: center; font-size: .72rem; color: var(--muted);
+  padding: 2px 10px; border-radius: 999px; background: var(--panel);
+}
+.chat-locked { flex: 0 0 auto; text-align: center; padding: .8rem; margin: 0; font-size: .85rem; }
+
+/* サブメニュー（開拓 / 戦闘 / 内政 / 方針） */
+.chat-sub {
+  flex: 0 1 auto; max-height: 42%; overflow-y: auto;
+  padding: 8px 10px; background: var(--panel); border-top: 1px solid var(--border);
+  animation: fade-in 150ms var(--ease);
+}
+.chat-sub__head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: 6px; flex-wrap: wrap; }
+.chat-sub__title { font-size: .8rem; font-weight: 800; color: var(--muted); }
+.chat-sub__now { font-size: .75rem; }
+.chat-sub__body { display: flex; flex-direction: column; gap: 6px; }
+.chat-sub__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
+.chat-sub__empty { margin: 0; font-size: .85rem; text-align: center; padding: .4rem 0; }
+.chat-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  min-height: 44px; padding: 6px 10px; text-align: left; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-s);
+}
+.chat-opt:hover:not(:disabled) { border-color: var(--accent); }
+.chat-opt--small { align-items: center; justify-content: center; text-align: center; }
+.chat-opt.is-current { border-color: var(--accent); background: rgba(196, 163, 90, .16); }
+.chat-opt__name { font-weight: 800; font-size: .88rem; }
+.chat-opt__meta { font-size: .72rem; color: var(--muted); }
+.chat-rush { min-height: 36px; }
+.chat-rush .switch__knob { width: 24px; height: 24px; }
+
+/* リッチメニュー（2 行 × 4 列） */
+.chat-menu {
+  flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+}
+.chat-menu__btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: clamp(52px, 8dvh, 64px); padding: 4px 2px; border: 0; cursor: pointer;
+  background: var(--panel); font-size: .78rem; font-weight: 700;
+  transition: background 150ms var(--ease);
+}
+.chat-menu__btn:hover { background: var(--panel-2); }
+.chat-menu__btn.is-open { background: var(--panel-2); color: var(--accent); }
+.chat-menu__btn:active { transform: scale(.97); }
+
+/* メニューの記号（単色の図形。絵文字は使わない） */
+.chat-menu__icon { display: block; width: 18px; height: 18px; position: relative; color: var(--accent); }
+.chat-menu__icon::before, .chat-menu__icon::after { content: ""; position: absolute; box-sizing: border-box; }
+/* 移動: 右向きの矢印 */
+.chat-menu__icon--move::before { left: 1px; top: 8px; width: 12px; height: 2px; background: currentColor; }
+.chat-menu__icon--move::after { right: 2px; top: 4px; width: 10px; height: 10px; border-top: 2px solid currentColor; border-right: 2px solid currentColor; transform: rotate(45deg); }
+/* 占領: 旗 */
+.chat-menu__icon--claim::before { left: 3px; top: 1px; width: 2px; height: 16px; background: currentColor; }
+.chat-menu__icon--claim::after { left: 5px; top: 2px; width: 11px; height: 8px; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+/* 開拓: 家 */
+.chat-menu__icon--build::before { left: 3px; top: 8px; width: 12px; height: 9px; background: currentColor; }
+.chat-menu__icon--build::after { left: 1px; top: 1px; width: 16px; height: 8px; background: currentColor; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+/* 戦闘: 交差 */
+.chat-menu__icon--attack::before, .chat-menu__icon--attack::after { left: 8px; top: 0; width: 2px; height: 18px; background: var(--ifrit); }
+.chat-menu__icon--attack::before { transform: rotate(45deg); }
+.chat-menu__icon--attack::after { transform: rotate(-45deg); }
+/* 内政: 3 本の棒 */
+.chat-menu__icon--domestic::before { left: 2px; bottom: 1px; width: 4px; height: 8px; background: currentColor; box-shadow: 5px -4px 0 currentColor, 10px -8px 0 currentColor; }
+/* 休息: 三日月 */
+.chat-menu__icon--rest::before { left: 2px; top: 1px; width: 15px; height: 15px; border-radius: 50%; box-shadow: inset -4px -2px 0 0 var(--leviathan); transform: rotate(-30deg); }
+/* 方針: 円と点 */
+.chat-menu__icon--policy::before { left: 1px; top: 1px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; }
+.chat-menu__icon--policy::after { left: 7px; top: 7px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+/* 取り消し: 戻る矢印 */
+.chat-menu__icon--clear::before { left: 3px; top: 3px; width: 13px; height: 12px; border: 2px solid var(--muted); border-left-color: transparent; border-radius: 50%; }
+.chat-menu__icon--clear::after { left: 1px; top: 2px; width: 6px; height: 6px; border-left: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(20deg); }

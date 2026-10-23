@@ -10,157 +10,45 @@ bullet fragment) + 対応 SPEC の YAML frontmatter から再生成する。
 **この区間を直接編集しないこと** (= SPEC-001 で確立した運用)。
 
 <!-- BEGIN AUTO-UNRELEASED -->
-### Changed — SPEC-108 (= バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2))
-**Changed — バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2A)**
+### Added — SPEC-111 (= スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）と実行フェーズの演出 (Phase 2))
+**Added — スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）と実行フェーズの演出 (Phase 2)**
 
-- レイアウト全面書き換え: 「盤面 (= 上半分) + 指示エリア (= 下半分) + 手札フッター」 の 3 ゾーン構成
-  - 旧 SPEC-104 の field-slot 中央配置 + 手札下部 layout は廃止
-- 指示エリア: 敵ゾーン (上段) + 味方ゾーン (下段) × 3 枠 (back / front / master) の合計 6 枠
-  - 各枠は portrait + HP + status をアイコンカード形式で表示 (= 枠線つき)
-  - master 枠は HP + stones を専用デザインで表示
-- 動詞型操作フロー: 「誰が」 → 「何を」 → 「誰に」
-  - ally hero タップ → skill chooser 出現 + board に詳細
-  - skill タップ → 範囲プレビュー (= 有効 target がハイライト)
-  - target タップ 1 回目 → board に HP before/after preview
-  - 同じ target タップ 2 回目 → 即実行
-- view-only モード: 敵 / 自軍 master / sick ユニット タップ → board 詳細のみ更新、 chooser は出ない
-- friendly fire 許可: ally hero も target に選べる (= ユーザー仕様、 戦略上必要)
-- js/battle/skill-registry.js 新規: スキル metadata (= id / name / cost / targetType / effectKind / description / implemented)
-  - 通常攻撃 (basic_attack): cost 0, single_enemy, damage, **実装済**
-  - シャーロック・ホームズ / 浪切 / 遼来遼来 の 3 件は chooser に表示するが disabled (= Phase 2 SPEC-109 で actuation)
-- js/battle/battle-ui.js 全面書き換え: 新 state machine (= idle / summoning / actorSelected / skillSelected / targetPreview / gameOver) + render 分離
-- js/battle/cpu-turn.js: DOM 参照 selector を新 layout (= `#instrCpu*` / `#instrPlayer*`) に追従
-- data/i18n/ui.json: 約 15 キー追加 (= board.* / skill.* / instr.* / hint.*)
-- sprite アニメ: 既存 trigger\* を新 layout の instr-slot portrait 上で発火 (= 全面書き換えなし)
-- ドラッグアンドドロップ (= ユーザー仕様の OR タップ) はタップで先行実装、 DnD は Phase 2 後半で別 SPEC
-- AoE / random ターゲット型スキルは Phase 2 で別途
+- スマホの外枠（最大幅 480px・100dvh）、 ステータスバー（Day / 曜日 / 季節 / バッテリー = 残り日数）、 ホームのアプリ 5 つと通知
+- MCH Map: canvas のヘックスマップ（東西ループを 2 周描く）、 パン / ズーム / タップ、 情報シート、 地図アプリ風の経路と所要日数から移動・攻略の指示
+- MCH Chat: メッセージアプリ風。 ヒーローごとのトークと口調つきのセリフ、 リッチメニュー（移動 / 占領 / 開拓 / 戦闘 / 内政 / 休息 / 方針 / 取り消し）で選択式に指示
+- MCH Calendar: 28 日と予定（建築の完成・到着・日曜の集計・季節）
+- MCH Drive: ヒーロー / 砦とエネミー / ランド のデータベース。 SOUL の 3 体選択
+- MCH Photo: エクステンションの一覧と装備。 マッチングアプリ風のスワイプ選択（10 秒・右 = アリ）
+- 実行フェーズ: Map の上で 1 歩 350ms の演出（移動・ダメージの数字・砦の陥落の帯・トースト）、 スキップ
+- 結果画面（理由・順位・スコアの内訳）、 ランド選択、 セーブ（`mcw.save`）
+- 絵文字を使わない。 UI にゲームのルールを書かない（エンジンに聞く）
 
-### Added — SPEC-107 (= 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F))
-**Added — 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F)**
+### Added — SPEC-110 (= エンジンの契約（state の形・純粋関数・ファイルの持ち主） (Phase 1))
+**Added — エンジンの契約（state の形・純粋関数・ファイルの持ち主） (Phase 1)**
 
-- `index.html`: `#gameOverOverlay` modal を追加 (= helpOverlay と同じ z-index 階層、 半透明 backdrop + 中央パネル)
-- `css/battle.css`: 勝敗オーバーレイ用クラス追加
-  - `.game-over-overlay` / `.game-over-card` / `.game-over__title` (is-victory: garuda 緑 / is-defeat: ifrit 赤)
-  - `.game-over__score` (= clamp(2.6rem, 9vw, 4rem) の巨大スコア)
-  - `.game-over__stats` (= turn / 自軍 HP 残 / 敵軍 HP 残)
-  - `.game-over__submit` (= 名前入力 + 送信ボタン + status エリア) / `.game-over__status` (is-ok / is-fail カラー)
-- `js/battle/game-over.js` 新規:
-  - `computeScore(battle, winner)` (= 純粋関数、 勝利: 2000 + HP×100 - turns×50、 敗北: turns×30 + 与ダメ×50 上限 800)
-  - `showGameOverScreen(battle, winner)` (= DOM 更新 + pauseTime + overlay 表示)
-  - `triggerSubmitRanking()` (= setPlayerName + submitScore + status 表示)
-  - `triggerReturnToTitle()` (= state.battle = null + title へ復帰)
-  - submit ボタンは getRankingApiUrl() が null なら disabled + 「未設定」 status を表示 (= Backend B 本実装は SPEC-013)
-- `js/battle/battle-ui.js`: `finishBattle(winner)` から showGameOverScreen を呼ぶ
-- `js/main.js`: Press to Start → 既存の `dismissTitle` で `triggerDemoBattle` が新規バトルを起こす (= 復帰後の再戦が動作)
-- `data/i18n/ui.json`: 勝敗画面用 8 キー追加 (= gameover.title.victory / .defeat / .statMyHp / .statOppHp / .returnToTitle / .submit / .submitting / .submitOk / .submitFail / .noApi 等)
-- Node 側 computeScore 5 ケース PASS (= 勝利フロア / 上限なし、 敗北 0〜800)
-- ランキングバックエンド本実装は本 SPEC のスコープ外 (= SPEC-013 Backend B Upstash + Vercel で別途)
+- `js/engine/*` は DOM に触れない純粋関数。 乱数は引数の `rng`（mulberry32）。 `node --test tests/*.test.mjs` で検証
+- state の形（map / lands / squads / forts / builds / log / notices / pending / ended）と Event・Notice・Pending の種類を固定
+- モジュール: rng / hex / worldgen / pathfind / heroes / economy / orders / battle / ai / turn / season / souls / lines と `js/data.js` `js/state.js`
+- `tools/build-data.mjs`: `bearko/mycryptoheroes` の JSON から `data/heroes.json`（6 パラメーター・部隊の種類・スキル・口調）と `data/enemies.json` を生成
+- `data/messages.json`: メッセージ ID × 5 つの口調（bushi / noble / scholar / rogue / plain）のセリフ表と UI 文言
+- `tools/sim.mjs`: 全ランドを CPU で 28 日回す無人シミュレーション（砦ポイント・占領・ヒーロー数・処理時間）
+- 並列に作るためのファイルの持ち主の表（§5）
 
-### Added — SPEC-106 (= CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E))
-**Added — CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E)**
+### Changed — SPEC-109 (= MyCryptoWars への作り直し（原案の整理と MVP の仕様） (Phase 0))
+**Changed — MyCryptoWars への作り直し（原案の整理と MVP の仕様） (Phase 0)**
 
-- `js/battle/cpu-ai.js` 新規。 `chooseCpuAction(battle)` (= 純粋関数) で次の 1 アクションを `{type, ...}` で返す
-  - 召喚: 召喚可能なカードのうち **最高コスト** を選ぶ (= ストーンを使い切る単純貪欲)
-  - 攻撃: front → back の順で行動可能ユニットを 1 体選び、 `getValidAttackTargets` 先頭を狙う
-  - それ以外: `{type: "end"}`
-- `js/battle/cpu-turn.js` 改修。 旧 auto-pass を捨て `chooseCpuAction` ループで実行
-  - 召喚: `summonHero` → render → `triggerSummonAnim` → 700ms delay
-  - 攻撃: `triggerAttackAnim(side:"cpu")` → 180ms → `performAttack` → `triggerHitAnim` → 360ms → render
-  - 各アクション後に `checkVictory` で player 撃破を検知し finishBattle で early-exit
-  - end action 後に `endTurn(battle)` で player に turn を戻し、 player の startTurn を呼ぶ
-- 既存の startTurn / endTurn / delay は同居のため重複定義を解消 (= delay は cpu-turn.js 内 1 箇所に集約)
-- 「弱め」 定義: 最善手なし、 評価関数なし、 単純貪欲。 難易度オプションは Phase 2 以降の議論
-- スキル発動 / 撤退 / レベルアップ は本 SPEC のスコープ外 (= Phase 2)
-
-### Added — SPEC-105 (= スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D))
-**Added — スプライトアニメ パイプライン (= attach + trigger\*) + 3 体結線 (Day 2 Phase 1D)**
-
-- `js/battle/sprite.js` 新規。 sprite アニメの公開 API:
-  - `attachSprite(el, opts)`: `.sprite.is-idle` + side data attr 付与 (= idle ループ開始)
-  - `triggerAttackAnim(el, side)`: `is-attack-player` or `is-attack-cpu` を 1 回再生 (= 攻撃方向で keyframe 切替)
-  - `triggerHitAnim(el)`: shake + 赤フィルタの `is-hit` を 1 回再生
-  - `triggerSummonAnim(el)`: 拡大フェードインの `is-summon` を 1 回再生
-  - `triggerDieAnim(el)`: 縮小フェードアウトの `is-die` を再生、 終了 Promise を返す
-- `css/battle.css`: `.sprite.is-*` の keyframes 6 種追加 (= idle / attack-player / attack-cpu / hit / summon / die)
-  - idle = 1.6s 微小バウンド、 attack = 0.4s 突進、 hit = 0.35s shake + hue-rotate、 summon = 0.5s 拡大フェードイン、 die = 0.45s 縮小フェードアウト
-- `js/battle/battle-ui.js`: sprite 結線
-  - `renderFieldSlot()` で portrait 要素に attachSprite (= idle 自動開始)
-  - 召喚成功 (= `onPlayerSlotClick`) 後に triggerSummonAnim
-  - `onAttackTargetClick` を async 化: triggerAttackAnim → 180ms delay → performAttack → triggerHitAnim → 360ms delay → render
-  - master 攻撃時は `.battle-side--cpu .battle-side__info` を shake (= triggerHitAnim 流用)
-- **実 sprite-sheet PNG は本 SPEC では作らない** (= kickoff 4-3 の `steps()` + horizontal strip は Phase 2 で drop-in 置換。 API 名は kickoff 通りなので本格スプライト着任時に `@keyframes` を入れ替えるだけで切替可能)
-- 動作確認: ブラウザでバトルを 1 周回し、 召喚 → idle → 攻撃 → 被弾 → 撃破の各タイミングでアニメが視認できる (= 手動テストは PR の Test plan で reviewer 確認)
-
-### Added — SPEC-104 (= バトル画面 UI + 手札/場/マスター枠のタップ操作 (Day 2 Phase 1C))
-**Added — バトル画面 UI + タップ操作 (Day 2 Phase 1C)**
-
-- `index.html`: `#battleScreen` セクション追加 (= CPU 側 / battle-divider / プレイヤー 側 の 3 段構成 + hint バー)
-- `css/battle.css` 新規。 縦並び portrait-first レイアウト + field-slot / hand-card / battle-side / battle-divider のスタイル
-  - field-slot 状態: `field-slot--empty` / `field-slot--occupied` / `field-slot--sick` / `field-slot--highlight-target`
-  - hand-card 状態: `hand-card--disabled` (= cost 不足) / `hand-card--selected`
-- `js/battle/battle-ui.js` 新規。 state.battle を見て DOM 再描画 + UI state machine (= idle / summoning / attacking)
-  - `renderBattle()` (= CPU info / hand-back / fields / divider / player info / player hand / hint)
-  - `enterBattleScreen()` / `exitBattleScreen()` (= screen 遷移と pauseTime 連動)
-  - イベント結線: hand-card タップ → highlight、 field-slot タップ → summon or attack、 End Turn → endTurn + runCpuTurn
-- `js/battle/cpu-turn.js` 新規 (= Phase 1E AI に置換するための shim)。 `runCpuTurn()` で startTurn → 1.5s delay → endTurn → player auto-startTurn
-  - CLAUDE.md の動詞 prefix にない `run*` を許容 (= Phase 1E `tickCpuTurn` / `applyCpuAction` 等にリプレース予定の暫定 shim)
-- `js/main.js`: 「Press to Start」 を 「Start Battle」 に再用途化、 デモバトル初期化 (= 各ヒーロー 2 枚 × 3 種 = 6 枚デッキ) + 入場時に `enterBattleScreen` + player startTurn
-- `data/i18n/ui.json`: バトル UI 用 15 キー追加 (= battle.turn.* / battle.phase.* / battle.btn.endTurn / battle.label.* / battle.hint.* / battle.gameOver.*)
-- CPU AI / スプライトアニメ / 勝敗画面 / スキル発動は本 SPEC のスコープ外 (= Phase 1D 〜 Phase 1F / Phase 2)
-
-### Added — SPEC-103 (= ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B))
-**Added — ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B)**
-
-- `js/battle/battle-logic.js` 新規。 純粋関数ベースのバトルロジック層 (= UI 非依存)
-  - `startTurn(battle)`: ドロー → ストーン補充 (= +3、 上限 10) → 召喚酔い / 攻撃済みフラグ解除 → phase = "action"
-  - `endTurn(battle)`: turn を player ↔ cpu で交代、 phase = "preStart"
-  - `canSummon(side, cardId, cardDb, position)`: ストーン / hand 存在 / row 一致 / 空きスロット を `{ok, reason}` で返す
-  - `summonHero(side, cardId, cardDb, position)`: コスト消費 + hand → field 移動、 summoningSick = true
-  - `canAttack(unit)`: 召喚酔い / 攻撃済み / 撃破済み で false
-  - `getValidAttackTargets(opponent)`: front 優先 → back → master の 1 件配列
-  - `performAttack(side, opponent, attackerSlot, targetSlot)`: ダメージ適用 + 撃破判定 + 結果オブジェクト
-  - `checkVictory(battle)`: masterHp 0 で勝敗確定 (= "player" / "cpu" / null)
-  - `createFieldUnit(cardId, def)`: 場のユニット factory (= currentHp / maxHp / atk / summoningSick / attackedThisTurn)
-- スキル発動ロジック (= `effect` 文字列の解釈) は Phase 2 で実装。 本 SPEC では skills 配列は read 可能だが actuate しない
-- `js/main.js`: `window.__testBattleLogic()` smoke test を追加 (= turn / summon / attack 一連の流れを assert)
-- UI / アニメ / CPU AI は本 SPEC のスコープ外 (= 後続 SPEC-104 〜 SPEC-106)
-
-### Added — SPEC-102 (= カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A))
-**Added — カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A)**
-
-- `data/cards/heroes.json` 新規。 MCH master DB から先頭 3 体 (= heroId 1001 コナン・ドイル / 1002 甲斐姫 / 1003 張遼) を TCG カード定義として記載
-  - 全カードに MCH 公式の `name` / `faction` / `rarity` / `mchHeroId` / `mchPassiveId` を引用 (= オリジナル名は付けない)
-  - スキル名も MCH 公式 passive 名 (= シャーロック・ホームズ / 浪切 / 遼来遼来) を採用
-  - `cost / hp / atk / row` は Day 1 デモバランス用に手動正規化 (= max level stats からゲームバランスに調整)
-  - `portraitUrl` で MCH 公式 64×64 ポートレートを直接参照 (= スプライト未完成時の fallback も兼ねる)
-- `js/battle/cards.js` 新規。 `loadCardDb()` で `data/cards/heroes.json` を fetch (= `data-loader.js` の cache 活用)、 `getHeroDef(cardDb, id)` で lookup
-- `js/battle/deck.js` 新規。 純粋関数群 `shuffleDeck` (= Fisher-Yates in-place) / `drawCard` / `peekCard` / `isDeckEmpty`
-- `js/battle/battle-state.js` 新規。 `INITIAL_MASTER_HP=10` / `STONES_PER_TURN=3` / `MAX_STONES=10` 等の定数 + `newBattleSide(deckCardIds)` / `initBattle()` / `getBattle()`
-- `js/state.js`: `state.battle = null` を初期化フィールドとして追加 (= バトル外がデフォルト)
-- `js/main.js`: `window.__testBattle()` を追加 (= console から手動 smoke test、 後続 SPEC のロジック層検証用)
-- マジックカードは MCH 経済圏に直接対応する概念がないため Phase 1A から外し Day 2 以降で別途検討
-- Phase 1B SPEC-103 (= ターンシステム / 召喚 / 攻撃) は本 SPEC の battle-state の上に乗る
-
-### Changed — SPEC-101 (= プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0))
-**Changed — MyCryptoTCG プロジェクト Charter + localStorage prefix `mctcg` (Day 1 Phase 0)**
-
-- `js/constants.js`: `LS_PREFIX = "<prefix>"` → `"mctcg"`、 `ASSET_BASE` を `https://raw.githubusercontent.com/bearko/mycryptotcg/main/assets/` に更新
-- `docs/charters/PROJECT_CHARTER.md`: テンプレ placeholder を全削除し、 `MYCRYPTOTCG-KICKOFF.md` 1〜4 章から目的 / スコープ / 成功基準 / リリース計画を展開
-- `index.html`: `<title>` / `og:title` / `og:description` を MyCryptoTCG 表記に
-- `README.md`: 冒頭に MCT 概要を追加 (= テンプレ Day 1 Kickoff 本文は派生用の参考として残す)
-- スプライト先行 3 体は MCH `heroId 1 / 2 / 3` で確定 (= 正式名は Phase 1A で MCH master DB から引用、 オリジナル名は付けない)
-- 実装ロジック (= カードデータ / 戦闘 / UI / スプライト) は本 SPEC のスコープ外。 SPEC-102 以降で順次
-
-### Added — SPEC-100 (= MyCryptoTCG 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分))
-**Added — 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分)**
-
-- `docs/specs/SPEC-100-three-day-release-plan.md` 新規。 `MYCRYPTOTCG-KICKOFF.md`
-  5 章を Day 1〜3 の 7 SPEC (= 101〜107) に分解し、 各 Day の完了基準を表化
-- Day 1 = Phase 0 (SPEC-101 charter/prefix) + Phase 1A (SPEC-102 card data) + Phase 1B (SPEC-103 turn logic)
-- Day 2 = Phase 1C (SPEC-104 UI) + Phase 1D (SPEC-105 sprite anim 3 体)
-- Day 3 = Phase 1E (SPEC-106 CPU AI) + Phase 1F (SPEC-107 win/lose + ranking stub)
-- スプライト先行ヒーロー 3 体は MCH `heroId 1/2/3` を選定 (= 正式名は SPEC-102 で MCH master DB から引用)
-- 本 SPEC は計画 meta のみ。 実装は配下 SPEC で個別 PR 化
+- 旧 MyCryptoTCG（カードバトル）のコード（`js/` `css/` `data/` `index.html` `MYCRYPTOTCG-KICKOFF.md` `tools/sim/`）を外し、 SPEC-100〜108 を Cancelled に
+- 原案（企画構想）を `docs/concept.md` に残し、 MVP で作るもの・作らないものを SPEC-109 §12 の表で線引き
+- 9 ランド（プレイヤー 1 + CPU 8）・28 日（4 週）のシーズン・砦ポイント（Rare 1 / Epic 3 / Legendary 10）・Legendary 攻略でクリア
+- ヘックス（odd-r、 48 × 28、 東西ループ）、 緯度帯で地形 14 種（`data/terrain.json`）、 霧
+- 資源 4 種（人口 / 食料 / GUM / 素材）と施設 6 種・ランク 3（`data/facilities.json`）
+- ヒーローの 6 パラメーター（MCH の HP/PHY/INT/AGI から。 小数点以下は切り上げ）、 部隊 10 種、 MCH のパッシブスキル名
+- コマンド 7 種（移動 / 占領 / 開拓 / 戦闘 / 内政 / 休息 / 方針）、 戦闘は 回避 → 防御 → ダメージ、 奇襲と反撃
+- SOUL（3 体から 1 体）とエクステンション（マッチングアプリ風のスワイプ）
+- スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）、 バッテリー = 残り日数
+- 憲章（`PROJECT_CHARTER.md`）と README を MyCryptoWars に書き換え。 localStorage prefix を `mcw` に。 `ASSET_BASE` を `bearko/mycryptoheroes` の raw URL に（画像・音声はリポジトリに置かない）
+- 用語: 通貨は GUM、 ヒーローが率いる兵は「部隊」（コードでは `squad`）。 実在のゲーム名・製品名は「参考作」と書く
+- CI（`.github/workflows/ci.yml`）: 構文 → JSON → `node --test`
 
 ### Changed — SPEC-003 (= Ranking Backend デフォルトを B (Upstash+Vercel) に反転)
 **Changed — Ranking Backend デフォルトを B (Upstash+Vercel) に反転**

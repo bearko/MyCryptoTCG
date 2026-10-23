@@ -1,53 +1,37 @@
 // ============================================================
 // constants.js — 共通定数 / アセット URL ヘルパ
 // ============================================================
+// 画像・音声はこのリポジトリに置かず、 MCH のマスター DB（bearko/mycryptoheroes）の
+// raw URL を参照する（開発憲章 §9）。
 
-// 自リポ assets/ をベースとする (= スプライトは bearko/mycryptotcg/main/assets/ に置く)
-// 静的アイコン (= GUM / CE / MCH ヒーロー画像) は MCH 公式 CDN を別途併用する場合あり
-export const ASSET_BASE = "https://raw.githubusercontent.com/bearko/mycryptotcg/main/assets/";
+export const ASSET_BASE = "https://raw.githubusercontent.com/bearko/mycryptoheroes/main/";
 
-/**
- * 画像 URL を組み立てる
- * @param {string} relPath - "Image/Heroes/1.png" 等
- * @returns {string}
- */
+/** 画像 URL。 relPath は "Image/Heroes/1001.png" のような MCH リポジトリ内のパス */
 export function img(relPath) {
   return ASSET_BASE + relPath;
 }
 
-/**
- * 音声 URL を組み立てる
- * @param {string} relPath - "Audio/se_click.mp3" 等
- * @returns {string}
- */
+/** 音声 URL。 relPath は "Audio/BGM/land.mp3" など */
 export function audioUrl(relPath) {
   return ASSET_BASE + relPath;
 }
 
-// ============================================================
-// 時間制御
-// ============================================================
-export const TICK_INTERVAL_MS = 1000;
-export const SECONDS_PER_WEEK = 7;
-export const WEEKS_PER_MONTH = 4;
-export const MONTHS_PER_YEAR = 12;
+export const HERO_IMG = (id) => img(`Image/Heroes/${id}.png`);
+export const ENEMY_IMG = (file) => img(`Image/Enemies/${file}`);
+export const EXT_IMG = (id) => img(`Image/Extensions/${id}.png`);
 
 // ============================================================
-// localStorage キー (= prefix を統一)
+// localStorage キー（prefix を統一）
 // ============================================================
-export const LS_PREFIX = "mctcg";
-export const LS_LANG = `${LS_PREFIX}.lang`;
-export const LS_PLAYER_NAME = `${LS_PREFIX}.playerName`;
-export const LS_RANKING_API_URL = `${LS_PREFIX}.rankingApiUrl`;
-export const LS_SAVE = `${LS_PREFIX}.save.v1`;
+export const LS_PREFIX = "mcw";
+export const LS_SAVE = `${LS_PREFIX}.save`;
+export const LS_SETTINGS = `${LS_PREFIX}.settings`;
 
 // ============================================================
-// バージョン (= ranking version filter に使う)
+// ゲームの定数（仕様 SPEC-109）
 // ============================================================
+export const SEASON_DAYS = 28;
+export const MAP_W = 48;
+export const MAP_H = 28;
+
 export const APP_VERSION = "0.1.0";
-
-// ============================================================
-// デバッグフラグ
-// ============================================================
-export const DEBUG_PAUSE = false;       // pauseTime / resumeTime ログ
-export const DEBUG_TICK = false;        // onTick ログ

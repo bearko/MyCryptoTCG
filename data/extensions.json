@@ -1,0 +1,14 @@
+[
+  { "id": "ext_boots",     "name": "大西部のブーツ",       "image": "Image/Extensions/4031.png", "effect": { "act": 1 },      "text": "行動力 +1" },
+  { "id": "ext_redhare",   "name": "赤兎馬",               "image": "Image/Extensions/4005.png", "effect": { "act": 1 },      "text": "行動力 +1" },
+  { "id": "ext_artofwar",  "name": "兵法書",               "image": "Image/Extensions/4016.png", "effect": { "lead": 3 },     "text": "統率力 +3" },
+  { "id": "ext_dragon",    "name": "金龍",                 "image": "Image/Extensions/5022.png", "effect": { "lead": 5 },     "text": "統率力 +5" },
+  { "id": "ext_yoichi",    "name": "与一の弓",             "image": "Image/Extensions/5013.png", "effect": { "str": 3 },      "text": "武力 +3" },
+  { "id": "ext_blade",     "name": "ブレイブブレード",     "image": "Image/Extensions/3001.png", "effect": { "str": 2 },      "text": "武力 +2" },
+  { "id": "ext_grail",     "name": "聖杯",                 "image": "Image/Extensions/5030.png", "effect": { "int": 5 },      "text": "知力 +5" },
+  { "id": "ext_medal",     "name": "ウィズダムMCHメダル",  "image": "Image/Extensions/3033.png", "effect": { "int": 3 },      "text": "知力 +3" },
+  { "id": "ext_crown",     "name": "宝冠",                 "image": "Image/Extensions/4036.png", "effect": { "gov": 4 },      "text": "統治力 +4" },
+  { "id": "ext_ring",      "name": "王妃の指輪",           "image": "Image/Extensions/5009.png", "effect": { "pol": 4 },      "text": "政治力 +4" },
+  { "id": "ext_fluted",    "name": "フリューテッドアーマー", "image": "Image/Extensions/4004.png", "effect": { "troopCap": 30 }, "text": "兵の上限 +30" },
+  { "id": "ext_aegis",     "name": "アイギス",             "image": "Image/Extensions/5010.png", "effect": { "troopCap": 50 }, "text": "兵の上限 +50" }
+]

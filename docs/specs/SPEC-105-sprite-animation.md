@@ -1,7 +1,7 @@
 ---
 id: SPEC-105
 title: スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D)
-status: Implementing
+status: Cancelled
 pr: claude/day2-battle-ui-and-sprites
 phase: Phase 1D
 kind: Added

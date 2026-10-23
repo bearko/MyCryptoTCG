@@ -1,314 +1,476 @@
-// ============================================================
-// main.js — エントリポイント
-// ============================================================
+// main.js — 起動・画面の切り替え・ターンの進行（UI 側の司令塔。SPEC-110 §4・SPEC-111 §8）
+//
+// app = { db, state, ui, rng }。ゲームのルールはここに書かない（engine の関数を呼ぶだけ）。
+//
+// ビュー（js/ui/*-view.js と phone.js の homeView）の約束:
+//   render(app) → HTMLElement            必須。画面領域（.phone__screen）に差す
+//   mount(app, el) / unmount(app, el)    任意。差した直後 / 外す直前
+//   onEvent(app, ev)                     任意。実行フェーズの 1 歩ごとのイベント（無ければ main が最小限の演出）
+//   onExecuteEnd(app)                    任意。実行フェーズが終わった（スキップも含む）
 
-import { state, pauseTime, resumeTime } from "./state.js";
-import { initI18n, setLang, getLang, applyDataI18n } from "./i18n.js";
-import {
-  TICK_INTERVAL_MS,
-  SECONDS_PER_WEEK,
-  WEEKS_PER_MONTH,
-  MONTHS_PER_YEAR,
-} from "./constants.js";
+import { loadDb } from './data.js';
+import { newGame, save, load, clearSave } from './state.js';
+import { makeRng } from './engine/rng.js';
+import { toPixel } from './engine/hex.js';
+import { planCpu, execute, beginTurn, noticesFrom } from './engine/turn.js';
+import { uiText } from './engine/lines.js';
+import { h, clear, toast, band, reducedMotion } from './ui/h.js';
+import * as phone from './ui/phone.js';
+import * as landSelect from './ui/land-select-view.js';
+import * as resultView from './ui/result-view.js';
+import * as mapView from './ui/map-view.js';
+import * as chatView from './ui/chat-view.js';
+import * as calendarView from './ui/calendar-view.js';
+import * as driveView from './ui/drive-view.js';
+import * as photoView from './ui/photo-view.js';
+import { playBgm, playSe } from './ui/audio.js';
 
-// ============================================================
-// DOM helpers
-// ============================================================
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+/** 実行フェーズの 1 歩（ms） */
+export const STEP_MS = 350;
+/** ホームの通知を残す数 */
+export const MAX_NOTICES = 80;
+/** 地図のカメラの基準（zoom 1 の 1 ヘックス） */
+export const HEX_SIZE = 28;
 
-// ============================================================
-// Init
-// ============================================================
-async function init() {
-  pauseTime();   // ← 起動 splash 中は時間停止
+const VIEWS = {
+  home: phone.homeView,
+  land: landSelect,
+  result: resultView,
+  map: mapView,
+  chat: chatView,
+  calendar: calendarView,
+  drive: driveView,
+  photo: photoView,
+};
 
-  await initI18n();
+/** 起動前でも参照できるように、形だけ先に作る */
+const app = {
+  db: null,
+  state: null,
+  rng: null,
+  ui: {
+    app: 'land',
+    selectedSquad: null,
+    chatSquad: null,
+    // mapCam.x / y: カメラの中心のワールド座標（zoom 1・HEX_SIZE 基準のピクセル。hex.toPixel と同じ）
+    mapCam: { x: 0, y: 0, zoom: 1 },
+    tile: null,            // 選んでいるタイル（Map で寄る先）
+    popup: null,           // 開いているポップアップの要素
+    executing: false,      // 実行フェーズの最中
+    seen: {},              // アプリごとに既読にした通知 id の最大
+    lastBatch: 0,          // 直近のターン終了で積んだ通知の最初の id
+  },
+};
 
-  // ロード完了 → splash dismiss
-  $("#splash")?.classList.add("hidden");
-  $("#titleScreen")?.classList.remove("hidden");
+let current = null; // { name, view, el }
+let exec = null;    // { gen, events, skip, timer }
 
-  resumeTime();   // ← splash 終了
-
-  setupTitleScreen();
-  setupHelpOverlay();
-  setupLangToggle();
-
-  // タイトル画面表示中は時間が進むが、 onTick は state.activeXxx が無いので何も起きない
-  startTimeLoop();
+export function getApp() {
+  return app;
 }
 
-// ============================================================
-// Title screen
-// ============================================================
-function setupTitleScreen() {
-  $("#btnPressStart")?.addEventListener("click", dismissTitle);
+/** 地図のカメラをタイルの中心に寄せる */
+export function focusTile(tileIdx) {
+  const st = app.state;
+  if (!st || tileIdx == null || tileIdx < 0) return;
+  const w = st.map.w;
+  const p = toPixel(tileIdx % w, Math.floor(tileIdx / w), HEX_SIZE);
+  app.ui.mapCam.x = p.x;
+  app.ui.mapCam.y = p.y;
+  app.ui.tile = tileIdx;
 }
 
-async function dismissTitle() {
-  $("#titleScreen")?.classList.add("hidden");
-  $("#app")?.classList.remove("hidden");
-  // BGM 開始は audio.js の startBgm をここで呼ぶ
-  // import("./audio.js").then(({ startBgm }) => startBgm("Audio/bgm_home.mp3"));
-
-  await triggerDemoBattle();
+function maxNoticeId() {
+  let m = 0;
+  for (const n of (app.state && app.state.notices) || []) if (n.id > m) m = n.id;
+  return m;
 }
 
-// ============================================================
-// Demo battle entry (= SPEC-104)
-// ============================================================
-const DEMO_DECK = [
-  "mch_1001", "mch_1002", "mch_1003",
-  "mch_1001", "mch_1002", "mch_1003",
-];
-
-async function triggerDemoBattle() {
-  const { initBattle } = await import("./battle/battle-state.js");
-  const { startTurn } = await import("./battle/battle-logic.js");
-  const { enterBattleScreen, renderBattle } = await import("./battle/battle-ui.js");
-
-  await initBattle(DEMO_DECK.slice(), DEMO_DECK.slice());
-  enterBattleScreen();
-
-  // player turn 1 を自動開始
-  startTurn(state.battle);
-  renderBattle();
+/** そのアプリ宛ての通知を既読にする */
+function markSeen(appName) {
+  app.ui.seen[appName] = maxNoticeId();
 }
 
-// ============================================================
-// Lang toggle
-// ============================================================
-function setupLangToggle() {
-  // タイトル画面の lang toggle
-  $("#langToggle")?.addEventListener("click", (ev) => {
-    const btn = ev.target.closest("[data-lang]");
-    if (!btn) return;
-    setLang(btn.getAttribute("data-lang"));
-    refreshLangButtonState();
-  });
-  refreshLangButtonState();
-
-  // ヘッダーボタン (= 1 クリックで toggle)
-  $("#btnLangToggle")?.addEventListener("click", () => {
-    setLang(getLang() === "en" ? "ja" : "en");
-    refreshLangButtonState();
-  });
-}
-
-function refreshLangButtonState() {
-  $$(".lang-btn").forEach((b) => {
-    b.classList.toggle(
-      "lang-btn--active",
-      b.getAttribute("data-lang") === getLang()
-    );
-  });
-}
-
-// ============================================================
-// Help overlay
-// ============================================================
-function setupHelpOverlay() {
-  const overlay = $("#helpOverlay");
-  if (!overlay) return;
-
-  $("#btnHelpOpen")?.addEventListener("click", openHelp);
-  $("#btnHelpClose")?.addEventListener("click", closeHelp);
-  overlay.addEventListener("click", (e) => {
-    if (e.target.id === "helpOverlay") closeHelp();
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && !overlay.classList.contains("hidden")) {
-      closeHelp();
-    }
-  });
-}
-
-function openHelp() {
-  pauseTime();
-  $("#helpOverlay")?.classList.remove("hidden");
-  document.body.style.overflow = "hidden";
-}
-
-function closeHelp() {
-  $("#helpOverlay")?.classList.add("hidden");
-  document.body.style.overflow = "";
-  resumeTime();
-}
-
-// ============================================================
-// Time loop
-// ============================================================
-let _tickHandle = null;
-
-function startTimeLoop() {
-  if (_tickHandle) return;
-  _tickHandle = setInterval(onTick, currentTickInterval());
-}
-
-function stopTimeLoop() {
-  if (_tickHandle) {
-    clearInterval(_tickHandle);
-    _tickHandle = null;
+function resetUiForState() {
+  const st = app.state;
+  app.ui.selectedSquad = null;
+  app.ui.chatSquad = null;
+  app.ui.tile = null;
+  app.ui.executing = false;
+  app.ui.mapCam = { x: 0, y: 0, zoom: 1 };
+  app.ui.seen = {};
+  app.ui.lastBatch = 0;
+  if (st) {
+    const m = maxNoticeId();
+    for (const k of Object.keys(VIEWS)) app.ui.seen[k] = m;
+    const home = st.lands[st.playerLand] && st.lands[st.playerLand].home;
+    if (home != null) focusTile(home);
+    app.ui.tile = null;
   }
 }
 
-function currentTickInterval() {
-  if (state.timeSpeed20x) return Math.round(TICK_INTERVAL_MS / 20);
-  if (state.timeSpeed2x) return Math.round(TICK_INTERVAL_MS / 2);
-  return TICK_INTERVAL_MS;
-}
+// ------------------------------------------------------------
+// 起動
+// ------------------------------------------------------------
 
-function onTick() {
-  if (state.pauseFlags > 0) return;
-  state.tickCount++;
-  state.weekProgress++;
-  if (state.weekProgress >= SECONDS_PER_WEEK) advanceWeek();
-
-  // ... 各 feature の tick はここから呼ぶ ...
-  // tickActiveCraft();
-  // tickActiveQuest();
-
-  renderHeader();
-}
-
-function advanceWeek() {
-  state.weekProgress = 0;
-  state.week++;
-  if (state.week > WEEKS_PER_MONTH) {
-    state.week = 1;
-    state.month++;
-    if (state.month > MONTHS_PER_YEAR) {
-      state.month = 1;
-      state.year++;
+export async function boot() {
+  const root = document.getElementById('app');
+  try {
+    app.db = await loadDb('./data/');
+  } catch (e) {
+    console.error(e);
+    const old = document.querySelector('.boot');
+    if (old) old.remove();
+    if (root) {
+      clear(root);
+      root.appendChild(h('div', { class: 'boot boot--error', role: 'alert' }, 'データを読み込めませんでした。再読み込みしてください。'));
     }
+    return;
   }
-  // checkMonthlyEvents() をここから呼ぶ
+  document.addEventListener('keydown', onKeydown);
+  const saved = load();
+  if (saved) {
+    app.state = saved;
+    resetUiForState();
+    app.rng = rngFor(saved);
+    go(saved.ended ? 'result' : 'home');
+  } else {
+    app.state = null;
+    go('land');
+  }
+  const bootEl = document.querySelector('.boot');
+  if (bootEl) bootEl.remove();
+  playBgm('land');
 }
 
-function renderHeader() {
-  const el = $("#dateLabel");
-  if (el) el.textContent = `${state.year} 年 ${state.month} 月 ${state.week} 週`;
+/** ランド選択から呼ぶ。新しいゲームを始めてホームへ */
+export function startGame(playerLand, seed) {
+  app.state = newGame({ seed, playerLand, db: app.db });
+  resetUiForState();
+  app.rng = rngFor(app.state);
+  save(app.state);
+  go('home');
 }
 
-// ============================================================
-// Boot
-// ============================================================
-window.addEventListener("DOMContentLoaded", () => {
-  init().catch((e) => console.error("init failed", e));
-});
+/** 結果画面の「もう一度」。セーブを消してランド選択へ */
+export function restart() {
+  clearSave();
+  app.state = null;
+  resetUiForState();
+  go('land');
+}
 
-// ============================================================
-// Global で覗くため (= デバッグ用)
-// ============================================================
-if (typeof window !== "undefined") {
-  window.__state = state;
-  window.__pauseTime = pauseTime;
-  window.__resumeTime = resumeTime;
+function rngFor(state) {
+  return makeRng((state.seed + state.day * 1000) >>> 0);
+}
 
-  // SPEC-102 smoke test (= console から手動実行)
-  window.__testBattle = async function __testBattle() {
-    const { initBattle, INITIAL_MASTER_HP, MAX_STONES } = await import("./battle/battle-state.js");
-    const { drawCard, shuffleDeck, isDeckEmpty } = await import("./battle/deck.js");
-    const { getHeroDef } = await import("./battle/cards.js");
+// ------------------------------------------------------------
+// 画面の切り替え
+// ------------------------------------------------------------
 
-    const ids = ["mch_1001", "mch_1002", "mch_1003"];
-    const battle = await initBattle(ids.slice(), ids.slice());
-    console.log("[testBattle] battle:", battle);
-    console.log("[testBattle] player.deck:", battle.player.deck);
-    console.log("[testBattle] cpu.deck:", battle.cpu.deck);
+/**
+ * 画面を切り替える。
+ * @param {string} appName "home"|"map"|"chat"|"calendar"|"drive"|"photo"|"land"|"result"
+ * @param {{tile?:number, squad?:string}} [opts] tile があれば Map でそこへ寄る。squad があれば選択する
+ */
+export function go(appName, opts = {}) {
+  if (!VIEWS[appName]) appName = app.state ? 'home' : 'land';
+  if (!app.state && appName !== 'land') appName = 'land';
+  closePopup();
+  if (opts.tile != null) focusTile(opts.tile);
+  if (opts.squad != null) {
+    app.ui.selectedSquad = opts.squad;
+    app.ui.chatSquad = opts.squad;
+  }
+  app.ui.app = appName;
+  if (app.state) markSeen(appName);
+  render();
+}
 
-    if (battle.player.deck.length !== 3) throw new Error("player.deck.length !== 3");
-    if (battle.cpu.deck.length !== 3) throw new Error("cpu.deck.length !== 3");
-    if (battle.player.masterHp !== INITIAL_MASTER_HP) throw new Error("masterHp !== 10");
+/** 現在のアプリを描き直す（ステータスバー・ホームボタンも） */
+export function render() {
+  const root = document.getElementById('app');
+  if (!root) return;
+  const shell = phone.ensureShell(root);
+  phone.renderStatusBar(app, shell.status);
+  phone.renderHomeBar(app, shell.homebar);
+  shell.phone.dataset.app = app.ui.app;
+  shell.phone.classList.toggle('is-executing', !!app.ui.executing);
 
-    const drawn = drawCard(battle.player);
-    console.log("[testBattle] drew:", drawn, "→ hand:", battle.player.hand, "deck:", battle.player.deck);
-    if (battle.player.hand.length !== 1) throw new Error("hand.length !== 1 after draw");
-    if (battle.player.deck.length !== 2) throw new Error("deck.length !== 2 after draw");
+  if (current && current.view.unmount) {
+    try { current.view.unmount(app, current.el); } catch (e) { console.error(e); }
+  }
+  const view = VIEWS[app.ui.app];
+  let el;
+  try {
+    el = view.render(app);
+  } catch (e) {
+    console.error(e);
+    el = h('section', { class: 'app-screen' }, h('p', { class: 'muted' }, 'この画面を描けませんでした。'));
+  }
+  clear(shell.screen);
+  if (el) shell.screen.appendChild(el);
+  current = { name: app.ui.app, view, el };
+  if (view.mount) {
+    try { view.mount(app, el); } catch (e) { console.error(e); }
+  }
+  phone.renderExecuteBar(app, shell.execbar);
+}
 
-    const def = getHeroDef(battle.cardDb, drawn);
-    console.log("[testBattle] hero def:", def?.name, "cost:", def?.cost, "hp:", def?.hp, "atk:", def?.atk);
-    if (!def) throw new Error(`hero def not found for ${drawn}`);
+// ------------------------------------------------------------
+// ポップアップ（1 つずつ。閉じる・背景・Esc で閉じる）
+// ------------------------------------------------------------
 
-    // shuffle 多様性のスポットチェック
-    const seen = new Set();
-    for (let i = 0; i < 30; i++) {
-      const d = ids.slice();
-      shuffleDeck(d);
-      seen.add(d.join(","));
-    }
-    console.log("[testBattle] shuffle permutations seen:", seen.size, "/ 30");
-    if (seen.size < 2) console.warn("[testBattle] shuffle 多様性が低い (= 30 回で 2 種未満)");
+/**
+ * ポップアップを開く（開いていたものは閉じる）。
+ * @param {HTMLElement} content 中身
+ * @param {{title?:string, onClose?:Function, closable?:boolean}} [opts]
+ */
+export function openPopup(content, opts = {}) {
+  closePopup();
+  const closable = opts.closable !== false;
+  const titleId = 'popup-title-' + Date.now();
+  const card = h('div', { class: 'popup__card', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': opts.title ? titleId : null },
+    h('header', { class: 'popup__head' },
+      opts.title ? h('h2', { class: 'popup__title', id: titleId }, opts.title) : h('span'),
+      closable ? h('button', { class: 'popup__x btn-ghost', type: 'button', 'aria-label': t('common.close'), onClick: () => closePopup() }, '×') : null),
+    h('div', { class: 'popup__body' }, content));
+  const backdrop = h('div', { class: 'popup', onClick: (e) => { if (closable && e.target === backdrop) closePopup(); } }, card);
+  backdrop._onClose = opts.onClose || null;
+  backdrop._closable = closable;
+  document.body.appendChild(backdrop);
+  app.ui.popup = backdrop;
+  const focusable = card.querySelector('button:not(.popup__x), [href], input, select, [tabindex]') || card.querySelector('button');
+  if (focusable) focusable.focus();
+  return backdrop;
+}
 
-    console.log("[testBattle] ok");
-    return battle;
-  };
+export function closePopup() {
+  const p = app.ui.popup;
+  if (!p) return;
+  app.ui.popup = null;
+  p.remove();
+  if (p._onClose) {
+    try { p._onClose(); } catch (e) { console.error(e); }
+  }
+}
 
-  // SPEC-103 smoke test (= ターン / 召喚 / 攻撃 / 勝敗判定)
-  window.__testBattleLogic = async function __testBattleLogic() {
-    const { initBattle } = await import("./battle/battle-state.js");
-    const {
-      startTurn, endTurn,
-      canSummon, summonHero,
-      canAttack, getValidAttackTargets, performAttack,
-      checkVictory,
-    } = await import("./battle/battle-logic.js");
+function onKeydown(e) {
+  if (e.key === 'Escape' && app.ui.popup && app.ui.popup._closable) {
+    e.preventDefault();
+    closePopup();
+  }
+}
 
-    const deckIds = ["mch_1001", "mch_1002", "mch_1003"];
-    const battle = await initBattle(deckIds.slice(), deckIds.slice());
+/** 確認のポップアップ（OK / キャンセル） */
+export function confirmPopup(text, onOk, opts = {}) {
+  const body = h('div', { class: 'confirm' },
+    h('p', null, text),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn-secondary', type: 'button', onClick: () => closePopup() }, t('common.cancel')),
+      h('button', { class: opts.danger ? 'btn-danger' : 'btn-primary', type: 'button', onClick: () => { closePopup(); onOk(); } }, opts.okText || t('common.ok'))));
+  return openPopup(body, { title: opts.title || t('common.confirm') });
+}
 
-    // --- player turn 1 ---
-    let r = startTurn(battle);
-    console.log("[logic] player startTurn:", r, "hand:", battle.player.hand, "stones:", battle.player.stones);
-    if (r.deckEmpty) throw new Error("unexpected deck empty");
-    if (battle.player.stones !== 3) throw new Error(`stones expected 3, got ${battle.player.stones}`);
+function t(key) {
+  return uiText(app.db, key);
+}
 
-    // 召喚を試す (= 手札にあって cost ≤ stones のもの)
-    const inHand = battle.player.hand[0];
-    const def = battle.cardDb.heroes.find(h => h.id === inHand);
-    console.log("[logic] hand top:", inHand, "cost:", def.cost, "row:", def.row);
-    if (def.cost <= battle.player.stones) {
-      const check = canSummon(battle.player, inHand, battle.cardDb, def.row);
-      console.log("[logic] canSummon:", check);
-      if (!check.ok) throw new Error("canSummon should be ok");
-      const unit = summonHero(battle.player, inHand, battle.cardDb, def.row);
-      console.log("[logic] summoned:", unit.name.ja, "to", def.row, "summoningSick:", unit.summoningSick);
-      if (!unit.summoningSick) throw new Error("summoningSick should be true");
-      if (canAttack(unit)) throw new Error("canAttack should be false on summoning sick");
-    } else {
-      console.log("[logic] (skip summon: not enough stones)");
-    }
+// ------------------------------------------------------------
+// ターン終了（SPEC-111 §8）
+// ------------------------------------------------------------
 
-    endTurn(battle);
-    if (battle.turn !== "cpu") throw new Error("turn should be cpu");
+/** プレイヤーの選択待ち（あれば誘導先のアプリ名） */
+export function pendingApp() {
+  const st = app.state;
+  if (!st) return null;
+  const p = (st.pending || []).find((x) => x.land === st.playerLand);
+  if (!p) return null;
+  return p.kind === 'soul' ? 'drive' : p.kind === 'extension' ? 'photo' : null;
+}
 
-    // --- cpu turn 1 (= 何もせず end) ---
-    startTurn(battle);
-    endTurn(battle);
+export function isExecuting() {
+  return !!exec;
+}
 
-    // --- player turn 2 (= 召喚酔いが解け、 攻撃可能になっているはず) ---
-    startTurn(battle);
-    const front = battle.player.field.front;
-    const back = battle.player.field.back;
-    const myUnit = front || back;
-    if (myUnit) {
-      console.log("[logic] turn 2 unit:", myUnit.name.ja, "summoningSick:", myUnit.summoningSick, "canAttack:", canAttack(myUnit));
-      if (myUnit.summoningSick) throw new Error("summoningSick should be cleared after own turn");
-      if (!canAttack(myUnit)) throw new Error("canAttack should be true after summon sickness clears");
-      const targets = getValidAttackTargets(battle.cpu);
-      console.log("[logic] valid targets:", targets);
-      if (targets.includes("master")) {
-        const before = battle.cpu.masterHp;
-        const result = performAttack(battle.player, battle.cpu, front ? "front" : "back", "master");
-        console.log("[logic] performAttack master:", result, "→ cpu.masterHp:", battle.cpu.masterHp);
-        if (battle.cpu.masterHp !== before - myUnit.atk) throw new Error("masterHp not reduced correctly");
-        if (canAttack(myUnit)) throw new Error("attackedThisTurn should block re-attack");
-      }
-    }
+export function endTurn() {
+  const st = app.state;
+  if (!st || exec) return;
+  if (st.ended) {
+    go('result');
+    return;
+  }
+  // 1. 選択待ちが残っていれば、そちらへ誘導して止める
+  const pa = pendingApp();
+  if (pa) {
+    toast(t('home.pending'), { key: 'pending' });
+    go(pa);
+    return;
+  }
+  // 2. CPU の指示 → 3. 実行
+  const rng = rngFor(st);
+  app.rng = rng;
+  planCpu(st, app.db, rng);
+  exec = { gen: execute(st, app.db, rng), events: [], skip: false, timer: null, toastKey: null };
+  app.ui.executing = true;
+  app.ui.selectedSquad = null;
+  playBgm('battle');
+  go('map');
+  if (reducedMotion()) {
+    // 動きを減らす設定でも 1 歩ずつ出すが、演出の間は短く
+    exec.stepMs = 120;
+  }
+  scheduleStep();
+}
 
-    console.log("[logic] victory check:", checkVictory(battle));
-    console.log("[logic] ok");
-    return battle;
-  };
+/** 「スキップ」。残りを同期で回し切る */
+export function skipExecute() {
+  if (!exec) return;
+  exec.skip = true;
+  if (exec.timer) clearTimeout(exec.timer);
+  exec.timer = null;
+  drain();
+}
+
+function scheduleStep() {
+  if (!exec) return;
+  exec.timer = setTimeout(step, exec.stepMs || STEP_MS);
+}
+
+function step() {
+  if (!exec || exec.skip) return;
+  exec.timer = null;
+  let r;
+  try {
+    r = exec.gen.next();
+  } catch (e) {
+    console.error(e);
+    finishExecute();
+    return;
+  }
+  // 霧の向こうの CPU の動きなど、プレイヤーに見えないイベントは待たずに進める
+  // （1 歩 350ms を全部待つと、自分の部隊が 10 秒に 1 回しか動かないように見えるため）
+  let guard = 0;
+  while (!r.done && !isVisibleEvent(r.value) && guard < 500) {
+    exec.events.push(r.value);
+    guard += 1;
+    try { r = exec.gen.next(); } catch (e) { console.error(e); finishExecute(); return; }
+  }
+  if (r.done) {
+    finishExecute();
+    return;
+  }
+  exec.events.push(r.value);
+  dispatchEvent(r.value);
+  scheduleStep();
+}
+
+const ALWAYS_VISIBLE = new Set(['fort_fallen', 'home_fallen', 'clear', 'week_end', 'season_end', 'soul', 'extension_offer']);
+
+/** 演出として見せるイベントか（自ランドに関わるもの・探索済みのタイルで起きたもの） */
+function isVisibleEvent(ev) {
+  if (ALWAYS_VISIBLE.has(ev.t)) return true;
+  const st = app.state;
+  const me = st.playerLand;
+  if (ev.land) return ev.land === me && ev.t !== 'yield';
+  const ids = [ev.squad, ev.attacker, ev.defender].filter(Boolean);
+  if (ids.some((id) => st.squads[id] && st.squads[id].land === me)) return true;
+  const explored = exploredSet(st, me);
+  const tiles = [ev.to, ev.from, ev.at, ev.tile].filter((x) => typeof x === 'number');
+  return tiles.some((i) => explored.has(i));
+}
+
+let exploredCache = { day: -1, set: new Set() };
+function exploredSet(st, me) {
+  if (exploredCache.day !== st.day || exploredCache.land !== me) {
+    exploredCache = { day: st.day, land: me, set: new Set(st.lands[me].explored) };
+  }
+  return exploredCache.set;
+}
+
+function drain() {
+  try {
+    for (let r = exec.gen.next(); !r.done; r = exec.gen.next()) exec.events.push(r.value);
+  } catch (e) {
+    console.error(e);
+  }
+  finishExecute();
+}
+
+/** 1 歩のイベントを今のビューへ。ビューに onEvent が無ければ最小限の演出 */
+function dispatchEvent(ev) {
+  if (ev.t === 'battle') playSe('hit');
+  else if (ev.t === 'fort_fallen') playSe('fort');
+  const view = current && current.view;
+  if (view && typeof view.onEvent === 'function') {
+    try { view.onEvent(app, ev); } catch (e) { console.error(e); }
+    return;
+  }
+  fallbackEvent(ev);
+}
+
+const BAND_EVENTS = new Set(['fort_fallen', 'home_fallen', 'clear']);
+const TOAST_EVENTS = new Set(['claim', 'build_start', 'build_done', 'domestic', 'rest', 'yield', 'week_end']);
+
+function fallbackEvent(ev) {
+  const st = app.state;
+  if (BAND_EVENTS.has(ev.t)) {
+    const n = noticesFrom(st, app.db, [ev]);
+    band(n[0] ? n[0].text : t(`app.execute`));
+    return;
+  }
+  if (!TOAST_EVENTS.has(ev.t)) return;
+  const n = noticesFrom(st, app.db, [ev]);
+  if (n[0]) toast(n[0].text, { key: `ev-${ev.t}` });
+}
+
+function finishExecute() {
+  const st = app.state;
+  const events = exec ? exec.events : [];
+  const view = current && current.view;
+  exec = null;
+  app.ui.executing = false;
+  if (view && typeof view.onExecuteEnd === 'function') {
+    try { view.onExecuteEnd(app); } catch (e) { console.error(e); }
+  }
+  // 4. 通知を積む
+  const fresh = noticesFrom(st, app.db, events);
+  if (!st.notices) st.notices = [];
+  st.notices.push(...fresh);
+  if (st.notices.length > MAX_NOTICES) st.notices.splice(0, st.notices.length - MAX_NOTICES);
+  app.ui.lastBatch = fresh.length ? fresh[0].id : maxNoticeId() + 1;
+  // Chat がヒーローの報告（守り切った・敗走した など）を吹き出しにする
+  app.ui.lastEvents = events;
+  playBgm('land');
+  if (st.ended) {
+    st.phase = 'ended';
+    save(st);
+    playSe(st.ended.winner === st.playerLand ? 'win' : 'lose');
+    go('result');
+    return;
+  }
+  beginTurn(st, app.db);
+  app.rng = rngFor(st);
+  save(st);
+  // 新しい通知は各アプリの既読より id が大きいので、アプリを開くまでバッジが付く
+  go('home');
+  const pa = pendingApp();
+  if (pa) toast(t('home.pending'), { key: 'pending' });
+}
+
+/** ギブアップ（確認つき） */
+export function giveUp() {
+  const st = app.state;
+  if (!st || exec) return;
+  confirmPopup(t('common.giveupConfirm'), () => {
+    st.ended = { reason: 'giveup', winner: null };
+    st.phase = 'ended';
+    save(st);
+    playSe('lose');
+    go('result');
+  }, { danger: true, okText: t('common.giveup'), title: t('common.giveup') });
+}
+
+if (typeof document !== 'undefined' && document.getElementById('app')) {
+  boot();
 }

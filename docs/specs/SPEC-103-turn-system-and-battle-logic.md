@@ -1,7 +1,7 @@
 ---
 id: SPEC-103
 title: ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B)
-status: Implementing
+status: Cancelled
 pr: claude/import-kickoff-document-bQ6rP
 phase: Phase 1B
 kind: Added

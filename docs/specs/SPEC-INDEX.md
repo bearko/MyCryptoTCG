@@ -17,15 +17,18 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | SPEC-001 | Bootstrap (= MyCryptoSurvivor SPEC-032/035/036/038 の知見を逆輸入) | Implementing | Phase 0 | claude/import-survivor-patterns-D9bql |
 | SPEC-002 | Ranking Backend B (= Upstash Redis + Vercel Function) | Implementing | Phase 0 | docs/spec-002-ranking-backend-b-upstash |
 | SPEC-003 | Ranking Backend デフォルトを B (Upstash+Vercel) に反転 | Implementing | Phase 0 | docs/spec-003-ranking-default-to-b |
-| SPEC-100 | MyCryptoTCG 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分) | Approved | Phase 0 | claude/import-kickoff-document-bQ6rP |
-| SPEC-101 | プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0) | Implementing | Phase 0 | claude/import-kickoff-document-bQ6rP |
-| SPEC-102 | カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A) | Implementing | Phase 1A | claude/import-kickoff-document-bQ6rP |
-| SPEC-103 | ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B) | Implementing | Phase 1B | claude/import-kickoff-document-bQ6rP |
-| SPEC-104 | バトル画面 UI + 手札/場/マスター枠のタップ操作 (Day 2 Phase 1C) | Implementing | Phase 1C | claude/day2-battle-ui-and-sprites |
-| SPEC-105 | スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D) | Implementing | Phase 1D | claude/day2-battle-ui-and-sprites |
-| SPEC-106 | CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E) | Implementing | Phase 1E | claude/day3-cpu-ai-and-gameover |
-| SPEC-107 | 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F) | Implementing | Phase 1F | claude/day3-cpu-ai-and-gameover |
-| SPEC-108 | バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2) | Implementing | Phase 2A | claude/battle-ux-redesign |
+| SPEC-100 | MyCryptoTCG 3 日リリース計画 (= Day 1〜Day 3 の Phase 配分) | Cancelled | Phase 0 | claude/import-kickoff-document-bQ6rP (closed) |
+| SPEC-101 | プロジェクト Charter 書き換え + localStorage prefix `mctcg` 置換 (Day 1 Phase 0) | Cancelled | Phase 0 | claude/import-kickoff-document-bQ6rP (closed) |
+| SPEC-102 | カードデータ JSON + デッキ state + cards/deck モジュール (Day 1 Phase 1A) | Cancelled | Phase 1A | claude/import-kickoff-document-bQ6rP (closed) |
+| SPEC-103 | ターンシステム + 召喚 / 攻撃 / 勝敗判定ロジック (Day 1 Phase 1B) | Cancelled | Phase 1B | claude/import-kickoff-document-bQ6rP (closed) |
+| SPEC-104 | バトル画面 UI + 手札/場/マスター枠のタップ操作 (Day 2 Phase 1C) | Cancelled | Phase 1C | claude/day2-battle-ui-and-sprites (closed) |
+| SPEC-105 | スプライトアニメ (= idle/attack/hit/summon/die) + 3 体結線 (Day 2 Phase 1D) | Cancelled | Phase 1D | claude/day2-battle-ui-and-sprites (closed) |
+| SPEC-106 | CPU AI ルールベース (= 弱め貪欲) + アニメ結線 (Day 3 Phase 1E) | Cancelled | Phase 1E | claude/day3-cpu-ai-and-gameover (closed) |
+| SPEC-107 | 勝敗画面 + タイトル復帰 + ランキング送信 UI スタブ (Day 3 Phase 1F) | Cancelled | Phase 1F | claude/day3-cpu-ai-and-gameover (closed) |
+| SPEC-108 | バトル UX 再設計 (= 盤面 / 指示エリア / 手札フッター 3 ゾーン + 2 タップ確定式) (Phase 2) | Cancelled | Phase 2A | claude/battle-ux-redesign (closed) |
+| SPEC-109 | MyCryptoWars への作り直し（原案の整理と MVP の仕様） (Phase 0) | Implementing | Phase 0 | ccr-3032454b-n1cx4z |
+| SPEC-110 | エンジンの契約（state の形・純粋関数・ファイルの持ち主） (Phase 1) | Implementing | Phase 1 | ccr-3032454b-n1cx4z |
+| SPEC-111 | スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）と実行フェーズの演出 (Phase 2) | Implementing | Phase 2 | ccr-3032454b-n1cx4z |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則
