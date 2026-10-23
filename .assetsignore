@@ -1,0 +1,10 @@
+node_modules
+.git
+.github
+.claude
+.wrangler
+docs
+tests
+tools
+CLAUDE.md
+AGENTS.md
