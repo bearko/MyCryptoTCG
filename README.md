@@ -14,6 +14,12 @@ MCH Map / Chat / Calendar / Drive / Photo の 5 つのアプリでヒーロー�
 
 このリポジトリは旧 MyCryptoTCG（カードバトル）を作り直したものです（SPEC-109）。
 
+## 公開版（Cloudflare Workers）
+
+- 本番: https://tcg.bearko.games/
+- `main` にマージすると、Cloudflare Workers Builds が自動で公開します（ビルド不要の静的サイト。設定は `wrangler.jsonc`。リポジトリのルートをそのまま配信）
+- 配信しないファイルは `.assetsignore`（`docs/`・`tests/`・`tools/` など）
+
 ## 遊び方（ローカル）
 
 ビルド不要の静的サイトです。 リポジトリのルートで静的サーバーを起動して開きます
