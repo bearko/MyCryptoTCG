@@ -79,6 +79,7 @@ export function newGame({ seed, playerLand, db }) {
         land: landId,
         tile: land.home,
         troops: startTroops(hero.params.lead),
+        mustered: startTroops(hero.params.lead),
         ap: 0,
         orders: [],
         policy: land.cpu ? 'fight' : 'ask',
@@ -121,6 +122,7 @@ export function withDefaults(s) {
   for (const sq of Object.values(s.squads)) {
     if (typeof sq.morale !== 'number' || !Number.isFinite(sq.morale)) sq.morale = MORALE_START;
     else sq.morale = clampMorale(sq.morale);
+    if (typeof sq.mustered !== 'number' || !Number.isFinite(sq.mustered)) sq.mustered = Math.max(0, sq.troops || 0);
   }
   for (const l of Object.values(s.lands)) {
     if (!RATIONS[l.ration]) l.ration = DEFAULT_RATION;

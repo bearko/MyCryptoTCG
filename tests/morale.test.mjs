@@ -201,8 +201,9 @@ test('士気 0 の部隊は 1 日の終わりに兵の 8%（切り上げ）が�
 test('本拠地の夜の回復は人口を消費する（足りる分だけ・部隊の並び順）', () => {
   const st = makeState();
   st.lands.ocean.res.pop = 5;
-  add(st, 'u1', 1, C, { troops: 50 });
-  add(st, 'u2', 1, C, { troops: 50 });
+  // 戦いで減って定員（集めた兵）200 から 50 になった部隊。回復は定員までなので、人口のほうで止まる
+  add(st, 'u1', 1, C, { troops: 50, mustered: 200 });
+  add(st, 'u2', 1, C, { troops: 50, mustered: 200 });
   finishDay(st, db);
   // 人口 5 + 自然増 1 = 6 を u1 が先に使う
   assert.equal(st.squads.u1.troops, 56);
@@ -233,31 +234,43 @@ test('飢えた夜は本拠地の回復なし。回復ヒーローの隣の回�
 
   const st2 = makeState();
   st2.lands.ocean.res.food = 0;
-  add(st2, 'u1', 1, C, { troops: 50 });
+  add(st2, 'u1', 1, C, { troops: 50, mustered: 200 });
   add(st2, 'u3', 3, 20, { troops: 50 });
   finishDay(st2, db);
-  assert.equal(st2.squads.u1.troops, 70); // 上限 200 × 0.1
+  assert.equal(st2.squads.u1.troops, 70); // 上限 200 × 0.1（定員 200 までは空いている）
   assert.equal(st2.lands.ocean.res.pop, 80);
+
+  // 回復ヒーローの隣の回復も定員まで：定員 60 なら 10 だけ戻り、人口は 10 だけ減る
+  const st3 = makeState();
+  st3.lands.ocean.res.food = 0;
+  add(st3, 'u1', 1, C, { troops: 50, mustered: 60 });
+  add(st3, 'u3', 3, 20, { troops: 50 });
+  finishDay(st3, db);
+  assert.equal(st3.squads.u1.troops, 60);
+  assert.equal(st3.lands.ocean.res.pop, 90);
 });
 
 test('finishDay の順番：飢え → 士気 → 逃走 → 回復（逃げたあとに回復する）', () => {
   const st = makeState();
   st.lands.ocean.res.food = 0;
-  add(st, 'u1', 1, C, { troops: 100, morale: 3 });
+  add(st, 'u1', 1, C, { troops: 100, morale: 3, mustered: 200 });
   add(st, 'u3', 3, 20, { troops: 50 });
   const ev = finishDay(st, db);
-  // 士気 3 − 7（回復の隣で半分）+ 3 = −1 → 0 → 逃走 ceil(8) = 8 → 92 → 回復 +20 → 112
+  // 士気 3 − 7（回復の隣で半分）+ 3 = −1 → 0 → 逃走 ceil(8) = 8 → 92（定員も 200 → 192）→ 回復 +20 → 112
   assert.equal(st.squads.u1.morale, 0);
   assert.equal(st.squads.u1.troops, 112);
+  assert.equal(st.squads.u1.mustered, 192);
   const order = ev.map((e) => e.t).filter((t) => ['yield', 'starve', 'morale_day', 'desert'].includes(t));
   assert.deepEqual(order, ['yield', 'starve', 'morale_day', 'desert']);
 });
 
 test('applyNight は planNight の計画どおりに反映する', () => {
   const st = makeState();
-  add(st, 'u1', 1, C, { troops: 100, morale: 0 });
+  add(st, 'u1', 1, C, { troops: 100, morale: 0, mustered: 200 });
+  add(st, 'u3', 3, 20, { troops: 50 });
   st.lands.ocean.ration = 'save';
   const plan0 = planNight(st, db, 'ocean', true, 40);
+  assert.ok(plan0.recover.length > 0, '回復が起きる盤面で確かめる');
   applyNight(st, db, 'ocean', true);
   const m = plan0.morale[0];
   assert.equal(st.squads.u1.morale, m.value);
@@ -482,7 +495,8 @@ test('previewDomestic：この 1 回で何も増えない回は ok:false / cap�
 
 test('breakdown：行の合計が net、daysLeft、上限を超えた分の行、飢える日は自然増の行なし', () => {
   const st = makeState();
-  add(st, 'u1', 1, C, { troops: 50 });
+  // 定員 120・上限 200 の部隊が 50 まで減っている（本拠地の回復 20 は定員まで空いている）
+  add(st, 'u1', 1, C, { troops: 50, mustered: 120 });
   let b = breakdown(st, db, 'ocean');
   const eat = 10 + Math.floor(50 / D);
   assert.equal(b.food.net, -eat);
@@ -506,7 +520,7 @@ test('breakdown：行の合計が net、daysLeft、上限を超えた分の行�
   // shortfall：今夜足りない量（在庫 10 + 差し引き −15 → 5 足りない）
   assert.deepEqual(f.food, { net: b.food.net, daysLeft: 1, shortfall: -(10 + b.food.net) });
   assert.equal(f.food.shortfall, 5);
-  assert.deepEqual(f.troops, { total: 50, cap: 200 });
+  assert.deepEqual(f.troops, { total: 50, muster: 120, cap: 200 }); // 兵 / 定員の合計 / 上限の合計
   assert.deepEqual(f.morale, { avg: 60, min: 60, shaken: 0, deserting: 0, desertTonight: 0, desert: [] });
   st.lands.ocean.res.food = 150;
   assert.equal(forecast(st, db, 'ocean').food.shortfall, 0, '足りる夜は 0');

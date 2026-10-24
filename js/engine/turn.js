@@ -18,7 +18,7 @@
 import { neighbors, within } from './hex.js';
 import { shuffle } from './rng.js';
 import { stepCost } from './pathfind.js';
-import { visionOf, effectiveParams, troopCap } from './heroes.js';
+import { visionOf, effectiveParams, troopCap, musterCap } from './heroes.js';
 import { startTroops } from './tuning.js';
 import { applyDaily, tickBuilds, startBuild, domestic, rest } from './economy.js';
 import { applyNight, rewardCost, MORALE_SHAKEN } from './morale.js';
@@ -58,10 +58,14 @@ export function isShielded(state, fort) {
  * @param {number} pop 使える人口
  * @returns {number} 増える兵
  */
+/** 敗走明けに集め直す兵の割合（定員に対して） */
+export const REGROUP_RATE = 0.3;
+
 export function regroupTroops(db, squad, pop) {
   const hero = heroOf(db, squad);
   if (!hero) return 0;
-  const goal = Math.min(startTroops(effectiveParams(hero, squad, db).lead), troopCap(hero, squad, db));
+  // 散った兵のうち、定員の 3 割を集め直す（人口を消費。SPEC-113 §2.1）
+  const goal = Math.ceil(musterCap(hero, squad, db) * REGROUP_RATE);
   const cur = Math.max(0, squad.troops || 0);
   return Math.max(0, Math.min(goal - cur, Math.floor(Math.max(0, pop || 0))));
 }

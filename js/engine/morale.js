@@ -6,7 +6,7 @@
 // 内訳の「兵の回復」の行と、実際に夜に消費される人口が食い違わない。
 
 import { neighbors } from './hex.js';
-import { effectiveParams, troopCap, subMods } from './heroes.js';
+import { effectiveParams, troopCap, musterCap, musteredOf, subMods } from './heroes.js';
 
 /** 新しく作った部隊の士気 */
 export const MORALE_START = 60;
@@ -213,7 +213,8 @@ export function planNight(state, db, landId, starved, popAvail) {
     if (!n) continue;
     const hero = heroOf(db, s);
     const cur = troops.get(s.id);
-    const room = Math.max(0, troopCap(hero, s, db) - cur);
+    // 回復は定員まで（戦いで減った兵を戻すだけ。SPEC-113 §2.1）
+    const room = Math.max(0, musterCap(hero, s, db) - cur);
     const give = Math.max(0, Math.min(room, n, pop));
     if (give <= 0) continue;
     pop -= give;
@@ -240,7 +241,10 @@ export function applyNight(state, db, landId, starved) {
   }
   if (changes.length) events.push({ t: 'morale_day', land: landId, starved: !!starved, changes });
   for (const d of plan.desert) {
-    state.squads[d.squad].troops = d.left;
+    const sq = state.squads[d.squad];
+    sq.troops = d.left;
+    // 逃げた兵は戻らない。定員からも減らす（取り戻すには徴兵し直す）
+    sq.mustered = Math.max(d.left, musteredOf({ mustered: sq.mustered, troops: d.left + d.amount }) - d.amount);
     events.push({ t: 'desert', squad: d.squad, amount: d.amount, left: d.left });
   }
   for (const r of plan.recover) state.squads[r.squad].troops += r.amount;

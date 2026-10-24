@@ -293,9 +293,11 @@ test('domestic: farm / trade / craft（food・mat は上限で止まる）', () 
   assert.equal(s.lands.ocean.res.mat, 78);
 });
 
-test('rest: 統率力 × 2、本拠地なら ×2、上限で止まる。増えた兵の分だけ人口を使い、士気 +10', () => {
+test('rest: 統率力 × 2、本拠地なら ×2、定員で止まる。増えた兵の分だけ人口を使い、士気 +10', () => {
   const s = makeState();
+  // 定員（集めた兵）190・上限（統率力 20 × 10）200。休息は戦いで減った兵を定員まで戻すだけ（SPEC-113 §2.1）
   s.squads.u1.troops = 100;
+  s.squads.u1.mustered = 190;
   s.squads.u1.morale = 60;
   assert.deepEqual(rest(s, db, s.squads.u1), {
     t: 'rest', squad: 'u1', amount: 80,
@@ -303,16 +305,36 @@ test('rest: 統率力 × 2、本拠地なら ×2、上限で止まる。増え�
   });
   assert.equal(s.lands.ocean.res.pop, 20); // 100 − 80
   s.squads.u1.tile = 20;
-  assert.equal(rest(s, db, s.squads.u1).amount, 20);
-  assert.equal(s.squads.u1.troops, 200);
-  assert.equal(s.lands.ocean.res.pop, 0);
-  assert.equal(rest(s, db, s.squads.u1).amount, 0);
+  // 本拠地の外：統率力 × 2 = 40 だが、定員まで 10 しか空いていない
+  assert.equal(rest(s, db, s.squads.u1).amount, 10);
+  assert.equal(s.squads.u1.troops, 190);
+  assert.equal(s.lands.ocean.res.pop, 10, '定員で止まった分の人口は残る');
+  assert.equal(rest(s, db, s.squads.u1).amount, 0, '定員に届いたら上限（200）に余裕があっても増えない');
+  assert.equal(s.squads.u1.troops, 190);
+  assert.equal(s.squads.u1.mustered, 190, '休息は定員を変えない');
+  assert.equal(s.lands.ocean.res.pop, 10);
   assert.equal(s.squads.u1.morale, 90);
+});
+
+test('rest: 定員が上限より大きければ上限で止まる。mustered の無い部隊は今の兵が定員', () => {
+  const s = makeState();
+  s.squads.u1.troops = 150;
+  s.squads.u1.mustered = 400; // 装備を外したなどで上限（200）が定員より小さい
+  assert.equal(rest(s, db, s.squads.u1).amount, 50);
+  assert.equal(s.squads.u1.troops, 200);
+  assert.equal(rest(s, db, s.squads.u1).amount, 0);
+  // 古い state（mustered なし）：今の兵を定員とみなすので増えない
+  const t = makeState();
+  t.squads.u1.troops = 100;
+  delete t.squads.u1.mustered;
+  assert.equal(rest(t, db, t.squads.u1).amount, 0);
+  assert.equal(t.lands.ocean.res.pop, 100);
 });
 
 test('rest: 人口が足りなければ足りる分だけ、人口 0 なら増えない', () => {
   const s = makeState();
   s.squads.u1.troops = 100;
+  s.squads.u1.mustered = 200;
   s.lands.ocean.res.pop = 30;
   assert.equal(rest(s, db, s.squads.u1).amount, 30);
   assert.equal(s.squads.u1.troops, 130);

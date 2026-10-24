@@ -225,12 +225,24 @@ test("resolve: スキル damage は + str×3×skillMult、heal は自軍の兵�
   // 受けた側は「負け」で士気が下がるので、毎回 50 に戻して式だけを見る
   d.troops = 200;
   d.morale = 50;
-  const hl = addSquad(st, "hl", 7, "ocean", T(5, 5), { troops: 80 });
+  // 回復スキルは定員（集めた兵の数）まで戻す（SPEC-113 §2.1）。定員 200・兵 80 → 30 戻る
+  const hl = addSquad(st, "hl", 7, "ocean", T(5, 5), { troops: 80, mustered: 200 });
   ev = resolve(st, db, seq(0.999, 0), hl, d);
   assert.equal(ev.skill.kind, "heal");
   assert.equal(ev.skill.value, 30);
   assert.equal(hl.troops, 110);
+  assert.equal(hl.mustered, 200, "回復スキルは定員を変えない");
   delete st.squads.hl;
+
+  // 定員 90・兵 80 → 上限（統率力 × 10 = 500）に余裕があっても定員の 90 で止まる
+  d.troops = 200;
+  d.morale = 50;
+  const hl2 = addSquad(st, "hl2", 7, "ocean", T(5, 5), { troops: 80, mustered: 90 });
+  ev = resolve(st, db, seq(0.999, 0), hl2, d);
+  assert.equal(ev.skill.kind, "heal");
+  assert.equal(ev.skill.value, 10);
+  assert.equal(hl2.troops, 90);
+  delete st.squads.hl2;
 
   d.troops = 200;
   d.morale = 50;

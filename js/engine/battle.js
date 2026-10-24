@@ -8,7 +8,7 @@
 // 実際の resolve の結果を必ず含む。
 
 import { distance, neighbors } from "./hex.js";
-import { effectiveParams, subMods, visionOf, rangeOf, troopCap } from "./heroes.js";
+import { effectiveParams, subMods, visionOf, rangeOf, troopCap, musterCap } from "./heroes.js";
 import { candidates, accept, extensionCandidates, acceptExtension } from "./souls.js";
 import { pick } from "./rng.js";
 import {
@@ -216,7 +216,8 @@ function strike(state, db, dice, a, d, ambush, atkMult, side, followups) {
         extra = Math.round(ap.str * 3 * mods.skillMult);
         skill = { name: hero.skill.name, kind, value: extra };
       } else if (kind === "heal") {
-        const cap = troopCap(hero, a.squad, db);
+        // 回復スキルも定員まで（SPEC-113 §2.1）
+        const cap = musterCap(hero, a.squad, db);
         const before = a.squad.troops;
         a.squad.troops = Math.min(cap, before + Math.round(ap.str * 3));
         if (a.squad.troops < before) a.squad.troops = before; // 上限を超えていた分は削らない

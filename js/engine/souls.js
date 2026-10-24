@@ -87,6 +87,7 @@ export function accept(state, db, landId, pending, heroId) {
     land: landId,
     tile: land.home,
     troops: startTroops(hero.params.lead),
+    mustered: startTroops(hero.params.lead),
     ap: 0,
     orders: [],
     policy: "ask",

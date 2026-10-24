@@ -10,7 +10,7 @@
 // previewDomestic / previewRation）もここに置く。UI はこれを呼び、計算し直さない。
 
 import { neighbors } from './hex.js';
-import { effectiveParams, troopCap } from './heroes.js';
+import { effectiveParams, troopCap, musterCap, musteredOf } from './heroes.js';
 import { TROOPS_PER_FOOD, farmAmount } from './tuning.js';
 import {
   moraleMult, moraleOf, rationOf, rewardCost, changeMorale, planNight,
@@ -421,7 +421,9 @@ function restCalc(state, db, squad, cur, tile) {
   const land = state.lands[squad.land];
   const atHome = land && land.home === tile;
   const heal = p.lead * 2 * (atHome ? 2 : 1);
-  const room = troopCap(hero, squad, db) - cur.troops;
+  // 休息は減った兵を戻すだけ（定員まで。SPEC-113 §2.1）。cur.mustered は積んである徴兵のあとの定員（queuedSim）
+  const muster = typeof cur.mustered === 'number' ? { ...squad, mustered: cur.mustered } : squad;
+  const room = musterCap(hero, muster, db) - cur.troops;
   const amount = Math.max(0, Math.min(room, heal, Math.floor(num(cur.res.pop))));
   const morale = Math.min(MORALE_MAX, cur.morale + MORALE_DELTA.rest) - cur.morale;
   return { amount, morale };
@@ -445,7 +447,12 @@ export function domestic(state, db, squad, kind) {
     return ev;
   }
   for (const k of RES_KEYS) if (c.d[k]) res[k] = num(res[k]) + c.d[k];
-  if (c.d.troops) squad.troops = (squad.troops || 0) + c.d.troops;
+  if (c.d.troops) {
+    // 徴兵は定員も増やす（定員を超えて兵を増やせるのは徴兵だけ。SPEC-113 §2.1）
+    const base = musteredOf(squad);
+    squad.troops = (squad.troops || 0) + c.d.troops;
+    squad.mustered = Math.max(base + c.d.troops, squad.troops);
+  }
   if (kind === 'reward') {
     ev.cost = c.cost;
     ev.morale = changeMorale(squad, MORALE_DELTA.reward, 'reward');
@@ -487,17 +494,20 @@ export function setRation(state, landId, ration) {
 /**
  * そのランドの、積んである内政・休息・開拓をそのまま実行したとしたときの値（state は変えない）。
  * 部隊の並び順に、各部隊の指示を積んだ順で数える（実行フェーズの順番とは違うことがある）。
- * @returns {{ res:{pop,food,gum,mat}, troops:{[squadId]:number}, morale:{[squadId]:number} }}
+ * mustered は積んである徴兵のあとの定員（SPEC-113 §2.1。徴兵は定員も増やすので、そのあとの休息はその定員まで戻せる）。
+ * @returns {{ res:{pop,food,gum,mat}, troops:{[squadId]:number}, morale:{[squadId]:number}, mustered:{[squadId]:number} }}
  */
 function queuedSim(state, db, landId) {
   const land = state.lands[landId];
   const res = land ? { pop: num(land.res.pop), food: num(land.res.food), gum: num(land.res.gum), mat: num(land.res.mat) } : { pop: 0, food: 0, gum: 0, mat: 0 };
   const troops = {};
   const morale = {};
+  const mustered = {};
   const mine = Object.values(squadsOf(state)).filter((s) => s.land === landId);
   for (const s of mine) {
     troops[s.id] = s.troops || 0;
     morale[s.id] = moraleOf(s);
+    mustered[s.id] = musteredOf(s);
   }
   for (const s of mine) {
     let tile = s.tile;
@@ -507,10 +517,11 @@ function queuedSim(state, db, landId) {
         const c = domesticCalc(state, db, s, o.kind, { res, troops: troops[s.id], morale: morale[s.id] });
         if (!c.ok) continue;
         for (const k of RES_KEYS) res[k] += c.d[k];
+        if (c.d.troops) mustered[s.id] = Math.max(mustered[s.id] + c.d.troops, troops[s.id] + c.d.troops);
         troops[s.id] += c.d.troops;
         morale[s.id] += c.d.morale;
       } else if (o.type === 'rest') {
-        const c = restCalc(state, db, s, { res, troops: troops[s.id], morale: morale[s.id] }, tile);
+        const c = restCalc(state, db, s, { res, troops: troops[s.id], morale: morale[s.id], mustered: mustered[s.id] }, tile);
         troops[s.id] += c.amount;
         res.pop -= c.amount;
         morale[s.id] += c.morale;
@@ -521,7 +532,7 @@ function queuedSim(state, db, landId) {
       }
     }
   }
-  return { res, troops, morale };
+  return { res, troops, morale, mustered };
 }
 
 /** 徴兵 1 回で人口から移せる兵の数の上限（floor(人口 × 0.3)） */
@@ -654,7 +665,8 @@ export function breakdown(state, db, landId) {
 /**
  * breakdown の要約と、兵・士気。
  * @returns {{ food:{net,daysLeft}, gum:{net,daysLeft}, mat:{net,daysLeft}, pop:{net,daysLeft},
- *             troops:{total, cap}, morale:{avg, min, shaken, deserting, desertTonight, desert} }}
+ *             troops:{total, muster, cap}, morale:{avg, min, shaken, deserting, desertTonight, desert} }}
+ *   troops.muster は定員（musterCap。回復で戻せる上限）の合計、troops.cap は兵の上限（troopCap。徴兵で増やせる上限）の合計（SPEC-113 §2.1）
  *   food.shortfall は今夜の食料の不足（在庫 + 差し引き が負のときのその大きさ。足りれば 0）。
  *     「あと N 足りない」に使う。0 より大きければ今夜は飢える（士気 −15）
  *   morale.avg は兵のいる部隊（敗走中を除く）の士気の単純平均（整数に丸める。部隊が無ければ null）、
@@ -668,6 +680,7 @@ export function forecast(state, db, landId) {
   for (const k of RES_KEYS) out[k] = { net: b[k].net, daysLeft: b[k].daysLeft };
   out.food.shortfall = Math.max(0, -(b.food.stock + b.food.net));
   let total = 0;
+  let muster = 0;
   let cap = 0;
   let sum = 0;
   let n = 0;
@@ -678,7 +691,10 @@ export function forecast(state, db, landId) {
     if (s.land !== landId) continue;
     total += s.troops || 0;
     const hero = heroOf(db, s);
-    if (hero) cap += troopCap(hero, s, db);
+    if (hero) {
+      cap += troopCap(hero, s, db);
+      muster += musterCap(hero, s, db);
+    }
     if (s.status === 'routed') continue;
     const m = moraleOf(s);
     sum += m;
@@ -687,7 +703,7 @@ export function forecast(state, db, landId) {
     if (m < MORALE_SHAKEN) shaken += 1;
     if (m === 0 && (s.troops || 0) > 0) deserting += 1;
   }
-  out.troops = { total, cap };
+  out.troops = { total, muster, cap };
   // 今夜（指示なしで夜を迎えたら）逃げる兵の数。deserting は「いま士気 0」の部隊の数なので、
   // 食料が足りて +2 される夜は逃げない。UI が「今夜 −N 人」を出すときはこちらを使う
   let desertTonight = 0;

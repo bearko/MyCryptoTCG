@@ -194,6 +194,24 @@ export function troopCap(hero, squad, db) {
 }
 
 /**
+ * 回復で戻せる上限（定員）。SPEC-113 §2.1。
+ * 定員（squad.mustered）は、その部隊が徴兵などで集めた兵の数。夜の回復・休息・回復スキル・敗走からの集め直しは
+ * 定員までしか戻せない（戦いで減った兵を戻すだけ）。定員を超えて兵を増やせるのは徴兵だけ。
+ * mustered が無い（古いセーブ・手書きの state）ときは今の兵の数を定員とみなす。
+ */
+export function musterCap(hero, squad, db) {
+  return Math.min(troopCap(hero, squad, db), musteredOf(squad));
+}
+
+/**
+ * 部隊の定員（squad.mustered）。無ければ今の兵の数。上限（troopCap）では切らない（切るのは musterCap）。
+ */
+export function musteredOf(squad) {
+  const m = typeof squad.mustered === "number" && Number.isFinite(squad.mustered) ? squad.mustered : squad.troops || 0;
+  return Math.max(0, m);
+}
+
+/**
  * 視界。2。scout は 3。装備の vision を足す。
  */
 export function visionOf(hero, squad, db) {
