@@ -223,3 +223,76 @@ test('validate attack: 敵がいて、射程内（battle.inRange）', { skip }, 
   s.forts.f1 = { id: 'f1', tile: 22, owner: 'enemy' };
   assert.equal(O.validate(s, db, sq('y', 3, 'ocean', 20, 6), { type: 'attack', target: 22 }).ok, true);
 });
+
+// ---------------------------------------------------------------- undoLast（SPEC-114 §4「1 手戻す」）
+
+test('undoLast: 最後の指示だけ外し、その AP を戻す（何度でも。空なら none で何もしない）', { skip }, () => {
+  const s = makeState();
+  const u = s.squads.u1;
+  assert.deepEqual(O.undoLast(s, 'u1'), { ok: false, reason: 'none' });
+  assert.equal(u.ap, 11);
+  assert.equal(O.queue(s, db, 'u1', { type: 'domestic', kind: 'farm' }).ok, true);
+  assert.equal(O.queue(s, db, 'u1', { type: 'domestic', kind: 'trade' }).ok, true);
+  assert.equal(O.queue(s, db, 'u1', { type: 'move', path: [20, 21] }).ok, true);
+  assert.equal(O.queue(s, db, 'u1', { type: 'claim' }).ok, true);
+  assert.equal(u.ap, 4);
+  const first = u.orders.slice(0, 3).map((o) => ({ ...o }));
+  // 最後の占領（AP 1）だけが外れる
+  const r = O.undoLast(s, 'u1');
+  assert.equal(r.ok, true);
+  assert.equal(r.reason, null);
+  assert.equal(r.order.type, 'claim');
+  assert.equal(r.ap, 1);
+  assert.equal(u.ap, 5);
+  assert.deepEqual(u.orders, first);
+  // 移動を外すと、立っている位置（projectedTile）も戻る
+  assert.equal(O.projectedTile(u), 21);
+  assert.equal(O.undoLast(s, 'u1').order.type, 'move');
+  assert.equal(O.projectedTile(u), C);
+  assert.equal(u.ap, 7);
+  assert.equal(O.undoLast(s, 'u1').order.kind, 'trade');
+  assert.equal(O.undoLast(s, 'u1').order.kind, 'farm');
+  assert.equal(u.ap, 11);
+  assert.deepEqual(u.orders, []);
+  assert.equal(O.undoLast(s, 'u1').reason, 'none');
+  assert.equal(u.ap, 11);
+});
+
+test('undoLast: 休息（残りの AP 全部）・AP 0 で止めた移動は、実際に引いた AP だけ戻す', { skip }, () => {
+  const s = makeState();
+  const u = s.squads.u1;
+  O.queue(s, db, 'u1', { type: 'domestic', kind: 'farm' });
+  O.queue(s, db, 'u1', { type: 'rest' });
+  assert.equal(u.ap, 0);
+  assert.equal(O.undoLast(s, 'u1').ap, 9);
+  assert.equal(u.ap, 9);
+  // AP 2 で 4 マスの移動を積むと 2 だけ引く。外すと 2 だけ戻る（経路の本来のコスト 4 ではない）
+  u.ap = 2;
+  u.orders = [];
+  O.queue(s, db, 'u1', { type: 'move', path: [20, 21, 22, 23] });
+  assert.equal(u.ap, 0);
+  const r = O.undoLast(s, 'u1');
+  assert.equal(r.ap, 2);
+  assert.equal(u.ap, 2);
+  // ap の無い指示（古いセーブ）は AP を戻さずに外す。未知の部隊は squad
+  u.orders = [{ type: 'claim' }];
+  assert.equal(O.undoLast(s, 'u1').ap, 0);
+  assert.equal(u.ap, 2);
+  assert.deepEqual(u.orders, []);
+  assert.deepEqual(O.undoLast(s, 'nope'), { ok: false, reason: 'squad' });
+});
+
+test('undoLast と clearOrders: 1 つずつ戻しても、まとめて戻しても AP は同じ', { skip }, () => {
+  const a = makeState();
+  const b = makeState();
+  for (const s of [a, b]) {
+    O.queue(s, db, 'u1', { type: 'domestic', kind: 'farm' });
+    O.queue(s, db, 'u1', { type: 'move', path: [20] });
+    O.queue(s, db, 'u1', { type: 'claim' });
+  }
+  while (O.undoLast(a, 'u1').ok) { /* 全部外す */ }
+  O.clearOrders(b, 'u1');
+  assert.equal(a.squads.u1.ap, b.squads.u1.ap);
+  assert.equal(a.squads.u1.ap, 11);
+  assert.deepEqual(a.squads.u1.orders, b.squads.u1.orders);
+});

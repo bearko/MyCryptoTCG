@@ -18,14 +18,27 @@
 //   - ヒーローの絵は口調（tone）ごとに出方が違う（跳ねる / 傾く / うなずく / 揺れる / ぽんと出る）
 //   - AP は区切りのあるゲージ。指示を積むと右から 1 つずつ消える
 //   - メニューの各ボタンに AP の消費か、できない理由。できないボタンも押せて、理由と次の一手を返す
+//
+// 情報（SPEC-114 §4）。数字はすべて engine の関数の値をそのまま出す（ここで計算し直さない）:
+//   - 内政のボタンに見込み（economy.previewDomestic の delta / perDay / repeat）と、積んだ回数「×N」。押してもシートは閉じない
+//   - 積んだ指示の帯に「このあと 食料 −15 → −16/日」（economy.breakdown の food.net + 積んだ内政の perDay.food）
+//   - 見出しの帯に、そのヒーローの士気（morale.moraleOf）と食費（economy.troopFood の部隊の行）
+//   - 「1 手戻す」（orders.undoLast。最後の指示だけ外して AP を戻す）。「取り消し」（すべて）も残す
+//   - 積んでも何も増えない内政（人口 0 の徴兵・倉庫いっぱいの農作 など）は「できない」扱いにして積まない
+//   - 「このあと」は、農作（今夜 1 回きり）と毎日続く変化（徴兵）を分けて「今夜 +97（1 回きり）・明日から −49/日」
+//   - 休息は AP を全部使うので、押す前に見込み（兵 +N（人口 0）・士気 +10・AP 全部）を出してから積む
+//     （見込みは ledger-view.plannedState の写しに economy.rest をそのまま当てて読む）
+//   - 内政・休息の結果は「徴兵：兵 +12」のように単位つきの 1 行で返す
 
 import { h, heroImg, imgEl } from './h.js';
 import * as fx from './fx.js';
 import { uiText, say } from '../engine/lines.js';
-import { queue, validate, clearOrders, apMax, apCost, projectedTile } from '../engine/orders.js';
-import { canBuild, DOMESTIC_KINDS } from '../engine/economy.js';
+import { queue, validate, clearOrders, undoLast, apMax, apCost, projectedTile } from '../engine/orders.js';
+import { canBuild, DOMESTIC_KINDS, previewDomestic, breakdown, troopFood, caps, rest as restOn } from '../engine/economy.js';
+import { moraleOf, planNight, MORALE_SHAKEN, MORALE_MAX } from '../engine/morale.js';
 import { within, neighbors } from '../engine/hex.js';
-import { rangeOf } from '../engine/heroes.js';
+import { rangeOf, troopCap } from '../engine/heroes.js';
+import { plannedState } from './ledger-view.js';
 import { stepCost } from '../engine/pathfind.js';
 import { targetAt, isShielded } from '../engine/turn.js';
 import { save } from '../state.js';
@@ -39,8 +52,8 @@ const MAX_HISTORY = 60;
 const MAI_NOTICES = 30;
 const POLICIES = ['ignore', 'fight', 'ask'];
 const MENU = ['move', 'claim', 'build', 'attack', 'domestic', 'rest', 'policy', 'clear'];
-/** サブメニューを開くボタン */
-const SUBMENUS = new Set(['build', 'attack', 'domestic', 'policy']);
+/** サブメニューを開くボタン（休息は AP を全部使うので、見込みを見てから積む） */
+const SUBMENUS = new Set(['build', 'attack', 'domestic', 'rest', 'policy']);
 /** 引数つきのセリフが無い reject.* の理由（ui の chat.reject.* で出す） */
 const SPEECH_REJECTS = new Set(['ap', 'home', 'range', 'build']);
 /** 口調ごとの、絵の出方 */
@@ -51,11 +64,36 @@ const FLIP_MS = 560;
 const SHEET_OUT_MS = 160;
 
 const t = (app, key) => uiText(app.db, key);
+/** 増減の表記（SPEC-114 §8）。マイナスは U+2212 で画面の中を揃える。0 は「±0」 */
+const MINUS = '\u2212';
+function signed(n) {
+  return n > 0 ? `+${n}` : n < 0 ? `${MINUS}${-n}` : '\u00b10';
+}
+/** 増減の色のクラス（色だけに頼らず、符号は signed で必ず書く） */
+function signCls(n) {
+  return n > 0 ? 'is-plus' : n < 0 ? 'is-minus' : 'is-zero';
+}
 /** 文言（無ければ fallback）。{name} などを埋める */
 function tf(app, key, vars = {}, fallback) {
   let s = uiText(app.db, key);
   if (s === key && fallback != null) s = fallback;
   return s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] == null ? m : String(vars[k])));
+}
+
+/** 文言（無ければ chat114.* の同じ名前、それも無ければ fallback） */
+function tk(app, key, vars, fallback) {
+  const s = uiText(app.db, key);
+  return s === key ? tf(app, `chat114.${key}`, vars, fallback) : tf(app, key, vars, fallback);
+}
+
+/** この班の文言（data/messages.json の ui の chat114.*） */
+function cx(app, key, vars, fallback) {
+  return tf(app, `chat114.${key}`, vars, fallback);
+}
+
+/** 内政の名前（恩賞は ui の domestic.reward が無ければ chat114.domestic.reward） */
+function domName(app, kind) {
+  return tk(app, `domestic.${kind}`, {}, kind);
 }
 
 // ------------------------------------------------------------
@@ -154,8 +192,10 @@ function absorbReports(app) {
     if (ev.t === 'blocked' && (s = mine(ev.squad))) text = say(app.db, heroOf(app, s), 'report.blocked');
     else if (ev.t === 'routed' && (s = mine(ev.squad))) text = say(app.db, heroOf(app, s), 'report.routed');
     else if (ev.t === 'ask' && (s = mine(ev.squad))) text = say(app.db, heroOf(app, s), 'report.ask');
-    else if (ev.t === 'domestic' && (s = mine(ev.squad))) {
-      text = say(app.db, heroOf(app, s), 'report.domestic', { kind: t(app, `domestic.${ev.kind}`), n: ev.amount });
+    else if ((ev.t === 'domestic' || ev.t === 'rest') && (s = mine(ev.squad))) {
+      // 内政・休息の結果は、何がいくつ動いたかを単位つきで（ヒーローの口調の「続けるか」は勧めに読めるので使わない）
+      pushMsg(app, s.id, 'sys', resultLine(app, s, ev));
+      continue;
     } else if (ev.t === 'battle' && (s = mine(ev.attacker))) {
       const target = battleTargetName(app, ev);
       const lost = (ev.followups || []).some((f) => f.t === 'routed' && f.squad === ev.attacker);
@@ -165,6 +205,37 @@ function absorbReports(app) {
     }
     if (s && text) pushMsg(app, s.id, 'hero', text);
   }
+}
+
+/** 内政で動く資源（イベントの amount の単位） */
+const DOMESTIC_RES = { conscript: 'param.troops', farm: 'res.food', trade: 'res.gum', craft: 'res.mat' };
+
+/**
+ * 内政・休息の結果の 1 行（イベントの値をそのまま。「徴兵：兵 +12」「徴兵：人口が足りないので、兵は増えなかった」）。
+ * 0 のときの理由は、いまの state で見られるもの（兵が上限か）だけ確かめ、残りは人口・倉庫と書く。
+ */
+function resultLine(app, squad, ev) {
+  const hero = heroOf(app, squad);
+  const full = hero ? (squad.troops || 0) >= troopCap(hero, squad, app.db) : false;
+  if (ev.t === 'rest') {
+    const kind = t(app, 'cmd.rest');
+    const morale = ev.morale ? ev.morale.delta : 0;
+    if (ev.amount > 0) return cx(app, 'fix.report.rest', { kind, n: signed(ev.amount), m: signed(morale) }, '{kind}：兵 {n}・士気 {m}');
+    return cx(app, full ? 'fix.report.restFull' : 'fix.report.restPop', { kind, m: signed(morale) },
+      full ? '{kind}：兵は上限なので増えなかった・士気 {m}' : '{kind}：人口が 0 なので兵は増えなかった・士気 {m}');
+  }
+  const kind = domName(app, ev.kind);
+  if (ev.kind === 'reward') {
+    if (ev.morale === null && !ev.cost) return cx(app, 'fix.report.rewardNg', { kind }, '{kind}：GUM が足りず、払えなかった');
+    return cx(app, 'fix.report.reward', { kind, n: signed(ev.morale ? ev.morale.delta : 0), cost: signed(-(ev.cost || 0)) }, '{kind}：士気 {n}（GUM {cost}）');
+  }
+  const res = DOMESTIC_RES[ev.kind] ? t(app, DOMESTIC_RES[ev.kind]) : '';
+  if (ev.amount > 0) return cx(app, 'fix.report.gain', { kind, res, n: signed(ev.amount) }, '{kind}：{res} {n}');
+  if (ev.kind === 'conscript') {
+    return full ? cx(app, 'fix.report.conscriptFull', { kind }, '{kind}：兵が上限なので、兵は増えなかった')
+      : cx(app, 'fix.report.conscriptPop', { kind }, '{kind}：人口が足りないので、兵は増えなかった');
+  }
+  return cx(app, 'fix.report.storeFull', { kind, res }, '{kind}：倉庫がいっぱいなので、{res}は増えなかった');
 }
 
 function battleTargetName(app, ev) {
@@ -339,6 +410,11 @@ function openChatHelp(app) {
       { id: 'off', term: '', tag: mark('off'), text: tf(app, 'help.chat.off', {}, '敗走などで今日は動けないヒーロー') },
       { id: 'ap', term: 'AP', text: tf(app, 'help.chat.ap', {}, '1 日に使える行動の量。指示を積むと減り、翌日に戻ります') },
       { id: 'menu', term: tf(app, 'help.chat.menuTerm', {}, 'メニュー'), text: tf(app, 'help.chat.menu', {}, '金のピルは使う AP。黄色の点が付いたボタンは今はできない指示で、押すと理由と次の一手が出ます') },
+      { id: 'domestic', term: t(app, 'cmd.domestic'), text: cx(app, 'help.domestic', {}, '各ボタンに、押したら何がどれだけ動くかの見込みと、あと何回積めるかが出ます。押してもメニューは閉じないので、続けて積めます') },
+      { id: 'after', term: cx(app, 'after', {}, 'このあと'), text: cx(app, 'fix.help.after', {}, '積んだ内政を足したあとの食料の増減（ランド全体）。農作は今夜 1 回だけ入る量なので「今夜 +N（1 回きり）」、毎日続く分は「明日から −N/日」と分けて出します') },
+      { id: 'morale', term: cx(app, 'morale', {}, '士気'), text: cx(app, 'help.morale', {}, '0〜100。高いほど戦闘で強い。20 未満は「動揺」、0 になると兵が逃げ始めます。恩賞と休息で上がります') },
+      { id: 'food', term: cx(app, 'troopFood', {}, '食費'), text: cx(app, 'help.food', {}, 'そのヒーローの兵が 1 日に食べる食料。兵が増えるほど増えます') },
+      { id: 'undo', term: cx(app, 'undo', {}, '1 手戻す'), text: cx(app, 'help.undo', {}, '最後に積んだ指示を 1 つだけ外し、AP を戻します。全部やめるときはメニューの「取り消し」') },
     ],
   });
 }
@@ -420,10 +496,15 @@ function renderTalk(app, squad) {
   const sheetNow = !!sheet;
   const fold = c.sheetWas == null || c.sheetWas === sheetNow ? null : sheetNow ? 'fold' : 'unfold';
   c.sheetWas = sheetNow;
+  // 同じシートを開いたままの描き直し（内政を続けて積んだ など）では、下から出る動きをやり直さない
+  const sheetKey = sheet ? `${squad.id}:${c.menu}` : null;
+  if (sheet && c.sheetKey === sheetKey) sheet.classList.add('is-still');
+  c.sheetKey = sheetKey;
   return h('section', { class: ['chat', 'chat--talk', sheet ? 'has-sheet' : null], dataset: { squad: squad.id, status: orderStatus(app, squad) } },
-    talkHead(app, apRingHead(app, squad, hero), hero ? hero.name : squad.id, headInfo(app, squad, hero)),
+    talkHead(app, apRingHead(app, squad, hero), hero ? hero.name : squad.id, headInfo(app, squad, hero), headStats(app, squad)),
     apGauge(app, squad, hero),
     queuedStrip(app, squad),
+    afterStrip(app),
     // 会話の欄の奥に、その人の絵を大きく（空白が「その人の部屋」になる）
     room(heroImg(hero, { class: 'chat-room__img', width: 160, height: 160, 'aria-hidden': 'true' }), log),
     sheet,
@@ -469,11 +550,19 @@ export function mount(app, el) {
   // 吹き出しは下に積むので、いちばん下を見せる
   const log = el.querySelector('.chat-log');
   if (log) log.scrollTop = log.scrollHeight;
+  // 積んだ指示のチップは右に足していくので、いちばん新しいもの（右端）を見せる
+  const chips = el.querySelector('.chat-queue__list');
+  if (chips) chips.scrollLeft = chips.scrollWidth;
   // トークどうし / 一覧との行き来は横にすべる（アプリの切り替えは main.js が受け持つ）
   if (p.slide && !reduce) fx.slideIn(el, p.slide, { distance: 36 });
   if (p.list) fx.stagger(el.querySelectorAll('.chat-list > li'), { from: 'up', step: 55, delay: p.slide ? 60 : 120, distance: 18 });
   if (p.maiEnter && log && !reduce) fx.stagger(Array.from(log.children).slice(-4), { from: 'up', step: 60, distance: 10 });
   if (log) playLog(log, p, reduce);
+  // 「このあと」の数字は、前の値から転がす（増えたら緑・減ったら赤で一瞬光る。動きを減らすときはすぐ）
+  if (p.after) {
+    const n = el.querySelector('.chat-after__n');
+    if (n) fx.rollNumber(n, p.after.to, { from: p.after.from, format: (v) => signed(Math.round(v)) });
+  }
   // シートの外（会話の欄・AP・積んだ指示・見出しの空き）をタップしたら閉じる
   const talk = el.classList && el.classList.contains('chat--talk') ? el : null;
   if (talk && talk.classList.contains('has-sheet')) {
@@ -583,13 +672,58 @@ function keepBottom(log) {
   if (gap < 80) log.scrollTop = log.scrollHeight;
 }
 
-function talkHead(app, imgNode, name, extra) {
-  return h('header', { class: 'chat-head' },
+function talkHead(app, imgNode, name, extra, stats) {
+  return h('header', { class: ['chat-head', stats ? 'has-stats' : null] },
     h('button', { class: 'btn-ghost chat-head__back', type: 'button', 'aria-label': t(app, 'chat.back'), onClick: () => backToList(app) },
       h('span', { class: 'chat-head__chev', 'aria-hidden': 'true' }), t(app, 'chat.title')),
     imgNode,
     h('span', { class: 'chat-head__name' }, name),
-    extra);
+    extra,
+    stats || null);
+}
+
+/**
+ * 見出しの帯の 2 行目（SPEC-114 §4）: そのヒーローの士気（ゲージと数字。20 未満は「動揺」、0 は「逃走中 今夜 −N 人」）と、
+ * 兵の食費（economy.troopFood の、その部隊の行）。色だけに頼らず、数字と言葉を必ず添える。
+ */
+function headStats(app, squad) {
+  const st = app.state;
+  const m = moraleOf(squad);
+  const routed = squad.status === 'routed';
+  const level = routed ? 'off' : m <= 0 ? 'zero' : m < MORALE_SHAKEN ? 'shaken' : m >= 60 ? 'high' : 'mid';
+  // 士気 0 はもう逃げている。今夜逃げる人数は Drive のヒーローのカードと同じ見方（積んだ指示のあとの写しを planNight にかける）
+  const des = level === 'zero' ? desertTonight(app, squad) : 0;
+  const word = level === 'zero'
+    ? (des > 0 ? cx(app, 'fix.desertTonight', { n: des }, '逃走中 今夜 −{n} 人') : cx(app, 'fix.zeroHold', {}, '今夜は逃げない'))
+    : level === 'shaken' ? cx(app, 'morale.shaken', {}, '動揺') : null;
+  const row = troopFood(st, app.db, squad.land).rows.find((r) => r.squad === squad.id);
+  const food = row ? row.value : 0;
+  const moraleLabel = cx(app, 'morale', {}, '士気');
+  const foodLabel = cx(app, 'troopFood', {}, '食費');
+  const perDay = (n) => cx(app, 'perDay', { n }, '{n}/日');
+  return h('span', { class: 'chat-head__stats' },
+    h('span', {
+      class: ['chat-mor', `chat-mor--${level}`], role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(m),
+      'aria-label': `${moraleLabel} ${m}${word ? `（${word}）` : ''}`, dataset: { morale: m },
+    },
+    h('span', { class: 'chat-mor__label', 'aria-hidden': 'true' }, moraleLabel),
+    h('span', { class: 'chat-mor__bar', 'aria-hidden': 'true' }, h('i', { style: { '--v': (Math.max(0, Math.min(100, m)) / 100).toFixed(2) } })),
+    h('b', { class: 'chat-mor__n num', 'aria-hidden': 'true' }, String(m)),
+    word ? h('span', { class: ['chat-mor__word', level === 'zero' && des <= 0 ? 'is-hold' : null], 'aria-hidden': 'true' }, word) : null),
+    h('span', { class: ['chat-head__food', 'num', food > 0 ? 'is-minus' : 'is-zero'], dataset: { food } },
+      h('span', { class: 'chat-head__food-label' }, foodLabel), ` ${perDay(signed(-food))}`));
+}
+
+/**
+ * その部隊から今夜逃げる兵の数（morale.planNight の desert）。積んだ指示のあとの写し（ledger-view.plannedState）で、
+ * 飢えるかは economy.forecast と同じ決め方（在庫 + 差し引き < 0）。Drive・Ledger と同じ見方。
+ */
+function desertTonight(app, squad) {
+  const me = squad.land;
+  const sim = plannedState(app, me);
+  const b = breakdown(sim, app.db, me).food;
+  const row = planNight(sim, app.db, me, b.stock + b.net < 0, 0).desert.find((d) => d.squad === squad.id);
+  return row ? row.amount : 0;
 }
 
 function bubbleHero(app, hero, text, anim) {
@@ -681,7 +815,7 @@ function orderLabel(app, squad, o) {
     case 'move': return `${t(app, 'cmd.move')} ${o.path ? o.path.length : 0}`;
     case 'build': return `${t(app, 'cmd.build')} ${t(app, `facility.${o.kind}`)}`;
     case 'attack': return `${t(app, 'cmd.attack')} ${targetLabel(app, squad, o.target)}`;
-    case 'domestic': return `${t(app, 'cmd.domestic')} ${t(app, `domestic.${o.kind}`)}`;
+    case 'domestic': return `${t(app, 'cmd.domestic')} ${domName(app, o.kind)}`;
     default: return t(app, `cmd.${o.type}`);
   }
 }
@@ -695,14 +829,140 @@ function queuedStrip(app, squad) {
   const orders = squad.orders || [];
   const seen = c.chipSeen[squad.id];
   c.chipSeen[squad.id] = orders.length;
-  return h('div', { class: 'chat-queue' },
+  const last = orders[orders.length - 1];
+  const back = last && typeof last.ap === 'number' ? last.ap : 0;
+  // 「1 手戻す」: 最後の指示だけ外す（orders.undoLast）。指示が無いとき・指示を出せないときは出さない
+  const undo = orders.length && canOrder(app)
+    ? h('button', {
+      class: 'chat-undo', type: 'button', dataset: { act: 'undo' },
+      'aria-label': cx(app, 'undoAria', { order: orderLabel(app, squad, last), n: back }, '最後の指示（{order}）を外す・AP +{n}'),
+      onClick: () => doUndo(app, squad),
+    },
+    h('span', { class: 'chat-undo__icon', 'aria-hidden': 'true' }),
+    h('span', { class: 'chat-undo__text' }, cx(app, 'undo', {}, '1 手戻す')),
+    back ? h('span', { class: 'chat-undo__ap num', 'aria-hidden': 'true' }, `AP +${back}`) : null)
+    : null;
+  return h('div', { class: ['chat-queue', undo ? 'has-undo' : null] },
     h('span', { class: 'chat-queue__label' }, t(app, 'chat.queued')),
     orders.length
-      ? h('ol', { class: 'chat-queue__list' }, orders.map((o, i) => h('li', { class: ['chat-queue__item', seen != null && i >= seen ? 'is-new' : null], dataset: { type: o.type } },
-        h('span', { class: `chat-menu__icon chat-menu__icon--${o.type} chat-queue__icon`, 'aria-hidden': 'true' }),
-        h('span', { class: 'chat-queue__text' }, orderLabel(app, squad, o)),
-        typeof o.ap === 'number' ? h('span', { class: 'chat-queue__ap num' }, `-${o.ap}`) : null)))
-      : h('span', { class: 'chat-queue__none muted' }, t(app, 'chat.noOrders')));
+      ? h('ol', { class: 'chat-queue__list' }, chipGroups(orders).map((g) => h('li', {
+        class: ['chat-queue__item', seen != null && g.last >= seen ? 'is-new' : null], dataset: { type: g.order.type, n: g.n },
+        'aria-label': `${orderLabel(app, squad, g.order)}${g.n > 1 ? ` ${cx(app, 'count', { n: g.n }, '×{n}')}` : ''}・AP ${signed(-g.ap)}`,
+      },
+      h('span', { class: `chat-menu__icon chat-menu__icon--${g.order.type} chat-queue__icon`, 'aria-hidden': 'true' }),
+      // 内政は記号が「内政」を表すので、種類の名前だけ。続けて積んだ同じ内政は「×N」にまとめる
+      h('span', { class: 'chat-queue__text', 'aria-hidden': 'true' }, g.order.type === 'domestic' ? domName(app, g.order.kind) : orderLabel(app, squad, g.order)),
+      g.n > 1 ? h('span', { class: 'chat-queue__n num', 'aria-hidden': 'true' }, cx(app, 'count', { n: g.n }, '×{n}')) : null,
+      g.hasAp ? h('span', { class: 'chat-queue__ap num', 'aria-hidden': 'true' }, signed(-g.ap)) : null)))
+      : h('span', { class: 'chat-queue__none muted' }, t(app, 'chat.noOrders')),
+    undo);
+}
+
+/** 積んだ指示のチップ: 続けて積んだ同じ内政を 1 枚にまとめる（{ order, n, ap, hasAp, last }。last は最後の指示の番号） */
+function chipGroups(orders) {
+  const out = [];
+  orders.forEach((o, i) => {
+    const prev = out[out.length - 1];
+    const hasAp = typeof o.ap === 'number';
+    if (prev && o.type === 'domestic' && prev.order.type === 'domestic' && prev.order.kind === o.kind) {
+      prev.n += 1;
+      prev.ap += hasAp ? o.ap : 0;
+      prev.hasAp = prev.hasAp || hasAp;
+      prev.last = i;
+    } else {
+      out.push({ order: o, n: 1, ap: hasAp ? o.ap : 0, hasAp, last: i });
+    }
+  });
+  return out;
+}
+
+/**
+ * 積んである内政で、今夜の食料の差し引きがいくつ動くか（SPEC-114 §4）。
+ * 足すのは engine の previewDomestic(...).perDay.food だけ（SPEC-113 §6.3。ここで計算し直さない）。
+ * previewDomestic は「すでに積んである指示のあと」のもう 1 回ぶんを返すので、自分のランドの指示を外した写しに、
+ * 部隊の並び順 → 各部隊の積んだ順（engine の数え方と同じ順）で積み直しながら、その直前の見込みを足していく。
+ * 積んだときに値を控えておく形にしないのは、Map で積んだ指示・1 手戻す・再読み込みで食い違うため。
+ * 農作の perDay.food はその夜に 1 回だけ入る量（翌日は元に戻る）なので once に、徴兵など毎日続く変化は daily に分けて足す。
+ * @returns {{food:number, once:number, daily:number, count:number}} food = once + daily。count は数えた内政の数
+ */
+function queuedFood(app) {
+  const st = app.state;
+  const land = st.playerLand;
+  const squads = {};
+  const mine = [];
+  for (const [id, s] of Object.entries(st.squads || {})) {
+    if (s.land !== land) { squads[id] = s; continue; }
+    let back = 0;
+    for (const o of s.orders || []) back += typeof o.ap === 'number' ? o.ap : 0;
+    const copy = { ...s, orders: [], ap: (s.ap || 0) + back };
+    squads[id] = copy;
+    mine.push([s, copy]);
+  }
+  const sim = { ...st, squads };
+  let once = 0;
+  let daily = 0;
+  let count = 0;
+  for (const [s, copy] of mine) {
+    for (const o of s.orders || []) {
+      if (o.type === 'domestic') {
+        const v = previewDomestic(sim, app.db, copy, o.kind).perDay.food;
+        if (o.kind === 'farm') once += v;
+        else daily += v;
+        count += 1;
+      }
+      copy.orders.push(o);
+      copy.ap -= typeof o.ap === 'number' ? o.ap : 0;
+    }
+  }
+  return { food: once + daily, once, daily, count };
+}
+
+/**
+ * 積んだ指示の帯の下: 「このあと 食料 −15 → +29/日」（SPEC-114 §4）。
+ * 左は今夜の見込み（economy.breakdown の food.net。積んだ指示を含まない）、右はそこに積んだ内政の perDay を足した値。
+ * 内政が今夜の食料を動かさないときは「食料 −15/日」だけ。ランド全体の値（食料は全部隊で 1 つ）。
+ */
+function afterStrip(app) {
+  const st = app.state;
+  if (!st.lands[st.playerLand]) return null;
+  const c = chatUi(app);
+  const now = breakdown(st, app.db, st.playerLand).food.net;
+  const q = queuedFood(app);
+  // 農作は今夜 1 回だけ入る（once）。毎日続くのは daily だけなので、「明日から」はそちらで出す
+  const daily = now + q.daily;
+  const after = now + q.food;
+  const changed = q.daily !== 0;
+  const perDay = (n) => cx(app, 'perDay', { n }, '{n}/日');
+  const prev = c.afterSeen;
+  c.afterSeen = daily;
+  pending.after = prev != null && prev !== daily ? { from: prev, to: daily } : null;
+  const label = cx(app, 'after', {}, 'このあと');
+  const food = t(app, 'res.food');
+  const dailyVal = h('b', { class: ['chat-after__val', 'num', signCls(daily)], 'aria-hidden': 'true' },
+    h('span', { class: 'chat-after__n' }, signed(daily)), perDay('').trim());
+  if (q.once) {
+    // 「今夜 +97（1 回きり）・明日から −49/日」: 増えたはずが翌朝に減って見える、を先に言っておく
+    const aria = cx(app, 'fix.afterOnceAria', { label, res: food, once: signed(q.once), daily: perDay(signed(daily)) },
+      '{label} {res}：今夜 農作で {once}（1 回きり）、明日から {daily}');
+    return h('div', { class: ['chat-after', 'is-changed', 'has-once', signCls(daily)], dataset: { now, after, daily, once: q.once }, 'aria-label': aria },
+      h('span', { class: 'chat-after__label', 'aria-hidden': 'true' }, label),
+      h('span', { class: 'chat-after__res', 'aria-hidden': 'true' }, food),
+      h('span', { class: 'chat-after__once', 'aria-hidden': 'true' },
+        h('span', { class: 'chat-after__k' }, cx(app, 'fix.tonight', {}, '今夜')),
+        h('b', { class: ['num', signCls(q.once)] }, signed(q.once)),
+        h('span', { class: 'chat-after__tag' }, cx(app, 'fix.once', {}, '1 回きり'))),
+      h('span', { class: 'chat-after__daily', 'aria-hidden': 'true' },
+        h('span', { class: 'chat-after__k' }, cx(app, 'fix.fromTomorrow', {}, '明日から')),
+        dailyVal));
+  }
+  return h('div', { class: ['chat-after', changed ? 'is-changed' : null, signCls(daily)], dataset: { now, after, daily, once: 0 },
+    'aria-label': `${label} ${food} ${changed ? `${perDay(signed(now))} → ` : ''}${perDay(signed(daily))}` },
+  h('span', { class: 'chat-after__label', 'aria-hidden': 'true' }, label),
+  h('span', { class: 'chat-after__res', 'aria-hidden': 'true' }, food),
+  changed ? h('span', { class: ['chat-after__now', 'num', signCls(now)], 'aria-hidden': 'true' }, perDay(signed(now))) : null,
+  changed ? h('span', { class: 'chat-after__arrow', 'aria-hidden': 'true' }) : null,
+  dailyVal,
+  q.count ? h('span', { class: 'chat-after__note', 'aria-hidden': 'true' }, cx(app, 'afterNote', { n: q.count }, '内政 {n} 件を含む')) : null);
 }
 
 // ---------- 各ボタンが今できるか（判定はエンジンに聞く） ----------
@@ -766,10 +1026,15 @@ function menuState(app, squad, cmd) {
       return ng('range', t(app, 'chat.ng.range'), { speech: speech('range') });
     }
     case 'domestic': {
-      const order = { type: 'domestic', kind: DOMESTIC_KINDS[0] };
-      const v = validate(st, db, squad, order);
-      if (!v.ok) return ng(v.reason, t(app, `chat.ng.${v.reason}`), { speech: speech(v.reason, { ap }) });
-      return { ok: true, meta: apText(apCost(st, db, squad, order)) };
+      // 内政のどれか 1 つでも積めれば開ける。徴兵だけで見ると、人口 0 の日（徴兵は "pop"）に農作も積めなくなる
+      let first = null;
+      for (const kind of DOMESTIC_KINDS) {
+        const order = { type: 'domestic', kind };
+        const v = validate(st, db, squad, order);
+        if (v.ok) return { ok: true, meta: apText(apCost(st, db, squad, order)) };
+        if (!first) first = v;
+      }
+      return ng(first.reason, t(app, `chat.ng.${first.reason}`), { speech: speech(first.reason, { ap }) });
     }
     case 'rest': {
       const v = validate(st, db, squad, { type: 'rest' });
@@ -821,7 +1086,12 @@ function nextSteps(app, squad, cmd, s) {
       break;
     case 'ap':
       if (ap > 0 && validate(st, app.db, squad, { type: 'rest' }).ok) {
-        out.push({ label: tf(app, 'chat.next.rest', { n: ap }), kind: 'do', act: () => { chatUi(app).menu = null; sendOrder(app, squad, { type: 'rest' }, t(app, 'cmd.rest')); } });
+        // 押す前に、休息で何が動くかを見せる（兵 +0（人口 0）なら休んでも兵は増えない）
+        const r = restPreview(app, squad);
+        out.push({
+          label: cx(app, 'fix.next.rest', { troops: restTroopsText(app, r), morale: signed(r.morale), n: ap }, '休息する（兵 {troops}・士気 {morale}・AP 全部 {n}）'),
+          kind: 'do', act: () => { chatUi(app).menu = null; sendOrder(app, squad, { type: 'rest' }, t(app, 'cmd.rest')); },
+        });
       }
       if (orders.length) {
         out.push({ label: tf(app, 'chat.next.clear', { n: back }), kind: 'undo', act: () => { chatUi(app).menu = null; doClear(app, squad); } });
@@ -878,10 +1148,6 @@ function onMenu(app, squad, cmd, s) {
       c.menu = null;
       sendOrder(app, squad, { type: 'claim' }, t(app, 'cmd.claim'));
       return;
-    case 'rest':
-      c.menu = null;
-      sendOrder(app, squad, { type: 'rest' }, t(app, 'cmd.rest'));
-      return;
     case 'clear':
       c.menu = null;
       doClear(app, squad);
@@ -911,7 +1177,8 @@ function submenu(app, squad) {
   const inner = c.menu === 'build' ? (s.ok ? buildMenu(app, squad) : null)
     : c.menu === 'attack' ? (s.ok || findTargets(app, squad).length ? attackMenu(app, squad) : null)
       : c.menu === 'domestic' ? domesticMenu(app, squad)
-        : c.menu === 'policy' ? policyMenu(app, squad) : null;
+        : c.menu === 'rest' ? (s.ok ? restMenu(app, squad) : null)
+          : c.menu === 'policy' ? policyMenu(app, squad) : null;
   if (s.ok) return inner;
   return blockedPanel(app, squad, c.menu, s, inner);
 }
@@ -1045,19 +1312,192 @@ function targetLabel(app, squad, tile) {
   return target ? describeTarget(app, target).name : '';
 }
 
-// 内政 4 種
+/** 見込みの 1 項目（「食料 +44」）。色だけに頼らず符号を書く */
+function effectChip(label, n, suffix = '') {
+  return h('span', { class: ['chat-eff', signCls(n)] }, h('span', { class: 'chat-eff__k' }, label), h('b', { class: 'num' }, `${signed(n)}${suffix}`));
+}
+
+/**
+ * 内政 5 種（SPEC-114 §4）。各ボタンに economy.previewDomestic の見込み（この 1 回で動く量・1 日の食料の変化・あと何回）と、
+ * このヒーローに積んだ回数「×N」。押してもシートは閉じない（続けて積める）。AP が尽きて内政がもう積めなくなったら閉じる。
+ */
+/** 内政で増やす主な値（0 なら積んでも何も起きない）。delta のキーと、見出しの文言 */
+const DOMESTIC_MAIN = {
+  conscript: { key: 'troops', label: 'param.troops' },
+  farm: { key: 'food', label: 'res.food', cap: 'food' },
+  trade: { key: 'gum', label: 'res.gum' },
+  craft: { key: 'mat', label: 'res.mat', cap: 'mat' },
+  reward: { key: 'morale', label: null },
+};
+
+/**
+ * 積んだ指示のあとの写しで見た、そのランドの人口・その部隊の兵と上限（ledger-view.plannedState。エンジンの domestic / rest を
+ * 写しに当てたもの）。徴兵・休息で兵が増えない理由（人口 0 / 兵が上限）を書くために使う。数を足し引きし直さない。
+ */
+function plannedCtx(app, squad) {
+  const sim = plannedState(app, squad.land);
+  const s = sim.squads[squad.id] || squad;
+  const hero = heroOf(app, squad);
+  const land = sim.lands[squad.land];
+  return { sim, s, pop: land ? land.res.pop || 0 : 0, troops: s.troops || 0, cap: hero ? troopCap(hero, s, app.db) : 0 };
+}
+
+/**
+ * 内政を積んでも何も増えないときの理由（engine の previewDomestic が ok でも、主な値が 0 のとき）。
+ * 徴兵：人口 0 / 人口が足りない / 兵が上限、農作・工作：倉庫いっぱい（上限は economy.caps）、恩賞：士気が上限。
+ * @returns {null|{reason:string, text:string}}
+ */
+function domesticBlock(app, squad, kind, p, ctx) {
+  if (!p.ok) return null;
+  const main = DOMESTIC_MAIN[kind];
+  if (!main || p.delta[main.key] > 0) return null;
+  if (kind === 'conscript') {
+    if (ctx.cap > 0 && ctx.troops >= ctx.cap) return { reason: 'troopCap', text: cx(app, 'fix.ng.troopCap', { n: ctx.cap }, '兵が上限（{n}）') };
+    if (ctx.pop <= 0) return { reason: 'pop', text: cx(app, 'fix.ng.pop0', {}, '人口 0') };
+    return { reason: 'pop', text: cx(app, 'fix.ng.popLow', { n: ctx.pop }, '人口が足りない（人口 {n}）') };
+  }
+  if (main.cap) {
+    const cap = caps(app.state, app.db, squad.land)[main.cap];
+    return { reason: 'cap', text: cx(app, 'fix.ng.storeFull', { n: cap }, '倉庫いっぱい（上限 {n}）') };
+  }
+  if (kind === 'reward') return { reason: 'moraleMax', text: cx(app, 'fix.ng.moraleMax', { n: MORALE_MAX }, '士気が上限（{n}）') };
+  return { reason: 'none', text: cx(app, 'noEffect', {}, '変化なし') };
+}
+
+/**
+ * これを 1 回積んだら、次の 1 回は何も増えなくなるか（倉庫・士気が上限に届く）。もう 1 回積んだ写しで previewDomestic に聞く。
+ */
+function fillsUp(app, squad, kind) {
+  const main = DOMESTIC_MAIN[kind];
+  if (!main || !(main.cap || kind === 'reward')) return false;
+  const st = app.state;
+  const order = { type: 'domestic', kind };
+  const ap = apCost(st, app.db, squad, order);
+  const s2 = { ...squad, orders: [...(squad.orders || []), { ...order, ap }], ap: (squad.ap || 0) - ap };
+  const next = previewDomestic({ ...st, squads: { ...st.squads, [squad.id]: s2 } }, app.db, s2, kind);
+  return next.delta[main.key] <= 0;
+}
+
 function domesticMenu(app, squad) {
+  const st = app.state;
+  const c = chatUi(app);
+  const bump = c.bump;
+  c.bump = null;
+  const shake = c.shakeDom;
+  c.shakeDom = null;
+  const ctx = plannedCtx(app, squad);
+  const perDay = (n) => cx(app, 'perDay', { n }, '{n}/日');
   const buttons = DOMESTIC_KINDS.map((kind) => {
-    const name = t(app, `domestic.${kind}`);
+    const name = domName(app, kind);
+    const p = previewDomestic(st, app.db, squad, kind);
+    const d = p.delta;
+    const n = (squad.orders || []).filter((o) => o.type === 'domestic' && o.kind === kind).length;
+    const block = domesticBlock(app, squad, kind, p, ctx);
+    const ok = p.ok && !block;
+    const effects = [];
+    if (block) {
+      // 何も増えないときは、増やすはずの値が ±0 であることだけ（食料 ±0/日 のような、押せそうに見える書き方をしない）
+      const main = DOMESTIC_MAIN[kind];
+      effects.push(effectChip(main.label ? t(app, main.label) : cx(app, 'morale', {}, '士気'), 0));
+    } else {
+      // 徴兵は「兵 +N」を先頭に、続けて 1 日の食料の変化と人口
+      if (d.troops) effects.push(effectChip(t(app, 'param.troops'), d.troops));
+      if (d.food) effects.push(effectChip(t(app, 'res.food'), d.food));
+      // 1 日の食料の変化（徴兵）。農作は delta.food と同じ値なので重ねない
+      if (kind !== 'farm' && (p.perDay.food || kind === 'conscript')) effects.push(effectChip(t(app, 'res.food'), p.perDay.food, perDay('').trim()));
+      if (d.pop) effects.push(effectChip(t(app, 'res.pop'), d.pop));
+      if (d.gum) effects.push(effectChip(t(app, 'res.gum'), d.gum));
+      if (d.mat) effects.push(effectChip(t(app, 'res.mat'), d.mat));
+      if (d.morale) effects.push(effectChip(cx(app, 'morale', {}, '士気'), d.morale));
+      if (!effects.length) effects.push(h('span', { class: 'chat-eff is-zero' }, cx(app, 'noEffect', {}, '変化なし')));
+    }
+    const foot = block ? block.text
+      : p.ok ? (fillsUp(app, squad, kind)
+        ? (DOMESTIC_MAIN[kind].cap
+          ? cx(app, 'fix.fillsStore', { n: caps(st, app.db, squad.land)[DOMESTIC_MAIN[kind].cap] }, 'これで倉庫が上限（{n}）')
+          : cx(app, 'fix.fillsMorale', { n: MORALE_MAX }, 'これで士気が上限（{n}）'))
+        : cx(app, 'repeat', { n: p.repeat }, 'あと {n} 回'))
+        : p.reason === 'gum' ? cx(app, 'ng.gum', { n: -d.gum }, 'GUM が足りない（{n} 要る）')
+          : cx(app, `ng.${p.reason}`, {}, t(app, `chat.ng.${p.reason}`));
+    const aria = `${name}・${effects.map((e) => e.textContent).join('・')}・${foot}${n ? `・${cx(app, 'countAria', { n }, '{n} 回積んだ')}` : ''}`;
     return h('button', {
-      class: 'chat-opt chat-opt--small', type: 'button', dataset: { kind },
-      onClick: () => {
-        chatUi(app).menu = null;
-        sendOrder(app, squad, { type: 'domestic', kind }, `${t(app, 'cmd.domestic')} ${name}`, { kind: name });
-      },
-    }, h('span', { class: 'chat-opt__name' }, name));
+      class: ['chat-opt', 'chat-dom', ok ? null : 'is-ng', n ? 'has-count' : null, shake === kind ? 'is-shake' : null], type: 'button',
+      dataset: { kind, ok: ok ? '1' : '0', reason: block ? block.reason : p.reason || null, repeat: ok ? p.repeat : 0, count: n },
+      'aria-label': aria,
+      onClick: () => pickDomestic(app, squad, kind, name),
+    },
+    h('span', { class: 'chat-dom__top', 'aria-hidden': 'true' },
+      h('span', { class: 'chat-opt__name' }, name),
+      n ? h('span', { class: ['chat-dom__count', 'num', bump === kind ? 'is-bump' : null] }, cx(app, 'count', { n }, '×{n}')) : null),
+    h('span', { class: 'chat-dom__eff', 'aria-hidden': 'true' }, effects),
+    h('span', { class: ['chat-dom__foot', ok ? null : 'is-ng'], 'aria-hidden': 'true' }, foot));
   });
-  return subPanel(app, 'chat.domesticTitle', h('div', { class: 'chat-sub__grid' }, buttons));
+  return subPanel(app, 'chat.domesticTitle', h('div', { class: 'chat-sub__grid chat-sub__grid--dom' }, buttons),
+    h('span', { class: 'muted chat-sub__now' }, cx(app, 'domHint', {}, '押すたびに 1 回ずつ積む（AP 2）')));
+}
+
+/** 内政を 1 回積む。シートは開いたまま（SPEC-114 §4）。内政がもう積めない AP になったら沈めて閉じる */
+function pickDomestic(app, squad, kind, name) {
+  const c = chatUi(app);
+  // 積んでも何も増えない（人口 0・倉庫いっぱい など）なら積まない。理由を返して、ボタンを揺らす（AP を無駄にさせない）
+  const block = domesticBlock(app, squad, kind, previewDomestic(app.state, app.db, squad, kind), plannedCtx(app, squad));
+  if (block) {
+    pushMsg(app, squad.id, 'sys', cx(app, 'fix.blocked', { kind: name, why: block.text }, '{kind}は積まなかった：{why}'));
+    c.shakeDom = kind;
+    rerender();
+    return;
+  }
+  const r = sendOrder(app, squad, { type: 'domestic', kind }, `${t(app, 'cmd.domestic')} ${name}`, { kind: name }, { keepSheet: true });
+  if (!r.ok) return;
+  c.bump = kind;
+  if ((squad.ap || 0) < apCost(app.state, app.db, squad, { type: 'domestic', kind })) closeSheet(app);
+  else rerender();
+}
+
+/**
+ * 休息を積んだらどうなるか: 積んだ指示のあとの写し（plannedCtx）に、エンジンの economy.rest をそのまま当てて読む。
+ * @returns {{troops:number, morale:number, pop:number, full:boolean}}
+ */
+function restPreview(app, squad) {
+  const ctx = plannedCtx(app, squad);
+  const full = ctx.cap > 0 && ctx.troops >= ctx.cap;
+  const ev = restOn(ctx.sim, app.db, ctx.s);
+  return { troops: ev.amount, morale: ev.morale ? ev.morale.delta : 0, pop: ctx.pop, full };
+}
+
+/** 休息で増える兵の書き方。0 のときは理由を添える（「+0（人口 0）」「+0（上限）」） */
+function restTroopsText(app, r) {
+  if (r.troops > 0) return signed(r.troops);
+  return r.full ? cx(app, 'fix.rest.full', { n: signed(0) }, '{n}（上限）') : cx(app, 'fix.rest.pop0', { n: signed(0) }, '{n}（人口 0）');
+}
+
+// 休息：押す前に見込み（兵・士気・AP 全部）を出す。押したら積んで閉じる
+function restMenu(app, squad) {
+  const r = restPreview(app, squad);
+  const ap = squad.ap || 0;
+  const name = cx(app, 'fix.rest.do', {}, '休息する');
+  const troops = h('span', { class: ['chat-eff', signCls(r.troops)] },
+    h('span', { class: 'chat-eff__k' }, t(app, 'param.troops')), h('b', { class: 'num' }, restTroopsText(app, r)));
+  const effects = [troops, effectChip(cx(app, 'morale', {}, '士気'), r.morale),
+    h('span', { class: 'chat-eff chat-eff--ap' }, h('span', { class: 'chat-eff__k' }, t(app, 'param.ap')), h('b', { class: 'num' }, cx(app, 'fix.rest.apAll', { n: ap }, '全部 {n}')))];
+  const warn = r.troops <= 0;
+  const btn = h('button', {
+    class: ['chat-opt', 'chat-rest', warn ? 'is-warn' : null], type: 'button', dataset: { act: 'rest', troops: r.troops, morale: r.morale },
+    'aria-label': `${name}・${effects.map((e) => e.textContent).join('・')}`,
+    onClick: () => {
+      chatUi(app).menu = null;
+      // 返事のあとに見込みを 1 行残す（「兵の回復を優先します」と言っても、人口 0 なら兵は増えない）
+      const res = sendOrder(app, squad, { type: 'rest' }, t(app, 'cmd.rest'), {}, { keepSheet: true });
+      if (res.ok) pushMsg(app, squad.id, 'sys', cx(app, 'fix.rest.queued', { troops: restTroopsText(app, r), morale: signed(r.morale) }, '見込み：兵 {troops}・士気 {morale}'));
+      rerender();
+    },
+  },
+  h('span', { class: 'chat-opt__name', 'aria-hidden': 'true' }, name),
+  h('span', { class: 'chat-dom__eff', 'aria-hidden': 'true' }, effects),
+  warn ? h('span', { class: 'chat-dom__foot is-ng', 'aria-hidden': 'true' },
+    r.full ? cx(app, 'fix.rest.noteFull', {}, '兵は上限。上がるのは士気だけ') : cx(app, 'fix.rest.notePop', {}, '人口が 0 なので兵は増えない。上がるのは士気だけ')) : null);
+  return subPanel(app, 'chat114.fix.rest.title', btn,
+    h('span', { class: 'muted chat-sub__now' }, cx(app, 'fix.rest.hint', {}, '兵の回復は人口を使う（兵 1 人に人口 1）')));
 }
 
 // 方針 3 種（squad.policy を直接変える）
@@ -1161,13 +1601,13 @@ function finishHero(app, squad) {
 // 指示を送る（成否はエンジンの queue が決める）
 // ------------------------------------------------------------
 
-function sendOrder(app, squad, order, myText, vars = {}) {
+function sendOrder(app, squad, order, myText, vars = {}, opt = {}) {
   const hero = heroOf(app, squad);
   const c = chatUi(app);
   pushMsg(app, squad.id, 'me', myText);
   const r = queue(app.state, app.db, squad.id, order);
   if (r.ok) {
-    pushMsg(app, squad.id, 'hero', say(app.db, hero, `order.${order.type}.ack`, vars));
+    pushMsg(app, squad.id, 'hero', ackLine(app, hero, order, vars));
     // 指示を足したら「完了」は外す（指示中に戻る）
     if (app.ui.orderDone && app.ui.orderDone[squad.id] != null) setOrderDone(app, squad.id, false);
     if ((squad.ap || 0) <= 0) c.call = squad.id;
@@ -1176,10 +1616,36 @@ function sendOrder(app, squad, order, myText, vars = {}) {
     const rv = r.reason === 'ap' ? { ap: squad.ap } : r.reason === 'build' ? { kind: vars.kind } : {};
     pushMsg(app, squad.id, 'hero', say(app.db, hero, `order.reject.${r.reason}`, rv));
   } else {
-    pushMsg(app, squad.id, 'sys', t(app, `chat.reject.${r.reason}`));
+    pushMsg(app, squad.id, 'sys', tk(app, `chat.reject.${r.reason}`, {}, t(app, `chat.ng.${r.reason}`)));
   }
-  rerender();
+  // 続けて積むとき（内政）は、呼んだ側が描き直す（シートを閉じるかどうかを決めてから）
+  if (!(opt.keepSheet && r.ok)) rerender();
   return r;
+}
+
+/**
+ * 指示を受けたヒーローの返事。徴兵は内政の共通の返事（「民の暮らしを整えてやろう」など）が中身と合わないので、
+ * 口調ごとの徴兵の返事（ui の chat114.fix.ack.conscript.<口調>）にする。無ければ共通の返事。
+ */
+function ackLine(app, hero, order, vars) {
+  const base = () => say(app.db, hero, `order.${order.type}.ack`, vars);
+  if (order.type !== 'domestic' || order.kind !== 'conscript') return base();
+  const tone = (hero && hero.tone) || 'plain';
+  const key = `chat114.fix.ack.conscript.${tone}`;
+  const s = uiText(app.db, key);
+  return s === key ? base() : s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] == null ? m : String(vars[k])));
+}
+
+/** 「1 手戻す」: 最後の指示だけ外して AP を戻す（orders.undoLast）。完了の印も外す */
+function doUndo(app, squad) {
+  const r = undoLast(app.state, squad.id);
+  if (!r.ok) return;
+  const label = orderLabel(app, squad, r.order);
+  setOrderDone(app, squad.id, false);
+  pushMsg(app, squad.id, 'me', cx(app, 'undo', {}, '1 手戻す'));
+  pushMsg(app, squad.id, 'sys', cx(app, 'undone', { order: label, n: r.ap }, '「{order}」を外した（AP +{n}）'));
+  persist(app);
+  rerender();
 }
 
 function persist(app) {

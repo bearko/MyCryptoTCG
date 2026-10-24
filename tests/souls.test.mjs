@@ -5,6 +5,7 @@ import fs from "node:fs";
 
 import { makeRng } from "../js/engine/rng.js";
 import { candidates, accept, extensionCandidates, acceptExtension, equip } from "../js/engine/souls.js";
+import { START_TROOPS_PER_LEAD } from "../js/engine/tuning.js";
 
 const heroList = JSON.parse(fs.readFileSync(new URL("../data/heroes.json", import.meta.url), "utf8"));
 const extList = JSON.parse(fs.readFileSync(new URL("../data/extensions.json", import.meta.url), "utf8"));
@@ -106,8 +107,8 @@ test("accept: 本拠地に部隊ができ、pending と souls から外れる", 
   const squad = accept(state, db, "ocean", pending, cands[1]);
   const hero = db.heroes[cands[1]];
   assert.deepEqual(squad, {
-    id: "s1", heroId: hero.id, land: "ocean", tile: 1234, troops: hero.params.lead * 3, ap: 0,
-    orders: [], policy: "ask", status: "ok", equip: null, ambushed: false,
+    id: "s1", heroId: hero.id, land: "ocean", tile: 1234, troops: hero.params.lead * START_TROOPS_PER_LEAD, ap: 0,
+    orders: [], policy: "ask", status: "ok", equip: null, ambushed: false, morale: 60, // SPEC-113：士気 60 で始まる
   });
   assert.equal(state.squads.s1, squad);
   assert.equal(Object.keys(state.squads).length, 1);

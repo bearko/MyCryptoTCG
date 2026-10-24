@@ -54,6 +54,7 @@ python3 -m http.server 8080
 for f in js/*.js js/engine/*.js js/ui/*.js; do node --check "$f"; done   # 構文
 node --test tests/*.test.mjs                                               # テスト
 node tools/sim.mjs 7 10                                                    # 28 日の無人シミュレーション（seed 7 から 10 回）
+node tools/sim.mjs --player all 7 10                                       # プレイヤーのランドだけ決め打ちの方針（none / farm1 / farmMax / conscript2）で回す（SPEC-113 §5）
 node tools/build-data.mjs --repo ../mycryptoheroes                         # data/heroes.json と data/enemies.json を作り直す
 npx --yes -p playwright-core node tools/smoke.mjs --shots /tmp/shots       # 通しテスト（Chromium で 5 ターン押して回る。playwright-core は npx で一時取得、package.json 不要。Chromium は PLAYWRIGHT_CHROMIUM か /opt/pw-browsers）
 ```
@@ -74,7 +75,7 @@ js/
   ui/           phone map-view chat-view calendar-view drive-view photo-view land-select-view result-view audio
 data/           terrain facilities lands extensions messages heroes（生成物） enemies（生成物）
 tests/          node --test
-tools/          build-data.mjs sim.mjs smoke.mjs build-spec-index.mjs build-changelog.mjs
+tools/          build-data.mjs sim.mjs sim-lib.mjs smoke.mjs build-spec-index.mjs build-changelog.mjs
 docs/           憲章・SPEC・原案・パターン
 ```
 

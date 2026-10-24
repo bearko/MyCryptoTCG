@@ -14,12 +14,19 @@
 //      （Epic・Legendary は距離を割り引いて選ぶ。兵が下限に満たなければ、1 日 1 体まで本拠地で休んで兵を増やす。
 //        他ランドの砦は、落ちたばかりのもの・守り手の兵が多いものは狙わない）
 //   5. それ以外は守り手のいない砦へ向かうか、周りの未占領のタイルを占領し、資源があれば農地・街・採掘場を建てる
+//
+// SPEC-113（士気と食料）の施策も使う
+//   - 配給：通常の配給で食料が 3 日以内に尽きる見込みなら「節約」。余裕があり士気の平均が 40 未満なら「増量」。それ以外は「通常」
+//   - 恩賞：本拠地にいる士気 40 未満の部隊に、GUM に余裕があれば
+//   - 士気 0 の部隊は、ほかの役目より先に本拠地へ戻して休息（着いた日は恩賞も）
 
 import { within, distance, neighbors } from './hex.js';
 import { findPath, reachable, stepCost } from './pathfind.js';
 import { troopCap, rangeOf } from './heroes.js';
 import { queue, projectedTile } from './orders.js';
-import { canBuild, yields, upkeep, caps } from './economy.js';
+import { canBuild, yields, upkeep, caps, troopFood, previewRation, setRation, canReward } from './economy.js';
+import { moraleOf } from './morale.js';
+import { farmAmount } from './tuning.js';
 import { power, inRange } from './battle.js';
 
 const ENEMY_LAND = 'enemy';
@@ -34,6 +41,63 @@ const OWNED_PENALTY = 12;
 const GUM_RESERVE = 20;
 /** 守り手が向かう砦までの距離の上限 */
 const GUARD_RANGE = 14;
+/** 通常の配給でこの日数以内に食料が尽きるなら「節約」 */
+const RATION_SAVE_DAYS = 3;
+/** 士気の平均がこれ未満なら「増量」・恩賞を考える */
+const MORALE_LOW = 40;
+/** 「増量」にしてよい食料の残り（かつ増量でも 10 日以上もつ） */
+const FEAST_MIN_FOOD = 80;
+const FEAST_MIN_DAYS = 10;
+/** 恩賞のあとに残しておく GUM */
+const REWARD_RESERVE = 40;
+
+/** 兵が n 増えたら、1 日の食料の消費がいくつ増えるか（配給込み） */
+function extraFood(state, db, landId, n) {
+  if (n <= 0) return 0;
+  return troopFood(state, db, landId, { extra: n }).total - troopFood(state, db, landId).total;
+}
+
+/** 配給を選ぶ（SPEC-113 §6.3 ai.js） */
+function chooseRation(state, db, land) {
+  const days = (r) => {
+    const net = previewRation(state, db, land.id, r).perDay.food;
+    return net < 0 ? Math.floor(Math.max(0, land.res.food) / -net) + 1 : null;
+  };
+  const dNormal = days('normal');
+  if (dNormal !== null && dNormal <= RATION_SAVE_DAYS) return 'save';
+  const mine = Object.values(state.squads).filter((s) => s.land === land.id && s.status !== 'routed');
+  if (mine.length === 0) return 'normal';
+  const avg = mine.reduce((a, s) => a + moraleOf(s), 0) / mine.length;
+  if (avg < MORALE_LOW && land.res.food >= FEAST_MIN_FOOD) {
+    const dFeast = days('feast');
+    if (dFeast === null || dFeast > FEAST_MIN_DAYS) return 'feast';
+  }
+  return 'normal';
+}
+
+/** 本拠地にいる（着く予定の）士気の低い部隊に恩賞。積めたら true */
+function maybeReward(state, db, squad, land, force = false) {
+  if (squad.ap < 2 || projectedTile(squad) !== land.home) return false;
+  if (!force && moraleOf(squad) >= MORALE_LOW) return false;
+  if (moraleOf(squad) >= 100) return false;
+  const chk = canReward(state, db, squad);
+  if (!chk.ok || chk.gum - chk.cost < (force ? 0 : REWARD_RESERVE)) return false;
+  return queue(state, db, squad.id, { type: 'domestic', kind: 'reward' }).ok;
+}
+
+/** 士気 0 の部隊：本拠地へ戻って休息（着いていれば恩賞も） */
+function retreat(state, db, squad, hero, land) {
+  const here = projectedTile(squad);
+  if (here !== land.home) {
+    const found = findPath(state, db, at(squad, here), hero, land.home);
+    if (!found || found.path.length === 0) return;
+    const prefix = affordablePrefix(state, db, squad, hero, found.path, squad.ap);
+    if (prefix.length === 0 || !queue(state, db, squad.id, { type: 'move', path: prefix }).ok) return;
+    if (prefix[prefix.length - 1] !== land.home) return;
+  }
+  maybeReward(state, db, squad, land, true);
+  if (squad.ap > 0) queue(state, db, squad.id, { type: 'rest' });
+}
 
 function heroOf(db, squad) {
   return db.heroes[squad.heroId] || db.heroes[String(squad.heroId)];
@@ -129,11 +193,14 @@ function goFort(state, db, squad, hero, ctx) {
       best = c;
       break;
     }
-    // 兵が足りない：本拠地で休んでから向かう。兵を増やすと食料を食うので、1 日に 1 体まで
-    const gain = Math.min(cap, squad.troops + hero.params.lead * 5) - squad.troops;
-    if (!ctx.refit && gain / 5 <= ctx.foodRoom) {
+    // 兵が足りない：本拠地で休んでから向かう。兵を増やすと食料を食うので、1 日に 1 体まで。
+    // 兵の増加は人口を消費する（SPEC-113 §2）ので、人口が無ければ休んでも増えない。そのときは戻らない
+    const pop = Math.max(0, Math.floor(state.lands[squad.land].res.pop || 0));
+    const gain = Math.min(cap, squad.troops + hero.params.lead * 5, squad.troops + pop) - squad.troops;
+    const more = extraFood(state, db, squad.land, gain);
+    if (!ctx.refit && gain > 0 && more <= ctx.foodRoom) {
       ctx.refit = true;
-      ctx.foodRoom -= gain / 5;
+      ctx.foodRoom -= more;
       return refit(state, db, squad, hero);
     }
   }
@@ -297,7 +364,7 @@ function pickStewards(state, db, land, ranked) {
     const gov = hero && hero.params ? hero.params.gov : 0;
     // 戻るのに使う AP を見込む（1 タイル 1.5 くらい）
     const ap = Math.max(0, c.s.ap - Math.ceil(c.d * 1.5));
-    short -= Math.floor(ap / 2) * (10 + gov);
+    short -= Math.floor(ap / 2) * farmAmount(gov);
   }
   return out;
 }
@@ -306,6 +373,8 @@ function pickStewards(state, db, land, ranked) {
 function plannedGrowth(state, db, landId) {
   const land = state.lands[landId];
   let n = 0;
+  // 兵の増加は人口を消費する（SPEC-113 §2）。人口を超えては増えない
+  let pop = Math.max(0, Math.floor(land.res.pop || 0));
   for (const s of Object.values(state.squads)) {
     if (s.land !== landId || !s.orders) continue;
     const hero = heroOf(db, s);
@@ -313,8 +382,12 @@ function plannedGrowth(state, db, landId) {
     const cap = troopCap(hero, s, db);
     let t = s.troops;
     for (const o of s.orders) {
-      if (o.type === 'rest') t = Math.min(cap, t + hero.params.lead * 2 * (projectedTile(s) === land.home ? 2 : 1));
-      else if (o.type === 'domestic' && o.kind === 'conscript') t = Math.min(cap, t + Math.floor(land.res.pop * 0.3));
+      let add = 0;
+      if (o.type === 'rest') add = hero.params.lead * 2 * (projectedTile(s) === land.home ? 2 : 1);
+      else if (o.type === 'domestic' && o.kind === 'conscript') add = Math.floor(pop * 0.3);
+      add = Math.max(0, Math.min(add, cap - t, pop));
+      t += add;
+      pop -= add;
     }
     n += Math.max(0, t - s.troops);
   }
@@ -378,13 +451,14 @@ function steward(state, db, squad, hero, land, budget, plan) {
     if (prefix[prefix.length - 1] !== land.home) return;
   }
   const gov = Math.max(0, hero.params ? hero.params.gov : 0);
-  const per = 10 + gov;
+  const per = farmAmount(gov);
   // 明日の消費に足りるまで（上限で止まるので、上限に届いたらやめる）。出るための AP を 2 残す
   while (squad.ap >= 4 && plan.food + plan.y - plan.up < FOOD_MARGIN && plan.food < plan.cap) {
     if (!queue(state, db, squad.id, { type: 'domestic', kind: 'farm' }).ok) break;
     plan.food = Math.min(plan.cap, plan.food + per);
   }
   const r = land.res;
+  maybeReward(state, db, squad, land);
   const lowTroops = squad.troops < troopCap(hero, squad, db) * 0.3;
   if (squad.ap >= 4 && r.gum < 80) queue(state, db, squad.id, { type: 'domestic', kind: 'trade' });
   if (squad.ap >= 4 && r.mat < 40) queue(state, db, squad.id, { type: 'domestic', kind: 'craft' });
@@ -402,8 +476,17 @@ function steward(state, db, squad, hero, land, budget, plan) {
 export function plan(state, db, rng, landId) {
   const land = state.lands[landId];
   if (!land || land.alive === false) return;
-  const mine = Object.values(state.squads).filter((s) => s.land === landId && s.status !== 'routed');
-  for (const s of mine) s.policy = 'fight';
+  const all = Object.values(state.squads).filter((s) => s.land === landId && s.status !== 'routed');
+  for (const s of all) s.policy = 'fight';
+  // 配給（AP を使わない）
+  setRation(state, landId, chooseRation(state, db, land));
+  // 士気 0 の部隊は先に本拠地へ戻して休ませる（ほかの役目に数えない）
+  const fleeing = all.filter((s) => moraleOf(s) === 0 && s.ap > 0);
+  for (const s of fleeing) {
+    const hero = heroOf(db, s);
+    if (hero) retreat(state, db, s, hero, land);
+  }
+  const mine = all.filter((s) => !fleeing.includes(s));
   // 攻撃力で並べる
   const ranked = mine
     .map((s) => ({ s, atk: power(state, db, s).atk, r: rng() }))
@@ -463,6 +546,7 @@ export function plan(state, db, rng, landId) {
     if (enemy) attackRepeatedly(state, db, squad, enemy.tile, 2);
 
     if (squad.tile === land.home && squad.ap >= 2) {
+      maybeReward(state, db, squad, land);
       const kind = domesticNeed(state, db, squad, hero);
       if (kind) queue(state, db, squad.id, { type: 'domestic', kind });
     }
@@ -488,7 +572,7 @@ export function plan(state, db, rng, landId) {
   const foodPlan = {
     food: land.res.food,
     y: yields(state, db, landId).food,
-    up: upkeep(state, db, landId).food + Math.ceil(plannedGrowth(state, db, landId) / 5),
+    up: upkeep(state, db, landId).food + extraFood(state, db, landId, plannedGrowth(state, db, landId)),
     cap: caps(state, db, landId).food,
   };
   for (const squad of ranked) {

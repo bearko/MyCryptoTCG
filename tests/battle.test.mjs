@@ -30,6 +30,11 @@ const testHeroes = [
   hero(9, "gunner", "mid", { int: 100 }, "debuff"),
   hero(10, "scout", "front", {}),
   hero(11, "sniper", "back", {}),
+  // 知力 50：回避もスキルも半々で起きる（predict の幅を確かめる）
+  hero(12, "gunner", "mid", { int: 50, str: 12 }, "damage"),
+  hero(13, "gunner", "mid", { int: 50, str: 12 }, "heal"),
+  hero(14, "commander", "front", { int: 50 }, "buff"),
+  hero(15, "caster", "back", { int: 50, str: 12 }, "debuff"),
 ];
 const heroList = realHeroes.concat(testHeroes);
 const db = {
@@ -64,10 +69,12 @@ function makeState() {
   };
 }
 
+// 士気は 50（士気係数 ×1.00）にして、SPEC-109 §7.2 の式の数字をそのまま追えるようにする。
+// 士気係数そのものは下の「士気」のテストで見る（SPEC-113 §1）。
 function addSquad(state, id, heroId, landId, tile, extra = {}) {
   const s = {
     id, heroId, land: landId, tile, troops: 100, ap: 6, orders: [],
-    policy: "ask", status: "ok", equip: null, ambushed: false, ...extra,
+    policy: "ask", status: "ok", equip: null, ambushed: false, morale: 50, ...extra,
   };
   state.squads[id] = s;
   return s;
@@ -118,12 +125,14 @@ test("power: lead × (1 + 兵/100) × 係数。山で def ×1.2、隣の command
   assert.deepEqual(power(st, db, g), pg);
 });
 
-test("fortPower: rank の lead 相当", () => {
+test("fortPower: rank の lead 相当（砦は士気 60 扱いで ×1.05）", () => {
   const st = makeState();
   const f = addFort(st, "f1", "rare", T(8, 8));
-  assert.deepEqual(fortPower(st, db, f), { atk: 20 * 1.6, def: 40 });
+  const p = fortPower(st, db, f);
+  assert.ok(Math.abs(p.atk - 20 * 1.6 * 1.05) < 1e-9);
+  assert.ok(Math.abs(p.def - 40 * 1.05) < 1e-9);
   f.durability = 20;
-  assert.equal(fortPower(st, db, f).def, 30);
+  assert.ok(Math.abs(fortPower(st, db, f).def - 30 * 1.05) < 1e-9);
   assert.equal(FORT_LEAD.legendary, 60);
 });
 
@@ -213,7 +222,9 @@ test("resolve: スキル damage は + str×3×skillMult、heal は自軍の兵�
   assert.equal(ev.dmg, 13 + 45);
   delete st.squads.c;
 
+  // 受けた側は「負け」で士気が下がるので、毎回 50 に戻して式だけを見る
   d.troops = 200;
+  d.morale = 50;
   const hl = addSquad(st, "hl", 7, "ocean", T(5, 5), { troops: 80 });
   ev = resolve(st, db, seq(0.999, 0), hl, d);
   assert.equal(ev.skill.kind, "heal");
@@ -222,6 +233,7 @@ test("resolve: スキル damage は + str×3×skillMult、heal は自軍の兵�
   delete st.squads.hl;
 
   d.troops = 200;
+  d.morale = 50;
   const bf = addSquad(st, "bf", 8, "ocean", T(5, 5));
   ev = resolve(st, db, seq(0.999, 0), bf, d);
   // atk 120, def 150 → 60 − 37.5 = 22.5 → 23
@@ -230,6 +242,7 @@ test("resolve: スキル damage は + str×3×skillMult、heal は自軍の兵�
   delete st.squads.bf;
 
   d.troops = 200;
+  d.morale = 50;
   const db_ = addSquad(st, "dbf", 9, "ocean", T(5, 5));
   ev = resolve(st, db, seq(0.999, 0), db_, d);
   // atk 100, def 120 → 50 − 30 = 20
@@ -270,7 +283,11 @@ test("resolve: 敗走した部隊は反撃しない。敗走で本拠地へ・or
   assert.equal(d.troops, 0);
   assert.equal(d.tile, st.lands.ruby.home);
   assert.deepEqual(d.orders, []);
-  assert.deepEqual(ev.followups, [{ t: "routed", squad: "d", home: st.lands.ruby.home }]);
+  assert.deepEqual(ev.followups, [
+    { t: "routed", squad: "d", home: st.lands.ruby.home },
+    { t: "morale", squad: "d", delta: -20, reason: "routed", value: 30 }, // 敗走は士気 30 に
+    { t: "morale", squad: "a", delta: 8, reason: "win", value: 58 }, // 敗走させた側は +8
+  ]);
 });
 
 test("resolve: 反撃で攻撃側が敗走することもある", () => {
@@ -317,8 +334,11 @@ test("resolve: エネミーの砦の陥落 → 持ち主・守備兵 30・耐久
   assert.equal(f.troops, 30);
   assert.equal(f.durability, 20);
   assert.equal(st.map.tiles[f.tile].owner, "ocean");
-  const kinds = ev.followups.map((e) => e.t);
+  const kinds = ev.followups.filter((e) => e.t !== "morale").map((e) => e.t);
   assert.deepEqual(kinds, ["fort_fallen", "soul", "extension_offer"]);
+  // 砦を落とした：勝ち +8、そのランドの全部隊 +5
+  assert.deepEqual(ev.followups.filter((e) => e.t === "morale").map((e) => [e.squad, e.reason, e.delta]), [["a", "win", 8], ["a", "fort", 5]]);
+  assert.equal(a.morale, 63);
   assert.deepEqual(ev.followups[0], { t: "fort_fallen", fort: "f1", by: "ocean", from: "enemy" });
   const soul = ev.followups[1].soul;
   assert.equal(soul.rarity, 3);
@@ -357,13 +377,13 @@ test("resolve: Legendary 砦の陥落で clear。ランド同士の砦は報酬�
   const a = addSquad(st, "a", 1, "ocean", T(5, 5));
   const f = addFort(st, "fL", "legendary", T(6, 5), { troops: 0, durability: 1 });
   const ev = resolve(st, db, NEVER, a, f);
-  assert.deepEqual(ev.followups.at(-1), { t: "clear", land: "ocean" });
+  assert.deepEqual(ev.followups.filter((e) => e.t !== "morale").at(-1), { t: "clear", land: "ocean" });
 
   const st2 = makeState();
   const b = addSquad(st2, "b", 1, "ruby", T(5, 5));
   const f2 = addFort(st2, "f2", "rare", T(6, 5), { owner: "ocean", troops: 0, durability: 1 });
   const ev2 = resolve(st2, db, NEVER, b, f2);
-  assert.deepEqual(ev2.followups.map((e) => e.t), ["fort_fallen"]);
+  assert.deepEqual(ev2.followups.filter((e) => e.t !== "morale").map((e) => e.t), ["fort_fallen"]);
   assert.equal(ev2.followups[0].from, "ocean");
   assert.equal(st2.pending.length, 0);
 });
@@ -415,10 +435,10 @@ test("resolve: 本拠地は立っている部隊が先に受け、いなけれ�
   g.troops = 0;
   g.status = "routed";
   ev = resolve(st, db, NEVER, a, { home: "ruby" });
-  // atk 100, def 40×2 = 80 → 50 − 20 = 30
+  // atk 100, def 40×2×1.05（本拠地は士気 60 扱い）= 84 → 50 − 21 = 29
   assert.equal(ev.defender, "ruby");
   assert.equal(ev.result, "home_damaged");
-  assert.equal(st.lands.ruby.homeDurability, 70);
+  assert.equal(st.lands.ruby.homeDurability, 71);
 
   const f = addFort(st, "f9", "rare", T(3, 3), { owner: "ruby" });
   const far = addSquad(st, "far", 2, "ruby", T(18, 2));
@@ -446,4 +466,221 @@ test("resolve: 同じ rng なら同じ結果（決定的）", () => {
     return JSON.stringify(evs);
   };
   assert.equal(run(), run());
+});
+
+// ---------- 士気（SPEC-113 §1・§1.1・§1.2） ----------
+
+const moraleOf = (s) => s.morale;
+const moraleEvents = (ev) => ev.followups.filter((e) => e.t === "morale").map((e) => [e.squad, e.reason, e.delta, e.value]);
+
+test("power: 士気係数 0.75 + 0.005 × 士気 を atk・def に掛ける（無ければ 60 扱い）", () => {
+  const st = makeState();
+  const a = addSquad(st, "a", 1, "ocean", T(5, 5));
+  assert.deepEqual(power(st, db, a), { atk: 100, def: 100 }); // 50 → ×1.00
+  a.morale = 100;
+  assert.deepEqual(power(st, db, a), { atk: 125, def: 125 });
+  a.morale = 0;
+  assert.deepEqual(power(st, db, a), { atk: 75, def: 75 });
+  delete a.morale;
+  const p = power(st, db, a);
+  assert.ok(Math.abs(p.atk - 105) < 1e-9 && Math.abs(p.def - 105) < 1e-9);
+});
+
+test("resolve: スキルの士気（buff 自分 +10・heal 自分 +6・debuff 相手 −10・damage なし）", () => {
+  const cases = [
+    [8, "buff", [["x", "skill", 10, 60]]],
+    [7, "heal", [["x", "skill", 6, 56]]],
+    [9, "debuff", [["d", "skill", -10, 40]]],
+    [5, "damage", []],
+  ];
+  for (const [heroId, kind, want] of cases) {
+    const st = makeState();
+    const d = addSquad(st, "d", 2, "ruby", T(6, 5), { troops: 500 }); // 受けた兵 < 与えた兵 にしない（負けの −8 を混ぜない）
+    const x = addSquad(st, "x", heroId, "ocean", T(5, 5), { troops: 80 });
+    const ev = resolve(st, db, seq(0.999, 0), x, d);
+    assert.equal(ev.skill.kind, kind);
+    const got = moraleEvents(ev).filter((m) => m[1] === "skill");
+    assert.deepEqual(got, want, kind);
+  }
+});
+
+test("resolve: スキルの士気は反撃より前に効く（debuff で下がった相手は弱く反撃する）", () => {
+  const st = makeState();
+  const d = addSquad(st, "d", 2, "ruby", T(6, 5), { troops: 200, policy: "fight" });
+  const x = addSquad(st, "x", 15, "ocean", T(5, 5), { troops: 200 });
+  const st2 = makeState();
+  const d2 = addSquad(st2, "d", 2, "ruby", T(6, 5), { troops: 200, policy: "fight" });
+  const x2 = addSquad(st2, "x", 15, "ocean", T(5, 5), { troops: 200 });
+  // 1 回目：回避なし → スキル発動（debuff）→ 反撃（回避なし・相手はスキルを持つが int 0）
+  const ev = resolve(st, db, seq(0.999, 0, 0.999), x, d);
+  // 2 回目：スキル不発
+  const ev2 = resolve(st2, db, seq(0.999, 0.999, 0.999), x2, d2);
+  assert.equal(ev.skill.kind, "debuff");
+  assert.equal(ev2.skill, null);
+  assert.equal(moraleOf(d) < moraleOf(d2), true);
+  assert.ok(ev.counter.dmg <= ev2.counter.dmg);
+});
+
+test("resolve: 奇襲を受けた部隊は士気 −15。負け（受けた兵 > 与えた兵）は −8", () => {
+  const st = makeState();
+  const s = addSquad(st, "s", 11, "ocean", T(9, 5), { troops: 300 }); // sniper 射程 3・int 0
+  const d = addSquad(st, "d", 2, "ruby", T(6, 5), { troops: 200 });
+  const ev = resolve(st, db, NEVER, s, d);
+  assert.equal(ev.ambush, true);
+  // 奇襲 −15 → 35、反撃なし（ask）なので受けた兵 > 与えた兵 で −8 → 27
+  assert.deepEqual(moraleEvents(ev), [["d", "ambushed", -15, 35], ["d", "lose", -8, 27]]);
+  assert.equal(d.morale, 27);
+  assert.equal(s.morale, 50); // 攻め手は勝ちでも負けでもない
+});
+
+test("resolve: 反撃で攻め手を敗走させた守り手は +8、敗走した部隊は士気 30", () => {
+  const st = makeState();
+  const a = addSquad(st, "a", 1, "ocean", T(5, 5), { troops: 5, morale: 90 });
+  const d = addSquad(st, "d", 4, "ruby", T(6, 5), { troops: 300, policy: "fight" });
+  const ev = resolve(st, db, NEVER, a, d);
+  assert.equal(a.status, "routed");
+  assert.equal(a.morale, 30);
+  assert.equal(d.morale, 58);
+  assert.deepEqual(moraleEvents(ev), [["a", "routed", -60, 30], ["d", "win", 8, 58]]);
+});
+
+test("resolve: 砦を落としたら勝ち +8 と、そのランドの全部隊 +5（敗走中は除く）", () => {
+  const st = makeState();
+  const a = addSquad(st, "a", 1, "ruby", T(5, 5), { troops: 400 });
+  const b = addSquad(st, "b", 2, "ruby", T(1, 9), { morale: 98 });
+  const r = addSquad(st, "r", 2, "ruby", st.lands.ruby.home, { troops: 0, status: "routed", morale: 30 });
+  const o = addSquad(st, "o", 2, "ocean", T(2, 2));
+  const f = addFort(st, "f1", "rare", T(6, 5), { troops: 0, durability: 1 });
+  resolve(st, db, NEVER, a, f);
+  assert.equal(a.morale, 63);
+  assert.equal(b.morale, 100); // 上限 100
+  assert.equal(r.morale, 30);
+  assert.equal(o.morale, 50);
+});
+
+test("resolve: 本拠地が落ちて相手に従った部隊は士気 30", () => {
+  const st = makeState();
+  const a = addSquad(st, "a", 1, "ocean", T(14, 9), { troops: 100 });
+  const far = addSquad(st, "far", 2, "ruby", T(18, 2), { morale: 80 });
+  st.lands.ruby.homeDurability = 5;
+  const ev = resolve(st, db, NEVER, a, { home: "ruby" });
+  assert.equal(ev.result, "home_fallen");
+  assert.equal(far.land, "ocean");
+  assert.equal(far.morale, 30);
+  assert.ok(moraleEvents(ev).some((m) => m[0] === "far" && m[1] === "surrender" && m[3] === 30));
+  assert.ok(moraleEvents(ev).some((m) => m[0] === "a" && m[1] === "win"));
+});
+
+test("resolve: 士気の上限 100・下限 0", () => {
+  const st = makeState();
+  const x = addSquad(st, "x", 8, "ocean", T(5, 5), { morale: 95 });
+  const d = addSquad(st, "d", 2, "ruby", T(6, 5), { troops: 500 });
+  resolve(st, db, seq(0.999, 0), x, d);
+  assert.equal(x.morale, 100);
+  const st2 = makeState();
+  const s = addSquad(st2, "s", 11, "ocean", T(9, 5), { troops: 300 });
+  const d2 = addSquad(st2, "d", 2, "ruby", T(6, 5), { troops: 200, morale: 5 });
+  resolve(st2, db, NEVER, s, d2);
+  assert.equal(d2.morale, 0);
+});
+
+// ---------- predict（SPEC-113 §6.3） ----------
+
+import { predict, PREDICT_LABELS } from "../js/engine/battle.js";
+import { makeRng } from "../js/engine/rng.js";
+
+/** predict の幅に、rng を変えた resolve の結果が 200 回とも入るか */
+function checkPredict(build, label) {
+  const st0 = build();
+  const { attackerId, target } = st0.__case;
+  const before = JSON.stringify(st0);
+  const p = predict(st0, db, st0.squads[attackerId], target(st0));
+  assert.equal(JSON.stringify(st0), before, `${label}: predict は state を変えない`);
+  for (let i = 0; i < 200; i++) {
+    const st = build();
+    const a = st.squads[attackerId];
+    const t = target(st);
+    const defSquadId = p.target === "squad" || (p.defenderId && st.squads[p.defenderId]) ? p.defenderId : null;
+    const ev = resolve(st, db, makeRng(1000 + i), a, t);
+    const at = Math.max(0, a.troops);
+    assert.ok(p.attacker.min <= at && at <= p.attacker.max, `${label} #${i}: 攻め手 ${at} が ${p.attacker.min}〜${p.attacker.max} の外`);
+    let dt;
+    if (defSquadId) dt = Math.max(0, st.squads[defSquadId].troops);
+    else if (p.target === "fort") dt = ev.result === "fort_fallen" ? 0 : st.forts[t.id].troops;
+    else dt = 0;
+    assert.ok(p.defender.min <= dt && dt <= p.defender.max, `${label} #${i}: 守り手 ${dt} が ${p.defender.min}〜${p.defender.max} の外`);
+    if (p.fort) {
+      const fd = ev.result === "fort_fallen" ? 0 : st.forts[t.id].durability;
+      assert.ok(p.fort.durability.min <= fd && fd <= p.fort.durability.max, `${label} #${i}: 耐久`);
+    }
+    if (p.home) {
+      const hd = st.lands[t.home].homeDurability ?? 100;
+      assert.ok(p.home.durability.min <= hd && hd <= p.home.durability.max, `${label} #${i}: 本拠地の耐久`);
+    }
+  }
+  return p;
+}
+
+test("predict: 部隊 × 部隊（回避・スキル・反撃あり）で min ≤ 実際 ≤ max（rng を変えて 200 回）", () => {
+  const pairs = [[12, 13], [13, 15], [14, 12], [15, 14], [12, 12], [5, 7], [1, 2]];
+  let spread = 0;
+  for (const [ah, dh] of pairs) {
+    const build = () => {
+      const st = makeState();
+      addSquad(st, "a", ah, "ocean", T(5, 5), { troops: 150 });
+      addSquad(st, "d", dh, "ruby", T(6, 5), { troops: 120, policy: "fight" });
+      st.__case = { attackerId: "a", target: (s) => s.squads.d };
+      return st;
+    };
+    const p = checkPredict(build, `hero ${ah} vs ${dh}`);
+    assert.ok(p.attacker.min <= p.attacker.max && p.defender.min <= p.defender.max);
+    assert.ok(PREDICT_LABELS.some((l) => l.label === p.label));
+    assert.equal(p.target, "squad");
+    assert.ok(Array.isArray(p.excludes) && p.excludes.length > 0);
+    if (p.attacker.min < p.attacker.max && p.defender.min < p.defender.max) spread++;
+  }
+  assert.ok(spread >= 4, "運で幅が出る組み合わせを確かめている");
+});
+
+test("predict: 砦（守備兵だけ・守備部隊あり）と本拠地でも min ≤ 実際 ≤ max", () => {
+  checkPredict(() => {
+    const st = makeState();
+    addSquad(st, "a", 12, "ocean", T(5, 5), { troops: 260 });
+    addFort(st, "f1", "rare", T(6, 5));
+    st.__case = { attackerId: "a", target: (s) => s.forts.f1 };
+    return st;
+  }, "砦（守備兵だけ）");
+  checkPredict(() => {
+    const st = makeState();
+    addSquad(st, "a", 14, "ruby", T(5, 5), { troops: 400 });
+    addFort(st, "f1", "rare", T(6, 5), { owner: "ocean", troops: 10, durability: 20, stance: "intercept" });
+    addSquad(st, "g", 13, "ocean", T(6, 5), { troops: 60 });
+    st.__case = { attackerId: "a", target: (s) => s.forts.f1 };
+    return st;
+  }, "砦（守備部隊あり）");
+  checkPredict(() => {
+    const st = makeState();
+    addSquad(st, "a", 12, "ocean", T(14, 9), { troops: 200 });
+    st.lands.ruby.homeDurability = 40;
+    st.__case = { attackerId: "a", target: () => ({ home: "ruby" }) };
+    return st;
+  }, "本拠地");
+});
+
+test("predict: ラベルは与える見込みの中央 ÷ 受ける見込みの中央", () => {
+  const st = makeState();
+  const a = addSquad(st, "a", 1, "ocean", T(5, 5), { troops: 400 });
+  const d = addSquad(st, "d", 2, "ruby", T(6, 5), { troops: 20, policy: "fight" });
+  assert.equal(predict(st, db, a, d).label, "overwhelm");
+  const st2 = makeState();
+  const a2 = addSquad(st2, "a", 1, "ocean", T(5, 5), { troops: 10 });
+  const d2 = addSquad(st2, "d", 4, "ruby", T(6, 5), { troops: 400, policy: "fight" });
+  assert.equal(predict(st2, db, a2, d2).label, "hopeless");
+  const st3 = makeState();
+  const a3 = addSquad(st3, "a", 1, "ocean", T(5, 5), { troops: 100 });
+  const d3 = addSquad(st3, "d", 2, "ruby", T(6, 5), { troops: 100, policy: "fight" });
+  // 与える 25・受ける 19（反撃）→ 1.3 で互角
+  const p3 = predict(st3, db, a3, d3);
+  assert.deepEqual([p3.dealt, p3.taken], [{ min: 25, max: 25 }, { min: 19, max: 19 }]);
+  assert.equal(p3.label, "even");
 });

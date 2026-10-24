@@ -2,18 +2,18 @@
 //
 // 契約：docs/specs/SPEC-110-engine-contract.md §3 `orders.js`
 // 数値：docs/specs/SPEC-109-mycryptowars-mvp.md §5.1・§6
-// DOM に触れない純粋関数。state を書き換えるのは queue と clearOrders だけ。
+// DOM に触れない純粋関数。state を書き換えるのは queue と clearOrders と undoLast だけ。
 //
 // 指示は積んだ順に実行されるので、検証は「それより前に積んだ移動を終えた位置」で行う
 // （移動してから占領・開拓・戦闘、のような積み方ができるように）。
 //
 // queue は積んだ指示に、実際に引いた AP を `ap` として書き添える（{ ...order, ap }）。
-// clearOrders は db を受けないので、それを足し戻して AP を戻す。
+// clearOrders / undoLast は db を受けないので、それを足し戻して AP を戻す。
 
 import { neighbors } from './hex.js';
 import { effectiveParams, subMods } from './heroes.js';
 import { stepCost } from './pathfind.js';
-import { canBuild, DOMESTIC_KINDS } from './economy.js';
+import { canBuild, canReward, canConscript, DOMESTIC_KINDS } from './economy.js';
 import { inRange } from './battle.js';
 
 export const ORDER_TYPES = ['move', 'claim', 'build', 'attack', 'domestic', 'rest'];
@@ -100,7 +100,9 @@ function hasEnemyAt(state, squad, tileIdx) {
 
 /**
  * 指示を積めるか。reason は messages の order.reject.* に合わせて
- * "ap" | "home" | "range" | "build" のほか、"squad" | "type" | "path" | "terrain" | "claim" | "target" | "kind"。
+ * "ap" | "home" | "range" | "build" のほか、"squad" | "type" | "path" | "terrain" | "claim" | "target" | "kind" | "gum" | "pop"。
+ * 恩賞（domestic の reward）は、積んである恩賞・開拓の GUM を引いた残りで払えなければ "gum"（SPEC-113 §4）。
+ * 徴兵（domestic の conscript）は、積んである内政・休息のあとの人口から 1 人も移せなければ "pop"（SPEC-113 §2）。
  * 建てられない理由の細目は buildReason に入れる。
  * @returns {{ok:boolean, reason:string|null, buildReason?:string}}
  */
@@ -152,6 +154,9 @@ export function validate(state, db, squad, order) {
       if (!DOMESTIC_KINDS.includes(order.kind)) return ng('kind');
       const land = state.lands[squad.land];
       if (!land || land.home !== here) return ng('home');
+      if (order.kind === 'reward' && apCost(state, db, squad, order) <= ap && !canReward(state, db, squad).ok) return ng('gum');
+      // 人口から 1 人も移せない徴兵は断る（AP を使うだけになる。SPEC-113 §2）。兵が上限のときは断らない
+      if (order.kind === 'conscript' && apCost(state, db, squad, order) <= ap && canConscript(state, db, squad).reason === 'pop') return ng('pop');
       break;
     }
     case 'rest':
@@ -188,6 +193,25 @@ export function clearOrders(state, squadId) {
   for (const o of squad.orders || []) back += typeof o.ap === 'number' ? o.ap : 0;
   squad.ap = (squad.ap || 0) + back;
   squad.orders = [];
+}
+
+/**
+ * mutates。最後に積んだ指示を 1 つだけ外し、その指示で引いた AP（`ap`）を戻す（SPEC-114 §4「1 手戻す」）。
+ * 指示は積んだ順に実行され、検証も前の指示を終えた位置で行うので、外してよいのは最後の 1 つだけ
+ * （途中を外すと、そのあとの指示の前提が崩れる）。
+ * @returns {{ok:boolean, reason:string|null, order?:object, ap?:number}} reason: "squad" | "none"。
+ *   ok なら外した指示（`order`）と戻した AP（`ap`）
+ */
+export function undoLast(state, squadId) {
+  const squad = (state.squads || {})[squadId];
+  if (!squad) return { ok: false, reason: 'squad' };
+  const orders = squad.orders || [];
+  if (!orders.length) return { ok: false, reason: 'none' };
+  const order = orders[orders.length - 1];
+  const back = typeof order.ap === 'number' && order.ap > 0 ? order.ap : 0;
+  squad.orders = orders.slice(0, -1);
+  squad.ap = (squad.ap || 0) + back;
+  return { ok: true, reason: null, order, ap: back };
 }
 
 /**

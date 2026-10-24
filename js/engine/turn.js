@@ -18,8 +18,10 @@
 import { neighbors, within } from './hex.js';
 import { shuffle } from './rng.js';
 import { stepCost } from './pathfind.js';
-import { visionOf, troopCap, subMods, effectiveParams } from './heroes.js';
+import { visionOf, effectiveParams, troopCap } from './heroes.js';
+import { startTroops } from './tuning.js';
 import { applyDaily, tickBuilds, startBuild, domestic, rest } from './economy.js';
+import { applyNight, rewardCost, MORALE_SHAKEN } from './morale.js';
 import { apMax, AP_COST } from './orders.js';
 import { resolve, inRange } from './battle.js';
 import { plan } from './ai.js';
@@ -40,10 +42,6 @@ function realLands(state) {
   return Object.values(state.lands).filter((l) => l.id !== ENEMY_LAND);
 }
 
-/**
- * mutates。指示フェーズの始まり。
- * 敗走中の部隊は、この日 AP 0 で兵を lead × 3 に戻して復帰する。奇襲された部隊は AP 半分を消費する。
- */
 /** 落ちた砦を攻められない日数（落ちた日の翌日から数えて）。0 ならその日だけ */
 export const FORT_SHIELD_DAYS = 1;
 
@@ -52,21 +50,49 @@ export function isShielded(state, fort) {
   return typeof fort.fallenDay === 'number' && state.day - fort.fallenDay <= FORT_SHIELD_DAYS;
 }
 
+/**
+ * 敗走明けの部隊が本拠地で集め直せる兵（state は変えない）。
+ * 目安は初期の兵と同じ 統率力 × k（tuning.startTroops）で、兵の上限で止める。
+ * SPEC-113 §2「すべての兵の増加は人口を消費する」に従い、増える兵 1 人につき人口 1。
+ * 人口が足りなければ足りる分だけ（人口 0 なら兵 0 のまま復帰する）。
+ * @param {number} pop 使える人口
+ * @returns {number} 増える兵
+ */
+export function regroupTroops(db, squad, pop) {
+  const hero = heroOf(db, squad);
+  if (!hero) return 0;
+  const goal = Math.min(startTroops(effectiveParams(hero, squad, db).lead), troopCap(hero, squad, db));
+  const cur = Math.max(0, squad.troops || 0);
+  return Math.max(0, Math.min(goal - cur, Math.floor(Math.max(0, pop || 0))));
+}
+
+/**
+ * mutates。指示フェーズの始まり。
+ * 敗走中の部隊は、この日 AP 0 で本拠地に戻って復帰する。兵は regroupTroops の分だけ人口から集め直す
+ * （人口を消費する。SPEC-113 §2）。奇襲された部隊は AP 半分を消費する。
+ * @returns {Event[]} 敗走明けの集め直し `{ t: "regroup", squad, land, amount }`（集め直した部隊ごと。兵 0 でも出す）
+ */
 export function beginTurn(state, db) {
   state.phase = state.ended ? 'ended' : 'orders';
   state.log = [];
+  const events = [];
   for (const s of Object.values(state.squads)) {
     const hero = heroOf(db, s);
     s.orders = [];
     s.ap = hero ? apMax(hero, s, db) : 0;
     if (s.status === 'routed') {
       s.status = 'ok';
-      s.troops = hero ? effectiveParams(hero, s, db).lead * 3 : 0;
       const land = state.lands[s.land];
+      const pop = land && land.res ? land.res.pop : 0;
+      const amount = regroupTroops(db, s, pop);
+      s.troops = Math.max(0, s.troops || 0) + amount;
+      if (land && land.res) land.res.pop = (land.res.pop || 0) - amount;
       if (land && land.home != null) s.tile = land.home;
+      events.push({ t: 'regroup', squad: s.id, land: s.land, amount });
     }
     s.ambushed = false;
   }
+  return events;
 }
 
 /** mutates。CPU の全ランド（生きているもの）に ai.plan */
@@ -268,14 +294,18 @@ export function* execute(state, db, rng) {
       }
       case 'domestic': {
         if (!land || land.home !== squad.tile) return skip('home');
+        // 恩賞は実行のときの兵で GUM を数える。足りなければその指示だけ捨てる
+        if (order.kind === 'reward' && (land.res.gum || 0) < rewardCost(squad)) return skip('gum');
         if (!pay(AP_COST.domestic)) return stop('ap');
         squad.orders.shift();
-        return [domestic(state, db, squad, order.kind)];
+        const ev = domestic(state, db, squad, order.kind);
+        return ev.morale ? [ev, ev.morale] : [ev];
       }
       case 'rest': {
         squad.orders.shift();
         squad.ap = 0;
-        return [rest(state, db, squad)];
+        const ev = rest(state, db, squad);
+        return ev.morale ? [ev, ev.morale] : [ev];
       }
       default:
         squad.orders.shift();
@@ -317,46 +347,25 @@ export function* execute(state, db, rng) {
 }
 
 /**
- * mutates。日の終わり：産出（applyDaily）→ 建築（tickBuilds）→ 回復 → 霧 → 日曜なら集計 →
- * day を進める → 終了判定。終わったら state.ended と phase "ended"（day は 28 に留める）。
- * 回復：support / healer の隣にいる同じランドの部隊は兵の上限 × healAdj、本拠地にいる部隊は +lead（上限まで）。
- * @returns {object[]} イベント
+ * mutates。日の終わり（SPEC-113 §6.3 の順番）：
+ *   産出 → 消費（配給を掛ける）→ 足りなければ飢え（人口の自然増なし）… economy.applyDaily（全ランド）
+ *   → 士気の毎日の変化（飢え −15 を含む）→ 士気 0 の逃走 → 兵の回復（人口を消費。飢えた日は本拠地の回復なし）
+ *     … morale.applyNight（ランドごと）
+ *   → 建築（tickBuilds）→ 霧 → 日曜なら集計 → day を進める → 終了判定。
+ * 終わったら state.ended と phase "ended"（day は 28 に留める）。
+ * @returns {object[]} イベント（yield・starve・morale_day・desert・build_done・week_end・season_end）
  */
 export function finishDay(state, db) {
   const events = [];
-  for (const land of realLands(state)) {
-    if (land.alive === false) continue;
-    events.push(...applyDaily(state, db, land.id));
+  const alive = realLands(state).filter((l) => l.alive !== false);
+  const starved = new Set();
+  for (const land of alive) {
+    const evs = applyDaily(state, db, land.id);
+    if (evs.some((e) => e.t === 'starve')) starved.add(land.id);
+    events.push(...evs);
   }
+  for (const land of alive) events.push(...applyNight(state, db, land.id, starved.has(land.id)));
   events.push(...tickBuilds(state, db));
-
-  // 回復
-  const { w, h } = state.map;
-  const squads = Object.values(state.squads).filter((s) => s.status !== 'routed');
-  const heal = new Map();
-  for (const s of squads) {
-    const hero = heroOf(db, s);
-    if (!hero) continue;
-    const adj = subMods(hero.cls && hero.cls.sub).healAdj;
-    if (adj > 0) {
-      const near = new Set(neighbors(s.tile, w, h));
-      for (const o of squads) {
-        if (o.id === s.id || o.land !== s.land || !near.has(o.tile)) continue;
-        const oh = heroOf(db, o);
-        if (!oh) continue;
-        heal.set(o.id, (heal.get(o.id) || 0) + Math.round(troopCap(oh, o, db) * adj));
-      }
-    }
-    const land = state.lands[s.land];
-    if (land && land.home === s.tile) {
-      heal.set(s.id, (heal.get(s.id) || 0) + effectiveParams(hero, s, db).lead);
-    }
-  }
-  for (const [id, n] of heal) {
-    const s = state.squads[id];
-    const cap = troopCap(heroOf(db, s), s, db);
-    if (s.troops < cap) s.troops = Math.min(cap, s.troops + n);
-  }
 
   for (const land of realLands(state)) if (land.alive !== false) revealFog(state, db, land.id);
 
@@ -464,10 +473,34 @@ export function noticesFrom(state, db, events) {
           else if (!ev.evaded) id = 'report.win';
           if (id) push('battle', say(db, heroFor(a), id, { target: name }), 'map', ev.at);
         } else {
+          // 守り手の部隊（部隊を攻められた・砦の上で守った）。砦 id / ランド id は mine が null を返す
           const d = ev.target !== 'home' ? mine(ev.defender) : null;
-          if (d && ev.ambush) push('battle', say(db, heroFor(d), 'report.ambush'), 'map', ev.at);
-          else if (ev.target === 'home' && ev.defender === me) push('battle', `${landName(db, state.squads[ev.attacker] ? state.squads[ev.attacker].land : '')}が本拠地を攻めてきました`, 'map', ev.at);
+          const atk = state.squads[ev.attacker];
+          const foe = landName(db, atk ? atk.land : '');
+          if (d) {
+            // 守った側の部隊（攻められて兵が減った・守り切った）。相手のランドと、受けた兵・与えた兵を入れる
+            const lost = ev.losses ? ev.losses.defender : null;
+            const gave = ev.losses ? ev.losses.attacker : null;
+            // 見出しと数字は改行で離さない（NBSP）
+            const nums = lost == null ? '' : `（受けた兵\u00a0${lost}・与えた兵\u00a0${gave}）`;
+            const how = ev.ambush && !ev.evaded ? '奇襲された' : '攻められた';
+            push('battle', `ヒーロー ${heroFor(d) ? heroFor(d).name : ev.defender} の部隊が${foe}に${how}${nums}`, 'map', ev.at);
+          } else if (ev.target === 'home' && ev.defender === me) {
+            push('battle', `${foe}が本拠地を攻めてきました`, 'map', ev.at);
+          } else if (ev.target === 'fort' && state.forts[ev.defender] && state.forts[ev.defender].owner === me && ev.result !== 'fort_fallen') {
+            const lost = ev.losses ? ev.losses.defender : null;
+            push('battle', `${fortName(state, ev.defender)}が${foe}に攻められた${lost == null ? '' : `（守備兵\u00a0−${lost}）`}`, 'map', ev.at);
+          }
         }
+        break;
+      }
+      case 'regroup': {
+        const s = mine(ev.squad);
+        const hero = heroFor(s);
+        if (!s) break;
+        const name = hero ? hero.name : ev.squad;
+        if (ev.amount > 0) push('regroup', `ヒーロー ${name} の部隊が本拠地で兵を集め直した（兵 +${ev.amount}・人口 −${ev.amount}）`, 'chat', null);
+        else push('regroup', `人口 0 のため、ヒーロー ${name} の部隊は兵 0 のまま`, 'drive', null);
         break;
       }
       case 'routed': {
@@ -496,8 +529,27 @@ export function noticesFrom(state, db, events) {
         break;
       }
       case 'starve':
-        if (ev.land === me) push('starve', '食料が足りません。兵と人口が減りました', 'drive', null);
+        if (ev.land === me) push('starve', '食料が足りず、全部隊の士気 −15', 'drive', null);
         break;
+      case 'desert': {
+        const s = mine(ev.squad);
+        const hero = heroFor(s);
+        if (s) push('desert', `ヒーロー ${hero ? hero.name : ev.squad} の部隊から ${ev.amount} 人が逃げた`, 'chat', null);
+        break;
+      }
+      case 'morale_day': {
+        if (ev.land !== me) break;
+        for (const c of ev.changes || []) {
+          const s = mine(c.squad);
+          const hero = heroFor(s);
+          if (!s) continue;
+          const name = hero ? hero.name : c.squad;
+          const before = c.value - c.delta;
+          if (c.value === 0 && before > 0) push('morale', `ヒーロー ${name} の部隊の士気が 0 になった。兵が逃げ始める`, 'chat', null);
+          else if (c.value < MORALE_SHAKEN && before >= MORALE_SHAKEN) push('morale', `ヒーロー ${name} の部隊が動揺している（士気 ${c.value}）`, 'chat', null);
+        }
+        break;
+      }
       case 'week_end': {
         const p = (ev.points || {})[me] || 0;
         push('week', `第${ev.week}週の集計：砦ポイント +${p}`, 'calendar', null);

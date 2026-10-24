@@ -9,6 +9,7 @@ import { makeRng } from '../js/engine/rng.js';
 import { neighbors } from '../js/engine/hex.js';
 import { findPath } from '../js/engine/pathfind.js';
 import { queue } from '../js/engine/orders.js';
+import { startTroops } from '../js/engine/tuning.js';
 
 const db = await loadDbFromFs();
 
@@ -50,7 +51,7 @@ test('newGame: 9 ランド + enemy、3 体ずつ、初期資源、砦 10、霧�
     for (const s of sq) {
       assert.match(s.id, /^s\d+$/);
       assert.equal(s.tile, land.home);
-      assert.equal(s.troops, db.heroes[s.heroId].params.lead * 3);
+      assert.equal(s.troops, startTroops(db.heroes[s.heroId].params.lead)); // 統率力 × k（SPEC-113 §5）
       assert.ok(s.ap > 0);
       heroIds.add(s.heroId);
     }
@@ -124,22 +125,60 @@ test('execute: 本拠地にいない内政は blocked(home)、AP 不足は block
   assert.ok(events.some((e) => e.t === 'blocked' && e.squad === me.id && e.reason === 'home'));
 });
 
-test('beginTurn: 敗走した部隊は AP 0 で兵 lead×3 に戻る。奇襲は AP 半分', () => {
+test('beginTurn: 敗走した部隊は AP 0 で、兵を 統率力 × k まで人口から集め直す（SPEC-113 §2）。奇襲は AP 半分', () => {
   const st = newGame({ seed: 7, playerLand: 'ocean', db });
   const [a, b] = Object.values(st.squads).filter((s) => s.land === 'ocean');
+  const land = st.lands.ocean;
   const full = a.ap;
   a.status = 'routed';
   a.troops = 0;
+  a.tile = b.tile;
   b.ambushed = true;
   const fullB = b.ap;
-  beginTurn(st, db);
+  land.res.pop = 500; // 上限を超えて足りる人口
+  const goal = startTroops(db.heroes[a.heroId].params.lead);
+  const evs = beginTurn(st, db);
   assert.equal(a.ap, 0);
   assert.equal(a.status, 'ok');
-  assert.equal(a.troops, db.heroes[a.heroId].params.lead * 3);
+  assert.equal(a.tile, land.home);
+  assert.equal(a.troops, goal, '統率力 × k（lead × 3 ではない）');
+  assert.equal(land.res.pop, 500 - goal, '集め直した兵の分だけ人口を使う');
+  assert.deepEqual(evs, [{ t: 'regroup', squad: a.id, land: 'ocean', amount: goal }]);
   assert.equal(b.ap, Math.ceil(fullB / 2));
   assert.equal(b.ambushed, false);
-  beginTurn(st, db);
+  assert.deepEqual(beginTurn(st, db), [], '敗走していなければ何も起きない');
   assert.equal(a.ap, full);
+});
+
+test('beginTurn: 敗走明けの兵は人口が足りる分だけ。人口 0 なら兵 0 のまま復帰し、兵も人口も増えない', () => {
+  const st = newGame({ seed: 7, playerLand: 'ocean', db });
+  const [a, b] = Object.values(st.squads).filter((s) => s.land === 'ocean');
+  const land = st.lands.ocean;
+  const goal = startTroops(db.heroes[a.heroId].params.lead);
+  assert.ok(goal > 7);
+  a.status = 'routed';
+  a.troops = 0;
+  land.res.pop = 7;
+  let evs = beginTurn(st, db);
+  assert.equal(a.troops, 7);
+  assert.equal(land.res.pop, 0);
+  assert.equal(evs[0].amount, 7);
+  // 人口 0：兵の合計も人口も変わらない（観測：人口 0 のまま 22 → 189 に戻っていた）
+  b.status = 'routed';
+  b.troops = 0;
+  const total = Object.values(st.squads).filter((s) => s.land === 'ocean').reduce((x, s) => x + s.troops, 0);
+  evs = beginTurn(st, db);
+  assert.equal(b.status, 'ok');
+  assert.equal(b.ap, 0);
+  assert.equal(b.troops, 0);
+  assert.equal(land.res.pop, 0);
+  assert.equal(Object.values(st.squads).filter((s) => s.land === 'ocean').reduce((x, s) => x + s.troops, 0), total);
+  assert.deepEqual(evs, [{ t: 'regroup', squad: b.id, land: 'ocean', amount: 0 }]);
+  // 通知：集め直した / 人口が無くて集められない
+  const ns = noticesFrom(st, db, [{ t: 'regroup', squad: a.id, land: 'ocean', amount: 7 }, ...evs]);
+  assert.equal(ns.length, 2);
+  assert.ok(ns[0].text.includes('+7') && ns[0].text.includes('人口 −7'));
+  assert.ok(ns[1].text.includes('人口 0') && ns[1].text.includes('兵 0 のまま'));
 });
 
 test('finishDay: 日曜に集計、28 日目のあとに season で終わる', () => {

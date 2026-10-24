@@ -19,12 +19,14 @@ import * as fx from './fx.js';
 import { getSetting, setSetting } from './audio.js';
 import { img } from '../constants.js';
 import { uiText, say } from '../engine/lines.js';
-import { toPixel, fromPixel, wrapC } from '../engine/hex.js';
+import { toPixel, fromPixel, wrapC, neighbors, distance } from '../engine/hex.js';
 import { findPath, reachable, stepCost } from '../engine/pathfind.js';
-import { queue, validate, apMax, projectedTile } from '../engine/orders.js';
+import { queue, validate, apMax, apCost, projectedTile, undoLast } from '../engine/orders.js';
 import { rangeOf } from '../engine/heroes.js';
 import { targetAt, noticesFrom, isShielded } from '../engine/turn.js';
-import { terrainYield } from '../engine/economy.js';
+import { terrainYield, breakdown } from '../engine/economy.js';
+import { predict, inRange } from '../engine/battle.js';
+import { moraleOf, planNight, MORALE_SHAKEN, MORALE_DELTA } from '../engine/morale.js';
 import { save } from '../state.js';
 import { endTurn, go, STEP_MS } from '../main.js';
 import { orderStatus } from './phone.js';
@@ -257,6 +259,95 @@ function hashId(id) {
   let n = 0;
   for (const ch of String(id)) n = (n * 31 + ch.charCodeAt(0)) | 0;
   return (n >>> 0) / 4294967295;
+}
+
+// ------------------------------------------------------------
+// 士気・戦力差・攻撃の見込みの表記（SPEC-114 §5・§8）。数字はエンジン（morale.moraleOf・battle.predict・economy.breakdown）から取り、
+// ここでは並べ方と言葉だけを決める
+// ------------------------------------------------------------
+
+/** 増減の表記（+N / −N / ±0。ホーム・内訳と同じ記号） */
+const MINUS = '−';
+function sgn(n) {
+  const v = Math.round(n || 0);
+  return v > 0 ? `+${v.toLocaleString('ja-JP')}` : v < 0 ? `${MINUS}${(-v).toLocaleString('ja-JP')}` : '±0';
+}
+function num(n) {
+  return Math.max(0, Math.round(n || 0)).toLocaleString('ja-JP');
+}
+
+/** 士気の段（0 = 逃走が始まる、20 未満 = 動揺。境目はエンジンの MORALE_SHAKEN） */
+function moraleLevel(sq) {
+  const m = moraleOf(sq);
+  return m <= 0 ? 'zero' : m < MORALE_SHAKEN ? 'shaken' : 'ok';
+}
+
+/** 「何倍」の桁（ホームの「いちばん近い脅威」と同じ丸め方） */
+function ratioText(r) {
+  return r >= 10 ? r.toFixed(0) : r >= 1 ? r.toFixed(1) : r.toFixed(2);
+}
+
+let nearCache = { t: -1e9, day: -1, exec: null, val: null };
+/**
+ * 隣接する敵ランド（SPEC-114 §5）: 自ランドの土地の隣に土地を持つか、部隊が自ランドの土地の上か隣にいるランド。
+ * 霧の中は数えない。描画のたびに呼ぶので 250ms は使い回す
+ * @returns {Set<string>}
+ */
+function nearLands(app, tm = now()) {
+  const st = app.state;
+  const exec = !!app.ui.executing;
+  const c = nearCache;
+  if (c.val && c.day === st.day && c.exec === exec && tm - c.t < 250 && tm >= c.t) return c.val;
+  const me = st.playerLand;
+  const { w, h: hh, tiles } = st.map;
+  const exp = exploredSet(st);
+  const owned = new Set();
+  tiles.forEach((tl, i) => { if (tl && tl.owner === me) owned.add(i); });
+  const rival = (id) => id && id !== me && id !== ENEMY && st.lands[id] && st.lands[id].alive !== false;
+  const near = new Set();
+  for (const i of owned) {
+    for (const j of neighbors(i, w, hh)) {
+      const o = tiles[j] && tiles[j].owner;
+      if (exp.has(j) && rival(o)) near.add(o);
+    }
+  }
+  for (const s of Object.values(st.squads || {})) {
+    if (!rival(s.land) || !exp.has(s.tile)) continue;
+    if (owned.has(s.tile) || neighbors(s.tile, w, hh).some((j) => owned.has(j))) near.add(s.land);
+  }
+  nearCache = { t: tm, day: st.day, exec, val: near };
+  return near;
+}
+
+/**
+ * 敵の部隊の兵を比べる相手（自分の部隊）: 選んでいるヒーロー。いなければ、その敵にいちばん近い自分の部隊
+ * （敗走中・兵 0 は除く。同じ距離ならロスターの順）
+ */
+function ratioBase(app, foe) {
+  const st = app.state;
+  const sel = !app.ui.executing ? selectedSquad(app) : null;
+  if (sel && sel.status !== 'routed' && (sel.troops || 0) > 0) return sel;
+  const { w, h: hh } = st.map;
+  let best = null;
+  let bd = Infinity;
+  for (const s of rosterSquads(st)) {
+    if (s.status === 'routed' || (s.troops || 0) <= 0) continue;
+    const d = distance(s.tile, foe.tile, w, hh);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+/**
+ * 部隊どうしの兵の比（SPEC-114 §5 の「×1.4」）: その敵の部隊の兵 ÷ 比べる自分の部隊の兵。
+ * ランドの合計ではなく部隊ごと（兵 163 の部隊と兵 31 の部隊に同じ数字が付かないように）
+ * @returns {null | { r:number, base:object }}
+ */
+function squadRatio(app, foe) {
+  if (!foe || foe.status === 'routed') return null;
+  const base = ratioBase(app, foe);
+  if (!base || !((base.troops || 0) > 0)) return null;
+  return { r: Math.max(0, foe.troops || 0) / base.troops, base };
 }
 
 // ------------------------------------------------------------
@@ -981,7 +1072,12 @@ function draw(app, tm = now()) {
     drawQueued(app, sel, s, tm);
     const plan = ui.plan;
     if (plan && plan.squad === sel.id && plan.kind === 'move' && plan.path) drawPath(app, sel, plan, s, tm);
-    if (plan && plan.squad === sel.id && plan.kind === 'attack') drawAim(app, sel, plan, s, tm);
+    if (plan && plan.squad === sel.id && plan.kind === 'attack') {
+      // 射程の外: 攻撃できるマスまでの経路を引き、照準はそのマスから
+      const a = !plan.ok && plan.approach && plan.approach.moveOk ? plan.approach : null;
+      if (a) drawPath(app, sel, { ...plan, kind: 'move', path: a.path, days: a.days, noFlag: a.today }, s, tm);
+      drawAim(app, sel, a ? { ...plan, from: a.tile, ok: a.today } : plan, s, tm);
+    }
   }
 
   // 8. 部隊（ヒーローの絵。待機中は揺れる。敵は赤い縁）
@@ -1194,6 +1290,18 @@ function drawStack(app, c, list, s, tm, crowded) {
       ctx.restore();
     } else drawSquad(app, pl.sq, x, y, base, tm, true, big);
   }
+  // 隣接する敵ランドの部隊には、兵の比「×1.4」（その部隊の兵 ÷ 比べる自分の部隊の兵。タイルに 1 枚 = いちばん兵の多い敵。
+  // 指示を出している間だけ）
+  if (!app.ui.executing && s >= 22) {
+    const near = nearLands(app, tm);
+    let foe = null;
+    for (const q of list) {
+      if (q.land === me || q.status === 'routed' || !near.has(q.land)) continue;
+      if (!foe || (q.troops || 0) > (foe.troops || 0)) foe = q;
+    }
+    const sr = foe ? squadRatio(app, foe) : null;
+    if (sr) drawRatioPill(ctx, c.x, c.y + s * (crowded ? 1.02 : 0.84), sr.r);
+  }
   // 描ききれない数（4 体以上）は右下にピル
   if (list.length > n && s >= 12) {
     const label = `x${list.length}`;
@@ -1326,7 +1434,78 @@ function drawSquad(app, sq, x, y, s, tm, idle, big = 1) {
       ctx.stroke();
     }
   }
+  // 士気の印（左下。SPEC-114 §5）: 20 未満は黄の三角に「!」、0 は赤の丸に下向きの矢印（兵が逃げる）。
+  // 色だけに頼らず形を変える。小さすぎると読めないので、ある程度寄っているときだけ
+  if (sq.status !== 'routed' && size >= 18) {
+    const lv = moraleLevel(sq);
+    if (lv !== 'ok') drawMoraleMark(ctx, x - half + 1, y + half - 1, Math.max(6, size * 0.21), lv);
+  }
   ctx.globalAlpha = 1;
+}
+
+/** 士気の印（中心 cx, cy・半径 r）。shaken: 黄の三角 + 「!」 / zero: 赤の丸 + 下向きの矢印 */
+function drawMoraleMark(ctx, cx, cy, r, lv) {
+  ctx.save();
+  ctx.lineJoin = 'round';
+  if (lv === 'shaken') {
+    const top = cy - r * 1.05;
+    const bot = cy + r * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(cx, top);
+    ctx.lineTo(cx + r * 1.08, bot);
+    ctx.lineTo(cx - r * 1.08, bot);
+    ctx.closePath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.fillStyle = '#f0c14b';
+    ctx.fill();
+    ctx.fillStyle = INK;
+    const bw = Math.max(1.6, r * 0.24);
+    ctx.fillRect(cx - bw / 2, cy - r * 0.45, bw, r * 0.62);
+    ctx.fillRect(cx - bw / 2, cy + r * 0.3, bw, bw);
+  } else {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.fillStyle = '#ff5a5a';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = Math.max(1.6, r * 0.24);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 0.55);
+    ctx.lineTo(cx, cy + r * 0.45);
+    ctx.moveTo(cx - r * 0.42, cy + r * 0.05);
+    ctx.lineTo(cx, cy + r * 0.48);
+    ctx.lineTo(cx + r * 0.42, cy + r * 0.05);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * 隣の敵ランドの兵力の札「×1.4」（タイルの下に 1 枚。SPEC-114 §5）。1 以上は赤地、未満は暗い地に赤の縁。
+ * 数字の 11px を割らないよう、ある程度寄っているときだけ出す
+ */
+function drawRatioPill(ctx, x, y, r) {
+  const label = `×${ratioText(r)}`;
+  ctx.font = '800 11px "Hiragino Sans","Noto Sans JP",sans-serif';
+  const w = Math.ceil(ctx.measureText(label).width) + 10;
+  const hh = 15;
+  roundRect(ctx, x - w / 2, y - hh / 2, w, hh, hh / 2);
+  const strong = r >= 1;
+  ctx.fillStyle = strong ? '#c93c3c' : 'rgba(18,16,24,.92)';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = strong ? '#ffd0d0' : '#ff8a8a';
+  ctx.stroke();
+  ctx.fillStyle = strong ? '#fff' : '#ffd0d0';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, y + 0.5);
 }
 
 /** 経路の点を、ループを跨いでも繋がる画面座標の列に */
@@ -1507,7 +1686,8 @@ function drawPath(app, sq, plan, s, tm) {
   const days = plan.days != null ? plan.days : dayOf[dayOf.length - 1];
   // 旗は、選んだタイルの点線より手前に描く（draw の最後で）
   const pk = mo ? Math.min(1, (tm - t0 - dur) / 360) : 1;
-  V.flagDraw = () => drawDayFlag(ctx, app, end, days, s, pk, mo);
+  // 移動して今日そのまま攻撃するとき（射程の外の敵）は旗を立てない（照準と敵の絵を隠すため）
+  if (!plan.noFlag) V.flagDraw = () => drawDayFlag(ctx, app, end, days, s, pk, mo);
 }
 
 /** 到着予定日の旗: 竿の先に高さ 22px の旗。「2日」を 12px で（SPEC-112 §3） */
@@ -1675,7 +1855,16 @@ function makePlan(app, sq, tile) {
     const siege = !!(target.home || typeof target.rank === 'string');
     // 落ちたばかりの砦は実行時に止まるので、ここで先に知らせる（判定は engine の isShielded）
     const shielded = typeof target.rank === 'string' && isShielded(st, target);
-    return { kind: 'attack', squad: sq.id, tile, from, ok: v.ok && !shielded, reason: shielded ? 'shield' : v.reason, siege, name: targetName(app, target), range: rangeOf(hero) };
+    // 射程の外なら、攻撃できるいちばん近いマスまでの道（移動 → 攻撃をまとめて積む。SPEC-114 §5）
+    const approach = !shielded && !v.ok && v.reason === 'range' ? findApproach(app, sq, from, tile, target) : null;
+    // 攻撃の見込み（SPEC-114 §5）。予定位置（積んだ移動の後）から。道があるなら、移動したあとの位置から
+    const pred = shielded ? null : approach ? approach.pred : predictFrom(app, sq, from, target);
+    // 砦・本拠地の上に守る部隊がいれば、まずその部隊と戦う（見込みの defenderId が部隊なら）
+    const guard = pred && pred.target !== 'squad' && pred.defenderId != null && st.squads[pred.defenderId] ? pred.defenderId : null;
+    return {
+      kind: 'attack', squad: sq.id, tile, from, ok: v.ok && !shielded, reason: shielded ? 'shield' : v.reason, siege,
+      name: targetName(app, target), range: rangeOf(hero), pred, approach, guard, home: !!target.home,
+    };
   }
   const at = from === sq.tile ? sq : { ...sq, tile: from };
   const p = findPath(st, db, at, hero, tile);
@@ -1684,6 +1873,124 @@ function makePlan(app, sq, tile) {
   const days = max > 0 ? Math.max(1, Math.ceil(p.cost / max)) : null;
   const v = validate(st, db, sq, { type: 'move', path: p.path });
   return { kind: 'move', squad: sq.id, tile, from, path: p.path, cost: p.cost, days, ok: v.ok, reason: v.reason };
+}
+
+/**
+ * 射程の外の敵へ: 攻撃できる（engine の inRange）マスのうち、移動のコストがいちばん小さいところと、そこまでの経路。
+ * 探すのは 3 日ぶんの AP まで（それより遠ければ道なし = null）。today は「移動 + 攻撃」が今日の AP に収まるか。
+ * コストはエンジンの reachable / findPath、攻撃の AP は orders.apCost、見込みはそのマスからの battle.predict
+ */
+function findApproach(app, sq, from, tile, target) {
+  const st = app.state;
+  const db = app.db;
+  const hero = heroOf(db, sq);
+  if (!hero) return null;
+  const at = from === sq.tile ? sq : { ...sq, tile: from };
+  const max = apMax(hero, sq, db);
+  const ap = sq.ap || 0;
+  let dist = null;
+  try { dist = reachable(st, db, at, hero, Math.max(ap, max * 3)); } catch (e) { console.error(e); return null; }
+  let best = null;
+  for (const [c, cost] of dist) {
+    if (c === from || !(cost > 0)) continue;
+    if (!inRange(st, db, { ...sq, tile: c }, tile)) continue;
+    if (!best || cost < best.cost || (cost === best.cost && c < best.tile)) best = { tile: c, cost };
+  }
+  if (!best) return null;
+  const p = findPath(st, db, at, hero, best.tile);
+  if (!p || !p.path.length) return null;
+  const mvv = validate(st, db, sq, { type: 'move', path: p.path });
+  const atkAp = apCost(st, db, sq, { type: 'attack', target: tile });
+  return {
+    tile: best.tile, path: p.path, cost: p.cost, atkAp,
+    moveOk: mvv.ok, moveReason: mvv.reason,
+    today: mvv.ok && p.cost + atkAp <= ap,
+    days: max > 0 ? Math.max(1, Math.ceil(p.cost / max)) : null,
+    pred: predictFrom(app, sq, best.tile, target),
+  };
+}
+
+/**
+ * 遠征の見込み（SPEC-114 §1「遠征後の食料」・§5）: その部隊が dest に着いたら、毎日の食料と士気と兵の回復がどうなるか。
+ * 数字はエンジンの economy.breakdown と morale.planNight に「部隊が dest にいる state の写し」を渡して取る（UI で計算しない）。
+ * 飢えるかどうかは breakdown の daysLeft === 1（今夜尽きる）
+ * @returns {null | { food:{net, daysLeft, squad}, now:{delta, reasons}, then:{delta, reasons}, recNow:number, recThen:number }}
+ */
+function expedition(app, sq, dest) {
+  const st = app.state;
+  const db = app.db;
+  const me = sq.land;
+  if (!st.lands[me]) return null;
+  // いま = 積んである移動を終えた位置（projectedTile）、着いたあと = dest
+  const here = projectedTile(sq);
+  const at = (tile) => (tile === sq.tile ? st : { ...st, squads: { ...st.squads, [sq.id]: { ...sq, tile } } });
+  const base = at(here);
+  const moved = at(dest);
+  try {
+    const bNow = breakdown(base, db, me);
+    const bThen = breakdown(moved, db, me);
+    const nightOf = (state, b) => planNight(state, db, me, b.food.daysLeft === 1, 0).morale.find((m) => m.squad === sq.id) || { delta: 0, reasons: [] };
+    const rec = (b) => { const r = b.pop.expense.find((x) => x.key === 'recover' && x.squad === sq.id); return r ? r.value : 0; };
+    const own = bThen.food.expense.find((r) => r.key === 'troops' && r.squad === sq.id);
+    return {
+      food: { net: bThen.food.net, daysLeft: bThen.food.daysLeft, squad: own ? own.value : 0 },
+      now: nightOf(base, bNow),
+      then: nightOf(moved, bThen),
+      recNow: rec(bNow),
+      recThen: rec(bThen),
+    };
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+/** battle.predict（state を変えない）。attacker は予定位置の写し。失敗したら null（見込みを出さないだけ） */
+function predictFrom(app, sq, from, target) {
+  try {
+    const at = from === sq.tile ? sq : { ...sq, tile: from };
+    return predict(app.state, app.db, at, target);
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+/**
+ * 指示したときの見込みを app.ui に控える（実行フェーズの「予想 → 実際」に使う。SPEC-114 §5）。
+ * 日が変わったら捨てる。キーは「部隊 id@攻撃先のタイル」
+ */
+function predStore(app) {
+  const day = app.state.day;
+  let m = app.ui.mapPred;
+  if (!m || m.day !== day) m = app.ui.mapPred = { day, list: {} };
+  return m.list;
+}
+
+function rememberPred(app, squadId, tile, pred) {
+  if (!pred) return;
+  predStore(app)[`${squadId}@${tile}`] = {
+    attacker: pred.attacker, defender: pred.defender, fort: pred.fort || null, home: pred.home || null,
+    label: pred.label, fall: pred.fall, target: pred.target, defenderId: pred.defenderId,
+  };
+}
+
+/**
+ * 実行の直前（Map が実行フェーズで開いたとき）: Chat から積んだ攻撃など、見込みを控えていない自分の攻撃の指示に、
+ * その時点の見込みを控える（積んだ移動の後の位置から。まだ何も動いていない state で）
+ */
+function rememberQueuedPreds(app) {
+  const st = app.state;
+  const list = predStore(app);
+  for (const sq of mySquads(st)) {
+    let from = sq.tile;
+    for (const o of sq.orders || []) {
+      if (o.type === 'move' && Array.isArray(o.path) && o.path.length) from = o.path[o.path.length - 1];
+      if (o.type !== 'attack' || typeof o.target !== 'number' || list[`${sq.id}@${o.target}`]) continue;
+      const target = targetAt(st, sq.land, o.target);
+      if (target) rememberPred(app, sq.id, o.target, predictFrom(app, sq, from, target));
+    }
+  }
 }
 
 /** 新しい経路が引かれたら、線が伸びる演出を最初から */
@@ -1711,18 +2018,32 @@ function applyPlan(app) {
   const sq = plan ? st.squads[plan.squad] : null;
   if (!plan || !sq || app.ui.executing) return;
   const hero = heroOf(app.db, sq);
-  const order = plan.kind === 'attack' ? { type: 'attack', target: plan.tile } : { type: 'move', path: plan.path };
-  const r = queue(st, app.db, sq.id, order);
+  // 射程の外の敵: 攻撃できるマスまでの移動と攻撃をまとめて積む（今日の AP に収まらなければ移動だけ）。
+  // 攻撃が積めなかったら、先に積んだ移動も外す（半端に残さない。orders.undoLast）
+  const ap = plan.kind === 'attack' && !plan.ok ? plan.approach : null;
+  const orders = ap
+    ? (ap.today ? [{ type: 'move', path: ap.path }, { type: 'attack', target: plan.tile }] : [{ type: 'move', path: ap.path }])
+    : [plan.kind === 'attack' ? { type: 'attack', target: plan.tile } : { type: 'move', path: plan.path }];
+  let done = 0;
+  let r = { ok: true, reason: null };
+  for (const order of orders) {
+    r = queue(st, app.db, sq.id, order);
+    if (!r.ok) break;
+    done += 1;
+  }
   if (!r.ok) {
+    for (let k = 0; k < done; k++) undoLast(st, sq.id);
     toast(rejectText(app, sq, r.reason), { key: 'map-reject', kind: 'bad' });
     ui.plan = makePlan(app, sq, plan.tile);
     renderSheet(app);
     return;
   }
-  const text = plan.kind === 'attack'
+  const attacked = orders.some((o) => o.type === 'attack');
+  const text = attacked
     ? say(app.db, hero, 'order.attack.ack', { target: plan.name })
-    : say(app.db, hero, 'order.move.ack', { dest: tileTitle(app, plan.tile), days: plan.days ?? '-' });
+    : say(app.db, hero, 'order.move.ack', { dest: tileTitle(app, ap ? ap.tile : plan.tile), days: (ap ? ap.days : plan.days) ?? '-' });
   toast(text, { key: 'map-ack', kind: 'good', icon: hero ? hero.image : undefined });
+  if (attacked) rememberPred(app, sq.id, plan.tile, plan.pred);
   try { save(st); } catch (e) { console.error(e); }
   // 決めた場所に金の波紋
   if (V) V.taps.push({ tile: plan.tile, t0: now() });
@@ -1848,7 +2169,10 @@ function squadItem(app, sq) {
         mine ? null : h('span', { class: 'map-squad__land', style: { '--land': landColor(db, sq.land) } }, landName(app, sq.land)),
         `${t(app, 'map.troops')} ${sq.troops}`,
         mine ? `  ${t(app, 'map.apLeft')} ${sq.ap || 0} / ${max}` : null,
-        sq.status === 'routed' ? h('span', { class: 'map-squad__tag' }, t(app, 'map.routed')) : null)),
+        sq.status === 'routed' ? h('span', { class: 'map-squad__tag' }, t(app, 'map.routed')) : null),
+      sq.status === 'routed' ? null : h('span', { class: 'map-squad__sub map-squad__sub--2 num' },
+        moraleChip(app, sq),
+        mine ? null : ratioTag(app, sq))),
   ];
   if (!mine || app.ui.executing) return h('li', { class: ['map-squad', mine ? 'is-mine' : 'is-enemy'] }, body);
   const selected = app.ui.selectedSquad === sq.id;
@@ -1859,27 +2183,36 @@ function squadItem(app, sq) {
     }, body, h('span', { class: 'map-squad__pick' }, selected ? t(app, 'map.selected') : '')));
 }
 
+/** 士気（ゲージ + 数字 + 20 未満は言葉。色だけに頼らない） */
+function moraleChip(app, sq) {
+  const m = moraleOf(sq);
+  const lv = moraleLevel(sq);
+  const word = lv === 'zero' ? tx(app, 'map.mor.zero', '逃走中') : lv === 'shaken' ? tx(app, 'map.mor.shaken', '動揺') : null;
+  const label = tx(app, 'map.mor.label', '士気');
+  return h('span', { class: ['map-mor', `is-${lv}`], dataset: { morale: m }, role: 'img', 'aria-label': `${label} ${m}${word ? `（${word}）` : ''}` },
+    h('span', { class: 'map-mor__k', 'aria-hidden': 'true' }, label),
+    h('span', { class: 'map-mor__bar', 'aria-hidden': 'true' }, h('i', { style: { width: `${Math.max(0, Math.min(100, m))}%` } })),
+    h('b', { class: 'map-mor__n', 'aria-hidden': 'true' }, String(m)),
+    word ? h('span', { class: 'map-mor__w', 'aria-hidden': 'true' }, word) : null);
+}
+
+/** 敵の部隊の行に、兵の比「兵は ビスマルクの ×1.4」（その部隊の兵 ÷ 比べる自分の部隊の兵。比べる相手の名前を必ず書く） */
+function ratioTag(app, foe) {
+  const sr = squadRatio(app, foe);
+  if (!sr) return null;
+  const hero = heroOf(app.db, sr.base);
+  return h('span', {
+    class: ['map-ratio', sr.r >= 1 ? 'is-strong' : null], dataset: { ratio: sr.r.toFixed(3), base: sr.base.id },
+    title: tx(app, 'mapF.ratio.help', 'この部隊の兵 ÷ あなたの部隊の兵（選んでいるヒーロー。いなければ いちばん近い部隊）'),
+  }, fmt(tx(app, 'mapF.ratio.tag', '兵は {name}の ×{r}'), { name: hero ? hero.name : sr.base.id, r: ratioText(sr.r) }));
+}
+
 function planBlock(app, plan) {
   const st = app.state;
   const sq = st.squads[plan.squad];
   if (!sq) return null;
   const hero = heroOf(app.db, sq);
-  if (plan.kind === 'attack') {
-    const label = t(app, plan.siege ? 'map.siege' : 'map.attack');
-    const note = plan.ok ? null
-      : plan.reason === 'range' ? fmt(t(app, 'map.outOfRange'), { n: plan.range })
-        : plan.reason === 'shield' ? t(app, 'map.shielded')
-          : rejectText(app, sq, plan.reason);
-    return h('div', { class: ['map-plan', 'map-plan--attack', plan.ok ? null : 'is-ng'] },
-      h('div', { class: 'map-plan__who' },
-        heroThumb(hero, 'map-plan__hero', 28),
-        h('span', { class: 'map-plan__by' }, hero ? hero.name : sq.id),
-        h('span', { class: 'map-plan__arrow', 'aria-hidden': 'true' }),
-        h('p', { class: 'map-plan__target' }, plan.name)),
-      plan.ok
-        ? h('button', { class: ['btn-primary', 'map-plan__go', 'map-plan__go--attack'], type: 'button', 'data-ripple': 'accent', onClick: () => applyPlan(app) }, label)
-        : altButton(app, sq, note));
-  }
+  if (plan.kind === 'attack') return attackBlock(app, plan, sq, hero);
   if (!plan.path) return h('div', { class: 'map-plan is-ng' }, h('p', { class: 'map-plan__note' }, t(app, 'map.unreachable')));
   const over = (plan.cost || 0) > (sq.ap || 0);
   return h('div', { class: ['map-plan', plan.ok ? null : 'is-ng'] },
@@ -1887,12 +2220,213 @@ function planBlock(app, plan) {
       h('div', { class: ['map-plan__fact', plan.days > 1 ? 'is-later' : 'is-today'] }, h('dt', null, t(app, 'map.days')), h('dd', { class: 'num' }, plan.days != null ? fmt(t(app, 'map.daysUnit'), { n: plan.days }) : '-')),
       h('div', { class: 'map-plan__fact' }, h('dt', null, t(app, 'map.cost')), h('dd', { class: 'num' }, String(plan.cost))),
       h('div', { class: ['map-plan__fact', over ? 'is-over' : null] }, h('dt', null, t(app, 'map.apLeft')), h('dd', { class: 'num' }, String(sq.ap || 0)))),
-    h('div', { class: 'map-plan__key', 'aria-hidden': 'true' },
-      h('span', { class: 'map-plan__line map-plan__line--today' }), tx(app, 'map.legendRouteToday', '今日届く'),
-      h('span', { class: 'map-plan__line map-plan__line--later' }), tx(app, 'map.legendRouteLater', '翌日以降')),
+    // 遠征の見込み（SPEC-114 §1）。線の色の見かたは凡例（右上の「?」）にある
+    outlookBlock(app, sq, plan.tile, plan.days),
     plan.ok
       ? h('button', { class: 'btn-primary map-plan__go', type: 'button', 'data-ripple': 'accent', onClick: () => applyPlan(app) }, t(app, 'map.go'))
       : altButton(app, sq, rejectText(app, sq, plan.reason)));
+}
+
+/**
+ * 攻撃のシート（SPEC-114 §5）: だれ → どこ、見込み、主役のボタン 1 つ。
+ * - 砦・本拠地の上に守る部隊がいて、この一撃では落ちない（見込みの fall が none）なら「部隊を攻撃（砦は落ちません）」
+ * - 射程の外なら「隣まで移動して攻撃（AP 1 + 2）」。見込みは移動したあとの位置から。今日の AP に収まらなければ移動だけ
+ */
+function attackBlock(app, plan, sq, hero) {
+  const st = app.state;
+  const ap = !plan.ok ? plan.approach : null;
+  const guardSq = plan.guard ? st.squads[plan.guard] : null;
+  const guardHero = guardSq ? heroOf(app.db, guardSq) : null;
+  const what = plan.home ? tx(app, 'mapF.what.home', '本拠地') : tx(app, 'mapF.what.fort', '砦');
+  const noFall = !!(plan.siege && guardSq && plan.pred && plan.pred.fall === 'none');
+  // 何をするか（ボタンの言葉）: 攻略 / 攻撃 / 部隊を攻撃
+  const act = noFall ? tx(app, 'mapF.act.guard', '部隊を攻撃') : t(app, plan.siege ? 'map.siege' : 'map.attack');
+  const noFallNote = noFall ? fmt(tx(app, 'mapF.noFall', '{what}は落ちません（先に守る部隊を倒す）'), { what }) : null;
+  // 守る部隊がいて耐久がまったく動かない見込みなら、耐久の行は出さず守る部隊の行に 1 語で添える（シートを短くする）
+  const pd = plan.pred ? (plan.pred.fort ? plan.pred.fort.durability : plan.pred.home ? plan.pred.home.durability : null) : null;
+  const durSame = guardSq && pd && pd.min === pd.before && pd.max === pd.before ? pd : null;
+  let action;
+  if (plan.ok) {
+    action = goButton(app, noFall ? fmt(tx(app, 'mapF.attackGuard', '部隊を攻撃（{what}は落ちません）'), { what }) : act, null, true, 'attack');
+  } else if (ap && ap.moveOk && ap.today) {
+    const main = fmt(plan.range > 1 ? tx(app, 'mapF.approach.goRange', '射程まで移動して{act}（AP {m} + {a}）') : tx(app, 'mapF.approach.go', '隣まで移動して{act}（AP {m} + {a}）'),
+      { act, m: ap.cost, a: ap.atkAp });
+    action = goButton(app, main, noFallNote, true, 'approach');
+  } else if (ap && ap.moveOk) {
+    const main = fmt(plan.range > 1 ? tx(app, 'mapF.approach.moveRange', '射程まで移動する（攻撃は着いてから）') : tx(app, 'mapF.approach.move', '隣まで移動する（攻撃は着いてから）'), {});
+    const why = fmt(tx(app, 'mapF.approach.short', 'AP が足りません：移動 {m} + 攻撃 {a} ＞ 残り {ap}'), { m: ap.cost, a: ap.atkAp, ap: sq.ap || 0 });
+    action = goButton(app, main, why, false, 'approach-move');
+  } else {
+    const note = plan.reason === 'range' ? (ap ? rejectText(app, sq, ap.moveReason) : fmt(t(app, 'map.outOfRange'), { n: plan.range }))
+      : plan.reason === 'shield' ? t(app, 'map.shielded')
+        : rejectText(app, sq, plan.reason);
+    action = altButton(app, sq, note);
+  }
+  return h('div', { class: ['map-plan', 'map-plan--attack', plan.ok || (ap && ap.moveOk) ? null : 'is-ng'], dataset: { act: plan.ok ? 'attack' : ap && ap.moveOk ? (ap.today ? 'approach' : 'approach-move') : 'none', guard: guardSq ? '1' : '0' } },
+    h('div', { class: 'map-plan__who' },
+      heroThumb(hero, 'map-plan__hero', 28),
+      h('span', { class: 'map-plan__by' }, hero ? hero.name : sq.id),
+      h('span', { class: 'map-plan__arrow', 'aria-hidden': 'true' }),
+      h('p', { class: 'map-plan__target' }, plan.name)),
+    guardSq ? h('p', { class: ['map-plan__guard', noFall ? 'is-nofall' : null] },
+      fmt(tx(app, 'mapF.guard', '守る部隊：{name}（兵 {n}）'), { name: guardHero ? guardHero.name : guardSq.id, n: num(guardSq.troops) }),
+      durSame ? h('span', { class: 'map-plan__guard-dur num' }, fmt(tx(app, 'mapF.guardDur', '・{what}の耐久 {n} は減りません'), { what, n: num(durSame.before) })) : null) : null,
+    predBlock(app, plan.pred, { sub: ap && ap.moveOk ? tx(app, 'mapF.approach.predFrom', '移動したあとのマスから') : null, hideDur: !!durSame }),
+    action,
+    // 遠征の見込みは主役のボタンの下（シートは画面の 40% までなので、ボタンまでをスクロールなしで見せる）
+    ap && ap.moveOk ? outlookBlock(app, sq, ap.tile, ap.days) : null);
+}
+
+/** 主役のボタン（2 行目に添え書き）。attack なら赤い攻撃の色 */
+function goButton(app, main, sub, attack, act) {
+  return h('button', {
+    class: ['btn-primary', 'map-plan__go', attack ? 'map-plan__go--attack' : null, sub ? 'has-sub' : null], type: 'button', 'data-ripple': 'accent',
+    dataset: { act }, onClick: () => applyPlan(app),
+  }, h('span', { class: 'map-plan__go-main' }, main), sub ? h('span', { class: 'map-plan__go-sub' }, sub) : null);
+}
+
+/**
+ * 遠征の見込みの 2 行（SPEC-114 §1・§5）: 「食料 −15/日（うち この部隊 −5）・あと 3 日」と
+ * 「士気 毎日 +5 → +2　本拠地の +3 が無くなります」。数字は expedition（economy.breakdown・morale.planNight）のまま
+ */
+function outlookBlock(app, sq, dest, days) {
+  const ex = expedition(app, sq, dest);
+  if (!ex) return null;
+  const f = ex.food;
+  const short = f.daysLeft != null && days != null && f.daysLeft <= days;
+  const foodLine = [
+    h('b', { class: ['map-out__v', f.net < 0 ? 'is-minus' : f.net > 0 ? 'is-plus' : null] }, fmt(tx(app, 'mapF.out.perDay', '{v}/日'), { v: sgn(f.net) })),
+    f.squad > 0 ? h('span', { class: 'map-out__sub' }, fmt(tx(app, 'mapF.out.ownFood', '（うち この部隊 {v}）'), { v: sgn(-f.squad) })) : null,
+    f.daysLeft != null ? h('span', { class: ['map-out__days', f.daysLeft <= 2 ? 'is-bad' : f.daysLeft <= 5 ? 'is-warn' : null] },
+      f.daysLeft === 1 ? tx(app, 'mapF.out.tonight', '今夜尽きる') : fmt(tx(app, 'mapF.out.daysLeft', 'あと {n} 日'), { n: f.daysLeft })) : null,
+  ];
+  const hadHome = ex.now.reasons.includes('home');
+  const hasHome = ex.then.reasons.includes('home');
+  // 無くなるもの・付くもの（本拠地の士気 +3 と、本拠地での兵の回復）を 1 行ずつにまとめる
+  const lost = [];
+  const gain = [];
+  const homeV = sgn(MORALE_DELTA.home);
+  if (hadHome && !hasHome) lost.push(fmt(tx(app, 'mapF.out.homeMor', '本拠地の士気 {v}'), { v: homeV }));
+  else if (!hadHome && hasHome) gain.push(fmt(tx(app, 'mapF.out.homeMor', '本拠地の士気 {v}'), { v: homeV }));
+  if (ex.recNow > 0 && ex.recThen <= 0) lost.push(fmt(tx(app, 'mapF.out.rec', '兵の回復 {v}/日'), { v: sgn(ex.recNow) }));
+  else if (ex.recThen > ex.recNow) gain.push(fmt(tx(app, 'mapF.out.rec', '兵の回復 {v}/日'), { v: sgn(ex.recThen) }));
+  const sep = tx(app, 'mapF.out.sep', '・');
+  const notes = [
+    lost.length ? h('span', { class: 'map-out__note is-bad', dataset: { note: 'lost' } }, fmt(tx(app, 'mapF.out.lost', '{list} が無くなります'), { list: lost.join(sep) })) : null,
+    gain.length ? h('span', { class: 'map-out__note is-good', dataset: { note: 'gain' } }, fmt(tx(app, 'mapF.out.gain', '{list} が付きます'), { list: gain.join(sep) })) : null,
+  ];
+  const same = ex.now.delta === ex.then.delta;
+  return h('div', { class: ['map-out', short ? 'is-short' : null], dataset: { food: f.net, days: f.daysLeft ?? '', morNow: ex.now.delta, morThen: ex.then.delta } },
+    h('p', { class: 'map-out__title' }, tx(app, 'mapF.out.title', '着いたあと（毎日）')),
+    h('dl', { class: 'map-out__rows' },
+      h('div', { class: 'map-out__row is-food' }, h('dt', null, t(app, 'res.food')), h('dd', { class: 'num' }, foodLine)),
+      h('div', { class: 'map-out__row is-mor' }, h('dt', null, tx(app, 'map.mor.label', '士気')),
+        h('dd', { class: 'num' },
+          same
+            ? [h('b', { class: 'map-out__v' }, fmt(tx(app, 'mapF.out.morDay', '毎日 {v}'), { v: sgn(ex.then.delta) })), h('span', { class: 'map-out__sub' }, tx(app, 'mapF.out.same', '（いまと同じ）'))]
+            : [h('span', { class: 'map-out__sub' }, fmt(tx(app, 'mapF.out.morDay', '毎日 {v}'), { v: sgn(ex.now.delta) })),
+              h('span', { class: 'map-out__to', 'aria-hidden': 'true' }, '→'),
+              h('b', { class: ['map-out__v', ex.then.delta < ex.now.delta ? 'is-minus' : 'is-plus'] }, sgn(ex.then.delta))],
+          notes))),
+    short ? h('p', { class: 'map-out__warn' }, fmt(tx(app, 'mapF.out.short', '着く前に食料が尽きる見込み（到着 {d}・食料 あと {n} 日）'), { d: fmt(t(app, 'map.daysUnit'), { n: days }), n: f.daysLeft })) : null);
+}
+
+/** 見込みのラベルの強さ（5 段のメーター。色だけに頼らず、段の数と言葉でも伝える） */
+const PRED_RANK = { overwhelm: 5, advantage: 4, even: 3, disadvantage: 2, hopeless: 1 };
+const PRED_WORD = { overwhelm: '圧倒', advantage: '優勢', even: '互角', disadvantage: '劣勢', hopeless: '絶望的' };
+
+/**
+ * 見込みの中央（SPEC-114 §5 の指摘: 幅だけでは「予想どおり」が意味を持たない）。
+ * エンジンが mid を返せばそれを使い、無ければ幅の真ん中（エンジンのラベルも同じ真ん中で決めている）
+ */
+function midOf(r) {
+  return typeof r.mid === 'number' ? r.mid : Math.round((r.min + r.max) / 2);
+}
+
+/** 減り方の幅「0〜−116」（少ない減りが先。増える見込み（回復のスキル）は + で） */
+function lossText(r) {
+  const a = r.max - r.before;
+  const b = r.min - r.before;
+  if (a === b) return sgn(a);
+  // 幅の片方が 0 のときは「±0〜−116」ではなく「0〜−116」
+  const one = (v) => (v === 0 ? '0' : sgn(v));
+  return `${one(a)}〜${one(b)}`;
+}
+
+/** 幅がほとんど無い（2 以下）見込みは「約」を付けずに幅そのもので書く（「約 ±0（幅 0〜−1）」にしない） */
+function isWide(r) {
+  return Math.abs(r.max - r.min) > 2;
+}
+
+/** 増減の見込みの言葉: 幅が広ければ「約 −95」、狭ければ「0〜−1」、幅が無ければ「−95」 */
+function predDelta(app, r) {
+  if (r.min === r.max) return sgn(r.min - r.before);
+  if (!isWide(r)) return lossText(r);
+  return `${tx(app, 'mapF.pred.about', '約')}${sgn(midOf(r) - r.before)}`;
+}
+
+/** 見込みの 1 行: 「自  320 → 約 225  −95」を大きく、「幅 −80〜−110」を小さく */
+function predRow(app, key, label, r, extra) {
+  const mid = midOf(r);
+  const wide = isWide(r);
+  return h('div', { class: ['map-pred__row', `is-${key}`], dataset: { side: key, before: r.before, min: r.min, max: r.max, mid } },
+    h('dt', null, label),
+    h('dd', null,
+      h('span', { class: 'map-pred__before num' }, num(r.before)),
+      h('span', { class: 'map-pred__to', 'aria-hidden': 'true' }, '→'),
+      h('b', { class: 'map-pred__after num' }, wide ? h('small', null, tx(app, 'mapF.pred.about', '約')) : null,
+        wide || r.min === r.max ? num(mid) : `${num(r.min)}〜${num(r.max)}`),
+      h('span', { class: ['map-pred__loss', 'num', mid < r.before ? 'is-minus' : null] }, wide ? sgn(mid - r.before) : lossText(r)),
+      wide ? h('span', { class: 'map-pred__range num' }, fmt(tx(app, 'mapF.pred.range', '幅 {v}'), { v: lossText(r) })) : null,
+      extra || null));
+}
+
+/**
+ * 攻撃の見込み（battle.predict をそのまま並べる。SPEC-114 §5）:
+ * ラベル（5 段のメーター + 言葉）・奇襲・陥落 / 敗走の見込み、自 / 敵 / 耐久の「前 → 幅」、確率と含まないもの
+ */
+function predBlock(app, pred, { sub = null, hideDur = false } = {}) {
+  if (!pred) return null;
+  const rank = PRED_RANK[pred.label] || 3;
+  const word = tx(app, `map.pred.label.${pred.label}`, PRED_WORD[pred.label] || pred.label);
+  const tags = [];
+  if (pred.ambush) tags.push(h('span', { class: 'map-pred__tag is-good' }, tx(app, 'map.pred.ambush', '奇襲（回避されない）')));
+  if (pred.target === 'fort' || pred.target === 'home') {
+    if (pred.fall !== 'none') tags.push(h('span', { class: ['map-pred__tag', 'is-good'] }, tx(app, `map.pred.fall.${pred.fall}`, pred.fall === 'sure' ? '陥落する' : '陥落の可能性')));
+  } else if (pred.defender.max <= 0) {
+    tags.push(h('span', { class: 'map-pred__tag is-good' }, tx(app, 'map.pred.rout.sure', '敗走させる')));
+  } else if (pred.defender.min <= 0) {
+    tags.push(h('span', { class: 'map-pred__tag is-good' }, tx(app, 'map.pred.rout.maybe', '敗走させる可能性')));
+  }
+  if (pred.attacker.max <= 0) tags.push(h('span', { class: 'map-pred__tag is-bad' }, tx(app, 'map.pred.risk.sure', 'こちらが敗走')));
+  else if (pred.attacker.min <= 0) tags.push(h('span', { class: 'map-pred__tag is-bad' }, tx(app, 'map.pred.risk.maybe', '敗走の恐れ')));
+
+  const rows = [predRow(app, 'self', tx(app, 'map.pred.self', '自'), pred.attacker)];
+  // 守る部隊のいない本拠地は兵の行を出さない（耐久だけ）
+  const noGuard = pred.target === 'home' && pred.defender.before <= 0 && pred.defender.max <= 0;
+  if (!noGuard) rows.push(predRow(app, 'foe', tx(app, 'map.pred.foe', '敵'), pred.defender));
+  const dur = pred.fort ? pred.fort.durability : pred.home ? pred.home.durability : null;
+  if (dur && !hideDur) rows.push(predRow(app, 'dur', tx(app, 'map.pred.dur', '耐久'), dur));
+
+  const ch = pred.chances || {};
+  const odds = [
+    fmt(tx(app, 'map.pred.skill', 'スキル {p}%'), { p: ch.skill || 0 }),
+    (!pred.ambush && pred.target === 'squad') || (ch.evade || 0) > 0 ? fmt(tx(app, 'map.pred.evade', '相手の回避 {p}%'), { p: ch.evade || 0 }) : null,
+    pred.counter ? tx(app, 'map.pred.counter', '反撃あり') : tx(app, 'map.pred.noCounter', '反撃なし'),
+  ].filter(Boolean).join('・');
+  const ex = (pred.excludes || []).map((k) => tx(app, `map.pred.ex.${k}`, k)).join('・');
+  return h('div', { class: 'map-pred', dataset: { label: pred.label, fall: pred.fall } },
+    h('div', { class: 'map-pred__head' },
+      h('span', { class: 'map-pred__title' }, tx(app, 'map.pred.title', '見込み'), sub ? h('small', { class: 'map-pred__from' }, `（${sub}）`) : null),
+      h('span', { class: ['map-pred__label', `is-${pred.label}`] },
+        h('span', { class: 'map-pred__pips', 'aria-hidden': 'true' }, [1, 2, 3, 4, 5].map((i) => h('i', { class: i <= rank ? 'is-on' : null }))),
+        h('b', null, word)),
+      tags),
+    h('dl', { class: 'map-pred__rows' }, rows),
+    h('p', { class: 'map-pred__note' },
+      h('span', { class: 'num' }, odds), ' ',
+      tx(app, 'map.pred.luck', '回避とスキルの運で上下します'),
+      ex ? `（${fmt(tx(app, 'map.pred.excludes', '{list}は含みません'), { list: ex })}）` : ''));
 }
 
 /**
@@ -1946,6 +2480,10 @@ function renderSheet(app, { swap = false } = {}) {
     h('button', { class: 'btn-ghost map-sheet__x', type: 'button', 'aria-label': t(app, 'common.close'), onClick: () => closeSheet(app) }, '×')));
 
   if (plan) el.appendChild(planBlock(app, plan));
+  else if (visible && !app.ui.executing && !selectedSquad(app) && targetAt(st, st.playerLand, tile)) {
+    // 敵の部隊・砦・本拠地: 攻める側を選べば見込みが出る（SPEC-114 §5）
+    el.appendChild(h('p', { class: 'map-pred__hint' }, tx(app, 'map.pred.pickHero', 'ヒーローを選ぶと、攻撃の見込みが出ます')));
+  }
 
   if (!visible) {
     el.appendChild(h('p', { class: 'muted map-sheet__fog' }, t(app, 'map.unexplored')));
@@ -2054,7 +2592,7 @@ function renderOverlay(app) {
     },
     h('span', { class: 'map-chip__face' }, heroThumb(hero, 'map-chip__img', 36)),
     h('span', { class: 'map-chip__text' },
-      h('span', { class: 'map-chip__name' }, h('span', { class: 'map-chip__nm' }, hero ? hero.name : sq.id), n ? h('span', { class: 'map-chip__orders num' }, `${t(app, 'map.orders')} ${n}`) : null),
+      h('span', { class: 'map-chip__name' }, h('span', { class: 'map-chip__nm' }, hero ? hero.name : sq.id), n ? h('span', { class: 'map-chip__orders num' }, `${t(app, 'map.orders')} ${n}`) : null, moraleChip(app, sq)),
       h('span', { class: 'map-chip__ap num' }, h('b', null, `${t(app, 'map.apLeft')} ${ap}`), pips),
       h('span', { class: 'map-chip__sub' }, sub))));
   } else if (!exec) {
@@ -2196,7 +2734,10 @@ function legendPanel(app) {
         `${tx(app, 'map.legendFort', '砦（枠の色がランク）')}  ${['rare', 'epic', 'legendary'].map((r) => t(app, `fort.${r}`).replace(/砦$/, '')).join(' / ')}`),
       item(hexSw({ '--c': mineCol }, 'is-home'), tx(app, 'map.legendHome', '本拠地')),
       item(h('span', { class: 'map-legend__fac', 'aria-hidden': 'true' }, '街2'), tx(app, 'map.legendFacility', '施設（頭文字とランク）')),
-      item(h('span', { class: 'map-legend__fac is-build', 'aria-hidden': 'true' }, '農'), tx(app, 'map.legendBuilding', '建築中（点線）'))),
+      item(h('span', { class: 'map-legend__fac is-build', 'aria-hidden': 'true' }, '農'), tx(app, 'map.legendBuilding', '建築中（点線）')),
+      item(h('span', { class: 'map-legend__mor is-shaken', 'aria-hidden': 'true' }), tx(app, 'map.legendMorShaken', '士気 20 未満（動揺。弱くなる）')),
+      item(h('span', { class: 'map-legend__mor is-zero', 'aria-hidden': 'true' }), tx(app, 'map.legendMorZero', '士気 0（毎晩 兵が逃げる）')),
+      item(h('span', { class: 'map-legend__ratio', 'aria-hidden': 'true' }, '×1.4'), tx(app, 'mapF.legendRatio', '隣のランドの部隊の兵が、あなたの部隊（選んでいるヒーロー。いなければ いちばん近い部隊）の何倍か'))),
     h('h3', { class: 'map-legend__sub' }, tx(app, 'map.legendRoute', '移動')),
     h('ul', { class: 'map-legend__list' },
       item(hexSw(null, 'is-reach'), tx(app, 'map.legendReach', '今日届く範囲')),
@@ -2223,8 +2764,24 @@ function guideStage(app) {
   return sel ? 'dest' : 'squad';
 }
 
+/**
+ * 案内を出さないとき: 攻撃のシート（敵の部隊・砦・本拠地をタップしたシート）が開いている間。
+ * 案内の吹き出しは移動の手順なので、攻撃のシートの見出しと地図を隠すだけになる（閉じたらまた出る）
+ */
+function guideBlocked(app) {
+  const tile = app.ui.tile;
+  if (tile == null) return false;
+  const plan = mv(app).plan;
+  if (plan && plan.kind === 'attack') return true;
+  return isVisible(app, tile) && !!targetAt(app.state, app.state.playerLand, tile);
+}
+
 function updateGuide(app) {
   if (!V) return;
+  if (guideBlocked(app)) {
+    if (V.guide) endGuide(false);
+    return;
+  }
   if (!V.guide) {
     if (!guideWanted(app) || V.guideClosed) return;
     V.guide = { step: null, el: null, typing: null, timer: 0, tile: null };
@@ -2482,7 +3039,8 @@ export function render(app) {
   const roster = h('ol', { class: 'map-roster', 'aria-label': tx(app, 'chat.roster', 'ヒーローの並び') });
   const dock = h('div', { class: 'map-dock panel panel--glass' }, roster, fab);
   const vignette = h('div', { class: 'map-app__vignette', 'aria-hidden': 'true' });
-  const stage = h('div', { class: 'map-app__stage' }, canvas, vignette, top, tools, dock);
+  const result = h('div', { class: 'map-result-slot', 'aria-live': 'polite' });
+  const stage = h('div', { class: 'map-app__stage' }, canvas, vignette, top, tools, result, dock);
   const sheet = h('section', { class: 'map-sheet panel panel--glass', 'aria-labelledby': 'map-sheet-title', hidden: true });
   return h('section', { class: 'map-app', dataset: { executing: app.ui.executing ? '1' : '0' } }, stage, sheet);
 }
@@ -2504,6 +3062,7 @@ export function mount(app, el) {
     fab: el.querySelector('.map-app__end'),
     dock: el.querySelector('.map-dock'),
     roster: el.querySelector('.map-roster'),
+    resultEl: el.querySelector('.map-result-slot'), snap: null,
     cw: 0, ch: 0, dpr: 0, raf: 0, dirty: true, lastDraw: 0, sc: null, sctx: null, staticKey: '', staticDirty: true,
     pointers: new Map(), drag: null, pinch: null,
     anims: new Map(), lunges: new Map(), floats: [], taps: [], shake: null, camAnim: null, reach: null,
@@ -2541,6 +3100,9 @@ export function mount(app, el) {
     if (tile != null) centerOn(app, tile);
     // 戦闘の数字とエフェクトが読める寄り（引きすぎ・寄りすぎを直す）
     app.ui.mapCam.zoom = Math.min(1.2, Math.max(0.95, app.ui.mapCam.zoom || 1));
+    // 戦闘の「予想 → 実際」（SPEC-114 §5）: 見込みを控えていない攻撃の指示に今の見込みを控え、実行前の兵を写しておく
+    rememberQueuedPreds(app);
+    V.snap = takeSnap(app.state);
     // 進み具合（execbar は mount の後に描かれるので、次の番で差す）
     V.exec = { n: 0, total: estimateBeats(app) };
     later(() => renderProgress(), 0);
@@ -2754,6 +3316,7 @@ function playBattle(app, ev, tm) {
   }
   V.camHold = Math.max(V.camHold, tm + endT);
   V.beatEnd = Math.max(V.beatEnd, tm + beat);
+  return hitT;
 }
 
 function fallKey(e) {
@@ -2818,8 +3381,14 @@ export function onEvent(app, ev) {
     }
     case 'battle': {
       const attacker = st.squads[ev.attacker];
-      playBattle(app, ev, tm);
+      const hitT = playBattle(app, ev, tm);
       V.lastHit = { attacker: ev.attacker, land: attacker ? attacker.land : null, at: ev.at, result: ev.result || null };
+      // 自分が関わる戦闘は「予想 → 実際」の札を、数字が弾むのと同時に
+      const res = battleResult(app, ev);
+      if (res) {
+        if (hitT > 0) later(() => showResult(app, res), hitT);
+        else showResult(app, res);
+      }
       break;
     }
     default:
@@ -2871,7 +3440,145 @@ export function onEvent(app, ev) {
       }
       break;
   }
+  // 次の戦闘の「実際」は、この時点からの差で数える
+  V.snap = takeSnap(st);
   requestDraw();
+}
+
+// ---------- 戦闘の結果「予想 −60〜−90 → 実際 −75」（SPEC-114 §5） ----------
+
+/** 札を出しておく時間 */
+const RESULT_MS = 3200;
+
+/** 兵・砦・本拠地の耐久の写し（戦闘の前後の差で「実際」を出す。エンジンの state をそのまま読むだけ） */
+function takeSnap(st) {
+  const squads = {};
+  const land = {};
+  for (const [id, s] of Object.entries(st.squads || {})) {
+    squads[id] = Math.max(0, s.troops || 0);
+    land[id] = s.land;
+  }
+  const forts = {};
+  for (const [id, f] of Object.entries(st.forts || {})) forts[id] = { troops: Math.max(0, f.troops || 0), dur: Math.max(0, f.durability || 0) };
+  const homes = {};
+  for (const [id, l] of Object.entries(st.lands || {})) homes[id] = typeof l.homeDurability === 'number' ? l.homeDurability : 100;
+  return { squads, land, forts, homes };
+}
+
+/**
+ * 自分が関わる戦闘の結果の行。攻めたなら、指示したときに控えた見込み（app.ui.mapPred）と並べる。
+ * 攻められたときは見込みが無いので「実際」だけ
+ * @returns {null | { mine:'attack'|'defend', self, foe, target, rows: Array<{key, act:number|null, pred, fallen, routed}> }}
+ */
+function battleResult(app, ev) {
+  const st = app.state;
+  const snap = V && V.snap;
+  if (!snap || !ev) return null;
+  const me = st.playerLand;
+  const defIsSquad = ev.defender != null && snap.squads[ev.defender] != null;
+  const atkMine = snap.land[ev.attacker] === me;
+  const defMine = defIsSquad && snap.land[ev.defender] === me;
+  if (!atkMine && !defMine) return null;
+  const troopsNow = (id) => (st.squads[id] ? Math.max(0, st.squads[id].troops || 0) : 0);
+  const delta = (id) => troopsNow(id) - (snap.squads[id] || 0);
+  const routed = (id) => !!st.squads[id] && st.squads[id].status === 'routed' && troopsNow(id) === 0 && (snap.squads[id] || 0) > 0;
+  const m = app.ui.mapPred;
+  let pred = atkMine && m && m.day === st.day ? (m.list[`${ev.attacker}@${ev.at}`] || null) : null;
+  // 指示のあとで相手の部隊が入れ替わった（狙った部隊が動き、別の部隊を攻めた）なら、見込みとは比べない
+  const changed = !!pred && pred.defenderId != null && ev.defender != null && pred.defenderId !== ev.defender && pred.target === 'squad';
+  if (changed) pred = null;
+  const fallen = ev.result === 'fort_fallen' || ev.result === 'home_fallen';
+  const rows = [];
+  if (atkMine) {
+    rows.push({ key: 'self', act: delta(ev.attacker), was: snap.squads[ev.attacker], pred: pred ? pred.attacker : null, routed: routed(ev.attacker) });
+    const fort = ev.target === 'fort' ? Object.values(st.forts || {}).find((f) => f.tile === ev.at) : null;
+    if (defIsSquad) rows.push({ key: 'foe', act: delta(ev.defender), was: snap.squads[ev.defender], pred: pred ? pred.defender : null, routed: routed(ev.defender) });
+    else if (fort && snap.forts[fort.id]) {
+      // 守備部隊のいない砦は守備兵。落ちたら守備兵は入れ替わるので「陥落」と書く
+      rows.push({ key: 'foe', act: fallen ? null : Math.max(0, fort.troops || 0) - snap.forts[fort.id].troops, was: snap.forts[fort.id].troops, pred: pred ? pred.defender : null, fallen });
+    }
+    if (fort && snap.forts[fort.id]) {
+      rows.push({ key: 'dur', act: fallen ? null : Math.max(0, fort.durability || 0) - snap.forts[fort.id].dur, was: snap.forts[fort.id].dur, pred: pred && pred.fort ? pred.fort.durability : null, fallen });
+    } else if (ev.target === 'home') {
+      const hid = Object.keys(st.lands || {}).find((id) => st.lands[id] && st.lands[id].home === ev.at);
+      if (hid && snap.homes[hid] != null) {
+        const now = typeof st.lands[hid].homeDurability === 'number' ? st.lands[hid].homeDurability : 100;
+        rows.push({ key: 'dur', act: fallen ? null : now - snap.homes[hid], was: snap.homes[hid], pred: pred && pred.home ? pred.home.durability : null, fallen });
+      }
+    }
+  } else {
+    rows.push({ key: 'self', act: delta(ev.defender), pred: null, routed: routed(ev.defender) });
+    rows.push({ key: 'foe', act: delta(ev.attacker), pred: null, routed: routed(ev.attacker) });
+  }
+  return { mine: atkMine ? 'attack' : 'defend', attacker: ev.attacker, defender: ev.defender, target: ev.target, at: ev.at, hasPred: !!pred, changed, rows };
+}
+
+/** 実際の値が見込みの幅に入ったか（陥落は「0 まで減る見込みがあったか」で見る）。見込みが無ければ null */
+function resultHit(row) {
+  const p = row.pred;
+  if (!p) return null;
+  if (row.act == null) return row.fallen ? p.min <= 0 : null;
+  const lo = p.min - p.before;
+  const hi = p.max - p.before;
+  return row.act >= Math.min(lo, hi) && row.act <= Math.max(lo, hi);
+}
+
+function showResult(app, res) {
+  if (!V || !V.resultEl) return;
+  const st = app.state;
+  const selfSq = st.squads[res.mine === 'attack' ? res.attacker : res.defender];
+  const hero = heroOf(app.db, selfSq);
+  let title;
+  if (res.mine === 'attack') {
+    const fort = res.target === 'fort' ? Object.values(st.forts || {}).find((f) => f.tile === res.at) : null;
+    const home = res.target === 'home' ? Object.keys(st.lands || {}).find((id) => st.lands[id] && st.lands[id].home === res.at) : null;
+    const foeSq = res.target === 'squad' ? st.squads[res.defender] : null;
+    const name = fort ? (fort.name || t(app, `fort.${fort.rank}`)) : home ? `${landName(app, home)}${t(app, 'map.home')}` : foeSq ? (heroOf(app.db, foeSq) || {}).name || '' : '';
+    title = fmt(tx(app, 'map.result.attack', '{hero} → {target}'), { hero: hero ? hero.name : '', target: name });
+  } else {
+    const foe = st.squads[res.attacker];
+    title = fmt(tx(app, 'map.result.defend', '{foe}が{hero}を攻撃'), { foe: foe ? landName(app, foe.land) : '', hero: hero ? hero.name : '' });
+  }
+  const label = { self: tx(app, 'map.pred.self', '自'), foe: tx(app, 'map.pred.foe', '敵'), dur: tx(app, 'map.pred.dur', '耐久') };
+  const rows = res.rows.map((r) => {
+    const hit = resultHit(r);
+    // 外れたとき、戦闘の前の兵（耐久）が指示したときと違えば「前提が変わった」（先にほかの戦闘・移動があった）
+    const moved = hit === false && r.was != null && r.pred && r.was !== r.pred.before;
+    const act = r.act == null ? tx(app, 'map.result.fallen', '陥落') : `${sgn(r.act)}${r.routed ? `（${tx(app, 'map.result.routed', '敗走')}）` : ''}`;
+    return h('div', { class: ['map-result__row', `is-${r.key}`], dataset: { side: r.key, act: r.act == null ? 'fallen' : r.act, hit: hit == null ? '' : hit ? '1' : moved ? 'moved' : '0' } },
+      h('dt', null, label[r.key]),
+      h('dd', null,
+        r.pred
+          ? h('span', { class: 'map-result__pred num' },
+            fmt(tx(app, 'map.result.pred', '予想 {v}'), { v: predDelta(app, r.pred) }),
+            isWide(r.pred) ? h('small', { class: 'map-result__range' }, fmt(tx(app, 'mapF.pred.rangeParen', '（幅 {v}）'), { v: lossText(r.pred) })) : null)
+          : null,
+        r.pred ? h('span', { class: 'map-result__arrow', 'aria-hidden': 'true' }, '→') : null,
+        h('b', { class: 'map-result__act num' }, fmt(tx(app, 'map.result.act', '実際 {v}'), { v: act })),
+        hit == null ? null : h('span', { class: ['map-result__hit', hit ? 'is-hit' : 'is-miss'] },
+          hit ? tx(app, 'map.result.hit', '予想どおり') : moved ? tx(app, 'map.result.moved', '前提が変わった') : tx(app, 'map.result.miss', '予想の外'))));
+  });
+  const card = h('div', {
+    class: ['map-result', 'panel', 'panel--glass', res.mine === 'attack' ? 'is-attack' : 'is-defend'],
+    role: 'status', dataset: { mine: res.mine, pred: res.hasPred ? '1' : '0' },
+  },
+  h('div', { class: 'map-result__head' },
+    heroThumb(hero, 'map-result__hero', 28),
+    h('b', { class: 'map-result__title' }, title),
+    res.mine === 'attack' && !res.hasPred
+      ? h('span', { class: 'map-result__nopred' }, res.changed ? tx(app, 'map.result.changed', '相手が入れ替わった') : tx(app, 'map.result.noPred', '見込みなし'))
+      : null),
+  h('dl', { class: 'map-result__rows' }, rows));
+  clear(V.resultEl);
+  V.resultEl.appendChild(card);
+  if (V.resultTimer) { clearTimeout(V.resultTimer); V.timers.delete(V.resultTimer); }
+  V.resultTimer = later(() => {
+    if (!V || card.parentNode !== V.resultEl) return;
+    if (motion()) {
+      card.classList.add('is-out');
+      later(() => card.remove(), fx.token('--t-ui', 240));
+    } else card.remove();
+  }, RESULT_MS);
 }
 
 export function onExecuteEnd() {
@@ -2895,5 +3602,8 @@ export function onExecuteEnd() {
   V.claims = [];
   V.reach = null;
   V.lastHit = null;
+  V.snap = null;
+  V.resultTimer = 0;
+  if (V.resultEl) clear(V.resultEl);
   requestDraw();
 }

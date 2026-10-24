@@ -9,10 +9,26 @@
 // 選択待ちがあるときは、ナビの案内パネルを出さず SOUL の見出しの横に 1 行だけ（全文は「?」）。主役の 3 枚を押し下げない。
 // 数値（装備込みのパラメーター・兵の上限・射程）は heroes.js に聞く。占領数は season.tileCount と同じ数え方を
 // 探索済みのタイルに絞って数える（見えていない所は数えない）。
+//
+// SPEC-114 §6（Phase 3B）:
+// ・ヒーローのカードに士気（ゲージと数字・動揺 / 逃走の言葉）と食費（−N/日）。食費は economy.breakdown の部隊ごとの行、
+//   今夜の士気の変化と逃走は内訳シートと同じ見方（積んだ指示のあとの写しを morale.planNight にかける）。
+//   恩賞の見込みは economy.previewDomestic。強さへの効きは morale.moraleMult。UI で計算し直さない。
+// ・ランドのタブは順位表。値は朝の時点で固定（その日に初めて描いたときに控え、実行フェーズの途中では描き直さない）。
+//   視界に一度も入っていないランドの兵・占領マス・ヒーロー数は「?」（値そのものを控えに残さない）。
+//   見えたランドの値は「あなたに見えている分」（マップに描かれる部隊・マスの合計。ホームの脅威も landIntel で同じ値を読む）。
+//   全部は見えていないランドは「〜」と最後に見た日（「きょう」「3 日前」）。
+//   初めは「砦 pt」と「兵」の 2 列。並べ替えのボタンで 兵 / 占領マス に切り替える。
+// ・用語の「?」に 士気・食費・配給・恩賞・逃走。文の中の数はエンジンの定数を差し込む（書き写さない）。
 
 import { h, heroImg, imgEl, landAssetPath, toast } from './h.js';
 import { uiText, say } from '../engine/lines.js';
 import { effectiveParams, troopCap, rangeOf, PARAM_KEYS } from '../engine/heroes.js';
+import { breakdown, previewDomestic, totalTroops } from '../engine/economy.js';
+import { planNight, moraleOf, moraleMult, rationOf, MORALE_SHAKEN, MORALE_DELTA, RATIONS, DESERT_RATE, REWARD_BASE, REWARD_PER_TROOPS } from '../engine/morale.js';
+import { TROOPS_PER_FOOD } from '../engine/tuning.js';
+import { tileCount } from '../engine/season.js';
+import { moraleGauge, plannedState, openLedger, signed, fmt } from './ledger-view.js';
 import { accept } from '../engine/souls.js';
 import { save } from '../state.js';
 import { render as renderApp, openPopup, closePopup, go } from '../main.js';
@@ -20,7 +36,7 @@ import { appHead, helpPopup, firstGuide, markGuideSeen, entering, leave, tx } fr
 import * as fx from './fx.js';
 
 const TABS = ['heroes', 'forts', 'lands'];
-const TAB_KEY = { heroes: 'drive.tabHeroes', forts: 'drive.tabForts', lands: 'drive.tabLands' };
+const TAB_KEY = { heroes: 'drive.tabHeroes', forts: 'drive.tabForts', lands: 'driveP3.tabRank' };
 /** SOUL のカードが 1 枚めくれるまで（SPEC-112 §5） */
 export const SOUL_FLIP_MS = 600;
 
@@ -64,7 +80,35 @@ function termItems(app) {
   const more = ['troops', 'range', 'skill', 'squadType', 'equip', 'fortPoints'].map((k) => ({
     id: k, term: k === 'troops' ? t(app, 'param.troops') : t(app, `drive.${k}`), text: t(app, `help.drive.${k}`),
   }));
-  return params.concat(more);
+  return params.concat(more, moraleTerms(app));
+}
+
+/** 士気まわりの用語（SPEC-114 §8）。文の中の数はエンジンの定数から差し込む */
+const MORALE_TERMS = ['morale', 'foodCost', 'ration', 'reward', 'desert'];
+const MORALE_TERM_FALLBACK = {
+  morale: ['士気', '部隊ごとの 0〜100。攻撃と防御に掛かります（0 で ×{m0}、50 で ×{m50}、100 で ×{m100}）。{shaken} 未満は動揺。食料が足りた夜は {fed}、本拠地で夜を越すと {home}、食料が尽きた夜は全部隊が {starve}'],
+  foodCost: ['食費', 'その部隊の兵が 1 日に食べる食料。兵 {d} 人で 1（配給で増減）。人口の分は別に引かれます'],
+  ration: ['配給', 'ランドの方針。節約は兵の食料 ×{saveFood} で士気が毎日 {saveMorale}、増量は ×{feastFood} で毎日 {feastMorale}。AP を使わずに、内訳シートの食料のタブで切り替えます'],
+  reward: ['恩賞', '本拠地での内政（AP 2）。GUM {rewardBase} と、兵 {rewardPer} 人ごとに 1 を払って、その部隊の士気 {reward}'],
+  desert: ['逃走', '士気 0 のまま夜を迎えた部隊から、兵の {pct}%（切り上げ）が逃げます。逃げた兵は戻りません'],
+};
+
+function moraleTermVars() {
+  return {
+    m0: moraleMult(0).toFixed(2), m50: moraleMult(50).toFixed(2), m100: moraleMult(100).toFixed(2), shaken: MORALE_SHAKEN,
+    fed: signed(MORALE_DELTA.fed), home: signed(MORALE_DELTA.home), starve: signed(MORALE_DELTA.starve), reward: signed(MORALE_DELTA.reward),
+    d: TROOPS_PER_FOOD, saveFood: RATIONS.save.food, saveMorale: signed(RATIONS.save.morale), feastFood: RATIONS.feast.food, feastMorale: signed(RATIONS.feast.morale),
+    rewardBase: REWARD_BASE, rewardPer: REWARD_PER_TROOPS, pct: Math.round(DESERT_RATE * 100),
+  };
+}
+
+function moraleTerms(app) {
+  const vars = moraleTermVars();
+  return MORALE_TERMS.map((id) => ({
+    id,
+    term: tx(app, `driveP3.term.${id}`, MORALE_TERM_FALLBACK[id][0]),
+    text: fill(tx(app, `driveP3.term.${id}.text`, MORALE_TERM_FALLBACK[id][1]), vars),
+  }));
 }
 
 /** 初回の案内（SOUL の選択待ちでは出さないので、その全文は「?」の頭に回す） */
@@ -165,10 +209,89 @@ function toggleCard(app, card) {
   for (const n of card.querySelectorAll('.param-bar__num')) fx.rollNumber(n, Number(n.dataset.to), { from: 0, flash: false, ms: 520 });
 }
 
-function heroCard(app, squad, i) {
+/**
+ * 士気と食費の見込み（描くたびに 1 回だけエンジンに聞く）。
+ *   food   … economy.breakdown の食料の支出のうち、部隊ごとの兵の行（積んだ指示を含まない。内訳シートと同じ数）
+ *   night  … 積んだ指示のあとで今夜を迎えたら（morale.planNight。飢えるかは forecast と同じ決め方）。内訳シートと同じ見方
+ */
+function moraleContext(app) {
+  const st = app.state;
+  const me = st.playerLand;
+  const base = breakdown(st, app.db, me);
+  const food = new Map(base.food.expense.filter((r) => r.key === 'troops').map((r) => [r.squad, r.value]));
+  const sim = plannedState(app);
+  const sb = breakdown(sim, app.db, me);
+  const night = planNight(sim, app.db, me, sb.food.stock + sb.food.net < 0, 0);
+  return {
+    food,
+    tonight: new Map(night.morale.map((x) => [x.squad, x.delta])),
+    desert: new Map(night.desert.map((x) => [x.squad, x.amount])),
+    ration: rationOf(st.lands[me]),
+  };
+}
+
+/** 士気の状態の言葉（色だけに頼らない）。null は平常 */
+function moraleState(app, squad, mc) {
+  const m = moraleOf(squad);
+  const des = mc.desert.get(squad.id) || 0;
+  if (squad.status === 'routed') return null; // 敗走中は別のタグで出す
+  if (des > 0) return { level: 'bad', text: fill(tx(app, 'driveP3.desertTonight', '逃走 今夜 −{n} 人'), { n: fmt(des) }) };
+  if (m === 0) return { level: 'warn', text: tx(app, 'driveP3.zeroHold', '士気 0・今夜は逃げない') };
+  if (m < MORALE_SHAKEN) return { level: 'warn', text: tx(app, 'driveP3.shaken', '動揺') };
+  return null;
+}
+
+/** 開いた形の「士気と食費」。強さへの効き・今夜の変化・食費・配給・恩賞の見込み。行を押すと動かす画面へ */
+function moraleBox(app, squad, hero, mc) {
+  const m = moraleOf(squad);
+  const food = mc.food.get(squad.id) || 0;
+  const tonight = mc.tonight.get(squad.id) || 0;
+  const des = mc.desert.get(squad.id) || 0;
+  const routed = squad.status === 'routed';
+  const rw = routed ? null : previewDomestic(app.state, app.db, squad, 'reward');
+  const why = rw && !rw.ok ? tx(app, `driveP3.why.${rw.reason}`, '') : '';
+  const pv = (k, fb) => tx(app, k, fb);
+  return h('div', { class: 'hero-mor', dataset: { morale: m } },
+    // 士気: ゲージ・強さへの効き・今夜の変化
+    h('div', { class: 'hero-mor__row' },
+      h('span', { class: 'hero-mor__k' }, term(app, 'morale', pv('driveP3.morale', '士気'))),
+      moraleGauge(app, m, { cls: 'morale--card' }),
+      h('span', { class: 'hero-mor__mult num' }, fill(pv('driveP3.mult', '強さ ×{v}'), { v: moraleMult(m).toFixed(2) }))),
+    h('p', { class: 'hero-mor__sub' },
+      routed ? h('span', null, pv('driveP3.routedNight', '敗走中は夜の士気の変化を受けません'))
+        : h('span', { class: ['num', tonight > 0 ? 'is-up' : tonight < 0 ? 'is-down' : null] }, fill(pv('driveP3.tonight', '今夜の士気 {v}'), { v: signed(tonight) })),
+      des > 0 ? h('strong', { class: 'hero-mor__bad num' }, fill(pv('driveP3.desertTonight', '逃走 今夜 −{n} 人'), { n: fmt(des) })) : null,
+      h('span', { class: 'hero-mor__note' }, term(app, 'desert', pv('driveP3.term.desert', '逃走')),
+        fill(pv('driveP3.desertRule', '士気 0 で夜を越すと 兵 −{pct}%'), { pct: Math.round(DESERT_RATE * 100) }))),
+    // 食費と配給（押すと内訳シートの食料。配給はそこで切り替える）
+    h('div', { class: 'hero-mor__row hero-mor__row--food' },
+      h('span', { class: 'hero-mor__k' }, term(app, 'foodCost', pv('driveP3.food', '食費'))),
+      h('button', {
+        class: 'hero-mor__link', type: 'button', 'aria-label': `${pv('driveP3.food', '食費')} ${signed(-food)} ${pv('driveP3.perDay', '/日')}、${pv('driveP3.openFood', '内訳を開く')}`,
+        onClick: () => openLedger(app, 'food'),
+      },
+      h('strong', { class: 'num' }, `${signed(-food)}${pv('driveP3.perDay', '/日')}`),
+      h('span', { class: 'hero-mor__ration' }, fill(pv('driveP3.ration', '配給 {r}'), { r: pv(`driveP3.ration.${mc.ration}`, mc.ration) })),
+      h('span', { class: 'hero-mor__go', 'aria-hidden': 'true' })),
+      term(app, 'ration', pv('driveP3.term.ration', '配給'))),
+    // 恩賞の見込み（押すとそのヒーローのトーク。積むのは Chat）
+    rw && rw.delta.morale > 0 ? h('div', { class: 'hero-mor__row hero-mor__row--reward' },
+      h('span', { class: 'hero-mor__k' }, term(app, 'reward', pv('driveP3.term.reward', '恩賞'))),
+      h('button', {
+        class: ['hero-mor__link', rw.ok ? null : 'is-off'], type: 'button', onClick: () => go('chat', { squad: squad.id }),
+      },
+      h('span', { class: 'num' }, fill(pv('driveP3.rewardEff', 'GUM {g}・士気 {m}'), { g: signed(rw.delta.gum), m: signed(rw.delta.morale) })),
+      h('span', { class: 'hero-mor__why' }, rw.ok ? pv('driveP3.rewardGo', 'トークで積む') : why),
+      h('span', { class: 'hero-mor__go', 'aria-hidden': 'true' }))) : null);
+}
+
+function heroCard(app, squad, i, mc) {
   const db = app.db;
   const hero = heroOf(db, squad.heroId);
   if (!hero) return null;
+  const ms = moraleState(app, squad, mc);
+  const m = moraleOf(squad);
+  const food = mc.food.get(squad.id) || 0;
   const cap = troopCap(hero, squad, db);
   const ext = squad.equip ? db.extensions[squad.equip] : null;
   const pct = cap ? Math.max(0, Math.min(100, (squad.troops / cap) * 100)) : 0;
@@ -191,19 +314,28 @@ function heroCard(app, squad, i) {
     onClick: (e) => toggleCard(app, e.currentTarget.closest('.hero-card')),
   },
   h('span', { class: 'hero-card__meta' }, rarityTag(app, hero), h('span', { class: 'hero-card__cls' }, clsText(app, hero)),
-    squad.status === 'routed' ? h('span', { class: 'tag tag--danger' }, t(app, 'map.routed')) : null),
+    squad.status === 'routed' ? h('span', { class: 'tag tag--danger' }, t(app, 'map.routed')) : null,
+    ms ? h('span', { class: ['mor-tag', `is-${ms.level}`] }, ms.text) : null),
   h('span', { class: 'hero-card__name', role: 'heading', 'aria-level': '3' }, hero.name),
   h('span', { class: 'hero-card__sum num' },
     h('span', { class: 'stat' },
       h('span', { class: 'stat__label' }, t(app, 'param.troops')),
       h('span', { class: 'stat__val' }, h('b', null, String(squad.troops)), h('small', null, ` / ${cap}`)),
       h('span', { class: 'stat__bar', 'aria-hidden': 'true' }, h('span', { class: 'stat__fill', style: { width: `${pct}%` } }))),
+    // 士気（ゲージと数字）と食費（−N/日）
+    h('span', { class: 'hero-card__mor' },
+      h('span', { class: 'stat__label' }, tx(app, 'driveP3.morale', '士気')),
+      moraleGauge(app, m, { cls: 'morale--sum' }),
+      h('span', { class: 'hero-card__food' },
+        h('span', { class: 'stat__label' }, tx(app, 'driveP3.food', '食費')),
+        h('b', null, `${signed(-food)}`), h('small', null, tx(app, 'driveP3.perDay', '/日')))),
     s ? h('span', { class: 'hero-card__skill-chip' },
       h('span', { class: 'skill-kind', dataset: { kind: s.kind } }, t(app, `skill.${s.kind}`)),
       h('span', { class: 'hero-card__skill-name' }, s.name)) : null)),
   // 開いた形: 射程・6 つのパラメーター（「?」は見出しの横に 1 つ）・スキル・エクステンション
   h('div', { class: 'hero-card__more', id: bodyId },
     h('div', { class: 'hero-card__more-in' },
+      moraleBox(app, squad, hero, mc),
       h('div', { class: 'hero-card__params-head' },
         h('span', { class: 'hero-card__params-title' }, tx(app, 'drive.params', '能力値')),
         h('button', {
@@ -232,7 +364,8 @@ function heroesTab(app) {
   const st = app.state;
   const mine = Object.values(st.squads || {}).filter((s) => s.land === st.playerLand);
   if (!mine.length) return h('p', { class: 'empty muted' }, t(app, 'chat.noSquads'));
-  return h('div', { class: 'hero-list' }, mine.map((s, i) => heroCard(app, s, i)));
+  const mc = moraleContext(app);
+  return h('div', { class: 'hero-list' }, mine.map((s, i) => heroCard(app, s, i, mc)));
 }
 
 // ------------------------------------------------------------
@@ -284,43 +417,243 @@ function fortsTab(app) {
 // ランド
 // ------------------------------------------------------------
 
-function landsTab(app) {
+/** 順位表の並べ替え（初めは砦 pt。表に出す 2 列は [並べ替えた値, もう 1 つ]） */
+const RANK_VIEWS = ['fp', 'troops', 'tiles'];
+const RANK_COLS = { fp: ['fp', 'troops'], troops: ['troops', 'ratio'], tiles: ['tiles', 'heroes'] };
+const RANK_FALLBACK = {
+  fp: '砦 pt', troops: '兵', tiles: '占領マス', heroes: 'ヒーロー', ratio: 'あなたの',
+};
+
+/** ゲームごとの朝の控え（state → { day, rows, known, sighted }）。セーブには入れない */
+const rankSnaps = new WeakMap();
+
+/**
+ * 順位表の控え。その日に初めて描いたとき（= 朝。指示は夜まで実行されない）に作り、同じ日のうちは作り直さない。
+ * 実行フェーズの途中（state が動いている）では、前の控えをそのまま使う（ターンの途中で数字を当てられないように）。
+ *
+ * よそのランドの数は「あなたに見えている分」だけ（マップに描かれている部隊・マスと同じ。ホームの脅威もこの値）:
+ *   兵       … そのランドの部隊のうち、探索済みのタイルにいる部隊の兵の合計
+ *   ヒーロー … 同じく、見えている部隊の数
+ *   占領マス … 探索済みのタイルのうち、そのランドの持ち物の数
+ * 全部が見えていないランド（見えていない部隊・マスがある）は part を立て、画面では「〜」を付ける。
+ * きょう部隊が 1 つも見えないランドは、最後に部隊が見えた日の兵とヒーローを出す（「〜」と「N 日前」。控えはゲーム中だけ）。
+ * 視界に一度も入っていないランド（探索済みのタイルに、そのランドのタイルも部隊も無かった）は、値を控えに残さない。
+ * 自ランドは全部見えているので、エンジンの値そのまま（兵 = economy.totalTroops、占領マス = season.tileCount）。
+ * 砦 pt は日曜の集計で全ランドに知らされる値なので、いつも出す。
+ */
+function rankSnapshot(app) {
   const st = app.state;
+  const prev = rankSnaps.get(st);
+  if (prev && (prev.day === st.day || app.ui.executing)) return prev;
   const me = st.lands[st.playerLand];
   const seen = new Set(me.explored || []);
   const tiles = st.map.tiles;
-  const counts = {};
-  for (const i of seen) {
-    const o = tiles[i] && tiles[i].owner;
-    if (o) counts[o] = (counts[o] || 0) + 1;
-  }
-  const heroes = {};
+  const known = new Set(prev ? prev.known : []);
+  const sighted = new Map(prev ? prev.sighted : []); // land → { day, troops, heroes }（最後に部隊が見えた朝）
+  known.add(st.playerLand);
+  const vis = {}; // land → { troops, heroes, tiles, allSquads, allTiles }
+  const at = (id) => (vis[id] || (vis[id] = { troops: 0, heroes: 0, tiles: 0, allSquads: 0, allTiles: 0 }));
+  tiles.forEach((tl, i) => {
+    const o = tl && tl.owner;
+    if (!o) return;
+    const v = at(o);
+    v.allTiles++;
+    if (seen.has(i)) { v.tiles++; known.add(o); }
+  });
   for (const s of Object.values(st.squads || {})) {
-    if (s.land === st.playerLand || seen.has(s.tile)) heroes[s.land] = (heroes[s.land] || 0) + 1;
+    const v = at(s.land);
+    v.allSquads++;
+    if (!seen.has(s.tile)) continue;
+    v.heroes++;
+    v.troops += s.troops || 0;
+    known.add(s.land);
   }
-  const rows = (app.db.lands || []).filter((l) => st.lands[l.id]).map((l) => ({ def: l, land: st.lands[l.id] }))
-    .sort((a, b) => (b.land.fortPoints || 0) - (a.land.fortPoints || 0));
-  const topFp = Math.max(1, ...rows.map((r) => r.land.fortPoints || 0));
-  return h('div', { class: 'land-table-wrap' },
-    h('table', { class: 'land-table' },
-      h('caption', { class: 'muted' }, t(app, 'drive.landsNote')),
-      h('thead', null, h('tr', null,
-        h('th', { scope: 'col' }, t(app, 'drive.tabLands')),
-        h('th', { scope: 'col' }, term(app, 'fortPoints', t(app, 'drive.fortPoints'))),
-        h('th', { scope: 'col' }, t(app, 'drive.tiles')),
-        h('th', { scope: 'col' }, t(app, 'drive.heroes')))),
-      h('tbody', null, rows.map(({ def, land }, i) => h('tr', {
-        class: [def.id === st.playerLand ? 'is-me' : null, land.alive === false ? 'is-out' : null],
-        style: { '--land': def.color, '--i': String(i), '--fp': String((land.fortPoints || 0) / topFp) },
-      },
-      h('th', { scope: 'row' },
-        h('span', { class: 'land-cell' },
-          h('span', { class: 'land-cell__rank num' }, String(i + 1)),
-          imgEl(landAssetPath(def.icon), def.nameJa || def.name, { class: 'land-cell__icon', width: 24, height: 24 }),
-          h('span', null, def.nameJa || def.name))),
-      h('td', { class: 'num land-table__fp' }, h('span', { class: 'land-table__fpbar', 'aria-hidden': 'true' }), h('span', { class: 'land-table__fpval' }, String(land.fortPoints || 0))),
-      h('td', { class: 'num' }, String(counts[def.id] || 0)),
-      h('td', { class: 'num' }, String(heroes[def.id] || 0)))))));
+  const rows = (app.db.lands || []).filter((l) => st.lands[l.id]).map((l) => {
+    const land = st.lands[l.id];
+    const mine = l.id === st.playerLand;
+    const k = known.has(l.id);
+    const v = at(l.id);
+    const row = {
+      id: l.id, def: l, me: mine, alive: land.alive !== false, known: k,
+      fp: land.fortPoints || 0,
+      // 見ていないランドの値は控えに入れない（DOM にも出さない）
+      troops: null, heroes: null, tiles: null, part: false, tilesPart: false, seenDay: null,
+    };
+    if (mine) return { ...row, troops: totalTroops(st, l.id), heroes: v.allSquads, tiles: tileCount(st, l.id) };
+    if (!k) return row;
+    row.tiles = v.tiles;
+    row.tilesPart = v.tiles < v.allTiles;
+    if (v.heroes > 0) {
+      sighted.set(l.id, { day: st.day, troops: v.troops, heroes: v.heroes });
+      return { ...row, troops: v.troops, heroes: v.heroes, part: v.heroes < v.allSquads, seenDay: st.day };
+    }
+    const last = sighted.get(l.id);
+    // きょうは部隊が 1 つも見えない: 最後に見た朝の値。一度も見ていなければ「?」
+    if (last) return { ...row, troops: last.troops, heroes: last.heroes, part: true, seenDay: last.day };
+    // 脱落したランドは部隊が無いと知らされている
+    if (!row.alive) return { ...row, troops: 0, heroes: 0 };
+    return row;
+  });
+  const snap = { day: st.day, rows, known: [...known], sighted: [...sighted] };
+  rankSnaps.set(st, snap);
+  return snap;
+}
+
+/**
+ * よそのランドの「見えている兵」（順位表と同じ値。ホームの脅威・マップと数字をそろえるための入口）。
+ * @returns {null | { troops:number, part:boolean, seenDay:number|null, day:number }} 見たことが無いランドは null
+ */
+export function landIntel(app, landId) {
+  const snap = rankSnapshot(app);
+  const r = snap.rows.find((x) => x.id === landId);
+  if (!r || r.troops == null) return null;
+  return { troops: r.troops, part: r.part, seenDay: r.seenDay, day: snap.day };
+}
+
+/** 並べ替えた値で順位を振る（同じ値は同じ順位。値の分からないランドは順位なしで下へ） */
+function rankRows(snap, key) {
+  const val = (r) => r[key];
+  const has = (r) => val(r) != null;
+  const list = [...snap.rows].sort((a, b) => (has(b) - has(a)) || ((val(b) || 0) - (val(a) || 0)) || (b.me - a.me));
+  return list.map((r) => ({ ...r, rank: has(r) ? 1 + snap.rows.filter((x) => has(x) && val(x) > val(r)).length : null }));
+}
+
+function rankLabel(app, k) {
+  return tx(app, `driveP3.rank.col.${k}`, RANK_FALLBACK[k]);
+}
+
+/** その列の値が「見えている分だけ」か（よそのランドの兵・ヒーロー・占領マス） */
+function isPart(r, col) {
+  if (col === 'tiles') return !!r.tilesPart;
+  if (col === 'troops' || col === 'heroes' || col === 'ratio') return !!r.part;
+  return false;
+}
+
+/** 見えている分だけの値の頭に付ける「〜」 */
+function approx(app, part) {
+  return part ? tx(app, 'driveP3b.rank.approx', '〜') : '';
+}
+
+/** 最後に見た日（「きょう」「3 日前」。順位表は朝の値なので、控えた朝から数える） */
+function seenText(app, snap, day) {
+  const n = Math.max(0, snap.day - day);
+  return n === 0 ? tx(app, 'driveP3b.rank.seenToday', 'きょう') : fill(tx(app, 'driveP3b.rank.seenAgo', '{n} 日前'), { n });
+}
+
+/** 「何倍」の桁（ホームの脅威・マップの札と同じ丸め方） */
+function ratioText(x) {
+  return x >= 10 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2);
+}
+
+/** 自分の順位の 1 行（順位と差。SPEC-114 原則 8）。よそが見えている分だけなら、そう書く */
+function rankSummary(app, rows, key) {
+  const me = rows.find((r) => r.me);
+  if (!me || me.rank == null) return null;
+  const knownN = rows.filter((r) => r[key] != null).length;
+  const others = rows.filter((r) => !r.me && r[key] != null);
+  const best = (list) => list.reduce((a, r) => (!a || r[key] > a[key] ? r : a), null);
+  let gap = '';
+  if (me.rank > 1) {
+    const top = best(others);
+    gap = fill(tx(app, 'driveP3.rank.toTop', '1 位まで {v}'), { v: `${approx(app, isPart(top, key))}${signed(me[key] - top[key])}` });
+  } else if (others.length) {
+    const second = best(others);
+    gap = me[key] > second[key]
+      ? fill(tx(app, 'driveP3.rank.lead', '2 位と {v}'), { v: `${approx(app, isPart(second, key))}${signed(me[key] - second[key])}` })
+      : tx(app, 'driveP3.rank.tie', '1 位に並ぶ');
+  }
+  const notes = [];
+  if (key !== 'fp' && knownN < rows.length) notes.push(fill(tx(app, 'driveP3.rank.of', '分かっている {n} ランドの中'), { n: knownN }));
+  if (others.some((r) => isPart(r, key))) notes.push(tx(app, 'driveP3b.rank.partSum', '〜 は見えている分だけ'));
+  return h('p', { class: 'rank-sum num' },
+    h('span', { class: 'rank-sum__pos' }, fill(tx(app, 'driveP3.rank.you', 'あなた {n} 位'), { n: me.rank })),
+    h('span', { class: 'rank-sum__val' }, `${rankLabel(app, key)} ${fmt(me[key])}`),
+    gap ? h('span', { class: 'rank-sum__gap' }, gap) : null,
+    notes.length ? h('span', { class: 'rank-sum__of muted' }, notes.join('・')) : null);
+}
+
+/** 「?」（色だけに頼らず、読み上げでは「まだ見ていない」） */
+function unknownCell(app) {
+  return h('span', { class: 'rank-q', 'aria-label': tx(app, 'driveP3.rank.unknown', 'まだ見ていない') }, '?');
+}
+
+/**
+ * 値のセルの中身。全部は見えていないランドは「〜982」と、その下に最後に見た日（兵・ヒーロー・何倍。占領マスはいまの地図なので日は付けない）。
+ * 「〜」は色ではなく字で示し、読み上げでは「見えている分」と言う
+ */
+function cellValue(app, snap, r, col, text) {
+  const part = isPart(r, col);
+  if (!part) return [h('span', { class: 'rank-v' }, text)];
+  const day = col !== 'tiles' && r.seenDay != null ? seenText(app, snap, r.seenDay) : null;
+  const label = `${tx(app, 'driveP3b.rank.partAria', '見えている分')} ${text}${day ? `、${fill(tx(app, 'driveP3b.rank.seenAria', '{d}に見た値'), { d: day })}` : ''}`;
+  return [
+    h('span', { class: 'rank-v is-part', 'aria-label': label },
+      h('span', { class: 'rank-v__approx', 'aria-hidden': 'true' }, approx(app, true)), h('span', { 'aria-hidden': 'true' }, text)),
+    day ? h('small', { class: ['rank-v__seen', r.seenDay < snap.day ? 'is-old' : null], 'aria-hidden': 'true' }, day) : null,
+  ];
+}
+
+function rankCell(app, snap, r, col, top, mine) {
+  if (col === 'ratio') {
+    if (r.me) return h('td', { class: 'num rank-td__ratio muted' }, tx(app, 'driveP3.rank.self', '-'));
+    if (r.troops == null) return h('td', { class: 'num' }, unknownCell(app));
+    if (!mine) return h('td', { class: 'num muted' }, '-');
+    const x = r.troops / mine;
+    return h('td', { class: ['num', 'rank-td__ratio', x > 1 ? 'is-more' : null] },
+      cellValue(app, snap, r, col, fill(tx(app, 'driveP3.rank.times', '×{v}'), { v: ratioText(x) })));
+  }
+  const v = r[col];
+  if (v == null) return h('td', { class: 'num' }, unknownCell(app));
+  if (top == null) return h('td', { class: 'num' }, cellValue(app, snap, r, col, fmt(v)));
+  return h('td', { class: 'num land-table__fp' },
+    h('span', { class: 'land-table__fpbar', 'aria-hidden': 'true', style: { '--fp': String(top ? v / top : 0) } }),
+    h('span', { class: 'land-table__fpval' }, cellValue(app, snap, r, col, fmt(v))));
+}
+
+function landsTab(app) {
+  const st = app.state;
+  const view = RANK_VIEWS.includes(app.ui.driveRankView) ? app.ui.driveRankView : 'fp';
+  app.ui.driveRankView = view;
+  const snap = rankSnapshot(app);
+  const rows = rankRows(snap, view);
+  const [c1, c2] = RANK_COLS[view];
+  const top = Math.max(1, ...rows.map((r) => r[c1] || 0));
+  const mine = (rows.find((r) => r.me) || {}).troops || 0;
+  const today = snap.day === st.day;
+  return h('div', { class: 'rank' },
+    h('div', { class: 'rank__head' },
+      h('p', { class: 'rank__when' },
+        h('span', { class: 'rank__day num' }, fill(tx(app, 'driveP3.rank.when', '{n} 日目の朝の時点'), { n: snap.day })),
+        h('span', { class: 'muted' }, today ? tx(app, 'driveP3.rank.whenNote', '夜の実行のあとに更新') : tx(app, 'driveP3.rank.whenExec', '実行のあとに更新します'))),
+      h('div', { class: 'rank__sort', role: 'group', 'aria-label': tx(app, 'driveP3.rank.sort', '並べ替え') },
+        h('span', { class: 'rank__sort-k', 'aria-hidden': 'true' }, tx(app, 'driveP3.rank.sort', '並べ替え')),
+        RANK_VIEWS.map((k) => h('button', {
+          class: ['rank__sort-btn', k === view ? 'is-on' : null], type: 'button', 'aria-pressed': k === view ? 'true' : 'false', dataset: { view: k },
+          onClick: () => { if (app.ui.driveRankView !== k) { app.ui.driveRankView = k; renderApp(); } },
+        }, rankLabel(app, k))))),
+    rankSummary(app, rows, view),
+    h('div', { class: 'land-table-wrap' },
+      h('table', { class: 'land-table rank-table', dataset: { view } },
+        h('caption', { class: 'muted' }, tx(app, 'driveP3b.rank.note', '兵・ヒーロー・占領マスは、マップに見えている部隊とマスの合計。「〜」は全部は見えていないランドで、下の字は最後に見た日。まだ視界に入っていないランドは「?」')),
+        h('thead', null, h('tr', null,
+          h('th', { scope: 'col', class: 'rank-th__pos' }, tx(app, 'driveP3.rank.pos', '順位')),
+          h('th', { scope: 'col' }, tx(app, 'drive.tabLands', 'ランド')),
+          h('th', { scope: 'col', class: 'is-sorted' }, c1 === 'fp' ? term(app, 'fortPoints', rankLabel(app, c1)) : rankLabel(app, c1)),
+          h('th', { scope: 'col' }, c2 === 'ratio' ? tx(app, 'driveP3.rank.col.ratioHead', 'あなたの何倍') : rankLabel(app, c2)))),
+        h('tbody', null, rows.map((r, i) => h('tr', {
+          class: [r.me ? 'is-me' : null, r.alive ? null : 'is-out', r.known ? null : 'is-unknown', isPart(r, c1) || isPart(r, c2) ? 'is-part' : null],
+          dataset: { land: r.id, rank: r.rank == null ? '' : String(r.rank) },
+          style: { '--land': r.def.color, '--i': String(i) },
+        },
+        h('td', { class: 'num rank-td__pos' }, r.rank == null ? unknownCell(app) : String(r.rank)),
+        h('th', { scope: 'row' },
+          h('span', { class: 'land-cell' },
+            imgEl(landAssetPath(r.def.icon), r.def.nameJa || r.def.name, { class: 'land-cell__icon', width: 24, height: 24 }),
+            h('span', { class: 'land-cell__name' }, r.def.nameJa || r.def.name),
+            r.me ? h('span', { class: 'land-cell__you' }, tx(app, 'driveP3.rank.youTag', 'あなた')) : null,
+            r.alive ? null : h('span', { class: 'land-cell__out' }, tx(app, 'driveP3.rank.out', '脱落')))),
+        rankCell(app, snap, r, c1, top, mine),
+        rankCell(app, snap, r, c2, null, mine)))))));
 }
 
 // ------------------------------------------------------------
@@ -382,6 +715,9 @@ function welcome(app, pending, hero) {
   }
   save(st);
   soulRevealed = null;
+  // 自ランドの兵が増えたので、順位表の控えを取り直す（よそのランドは夜まで動かないので、朝の値のまま）
+  const snap = rankSnaps.get(st);
+  if (snap) snap.day = null;
   app.ui.driveTab = 'heroes';
   app.ui.driveNew = squad.id;
   renderApp();
@@ -496,6 +832,8 @@ export function lockGuide(guideEl) {
 
 /** 前回のタブ（タブを替えたら、金の板がすべり中身が横から入る） */
 let lastTab = null;
+/** 前回の順位表の並べ替え（替えたら行が順に入り直す） */
+let lastRankView = null;
 
 export function render(app) {
   const tab = TABS.includes(app.ui.driveTab) ? app.ui.driveTab : 'heroes';
@@ -560,8 +898,17 @@ export function mount(app, el) {
     }
     if (tab === 'forts') fx.stagger(panel.querySelectorAll('.fort-card'), { step: 40, from: 'left', distance: 16 });
     if (tab === 'lands') fx.stagger(panel.querySelectorAll('.land-table tbody tr'), { step: 60, from: 'up', distance: 10 });
+  } else if (tab === 'lands' && lastRankView && lastRankView !== app.ui.driveRankView) {
+    // 並べ替えを替えた: 行が上から入り直し、棒が伸びる
+    fx.stagger(panel.querySelectorAll('.land-table tbody tr'), { step: 40, from: 'up', distance: 8, ms: 320 });
+    if (!fx.reducedMotion()) {
+      for (const b of panel.querySelectorAll('.land-table__fpbar')) {
+        if (b.animate) b.animate([{ transform: 'translateY(-50%) scaleX(0)' }, { transform: 'translateY(-50%)' }], { duration: 520, easing: 'cubic-bezier(.16, 1, .3, 1)', fill: 'backwards' });
+      }
+    }
     if (tab === 'heroes') fx.stagger(panel.querySelectorAll('.hero-card'), { step: 80, from: 'up', distance: 18, ms: 520 });
   }
+  lastRankView = tab === 'lands' ? app.ui.driveRankView : lastRankView;
   // SOUL: 裏向きの 3 枚が順にめくれる
   const sec = el.querySelector('.soul:not(.is-ready)');
   if (sec) playSoulReveal(sec);
@@ -585,6 +932,7 @@ export function unmount(app, el) {
   if (app && app.ui.app !== 'drive') {
     leave('drive');
     lastTab = null;
+    lastRankView = null;
     // 案内を一度出したら、離れた時点で見たことにする
     if (el && el._guide) markGuideSeen('drive');
     // 迎えたときのカットインは、別のアプリへ移ったら早送りで閉じる
