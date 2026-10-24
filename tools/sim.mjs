@@ -16,7 +16,8 @@
 //
 // --player（SPEC-113 §5 の方針）：プレイヤーのランド（ocean）だけを決め打ちの方針で動かし、残りは CPU。
 //   方針ごと・シードごとに、1 日目の食料の差し引き（UI の「このあと」/ 上限で止めない流れ / 実際の増減）、
-//   差し引きが初めてマイナスになった日、食料が尽きた日、28 日目の兵と士気、逃走の合計を表で出し、
+//   差し引きが初めてマイナスになった日、食料が尽きた日、28 日目の兵・定員・士気、逃走の合計、
+//   徴兵できた朝の数（徴兵可）・実際に徴兵した日（徴兵日）と兵（徴兵数）・朝の人口が 4 未満の日（人口0）・最後の人口を表で出し、
 //   最後に §5 の目標と並べた要約を出す。方針の中身は tools/sim-lib.mjs の先頭を見る。
 
 import { loadDbFromFs } from '../js/data.js';
@@ -52,9 +53,9 @@ if (player) {
     for (let k = 0; k < runs; k++) rows.push(runPlayer(db, seed0 + k, policy));
     if (!quiet) {
       log(`\n== 方針 ${policy}（プレイヤー ocean、ほかは CPU）`);
-      log(`${padE('seed', 5)} ${pad('差引1', 6)} ${pad('流れ1', 6)} ${pad('実際1', 6)} ${pad('赤字日', 5)} ${pad('尽きた日', 7)} ${pad('飢え', 4)} ${pad('兵1', 5)} ${pad('兵28', 5)} ${pad('士気', 4)} ${pad('最小', 4)} ${pad('逃走', 5)} ${pad('部隊', 4)} alive`);
+      log(`${padE('seed', 5)} ${pad('差引1', 6)} ${pad('流れ1', 6)} ${pad('実際1', 6)} ${pad('赤字日', 5)} ${pad('尽きた日', 7)} ${pad('飢え', 4)} ${pad('兵1', 5)} ${pad('兵28', 5)} ${pad('定員28', 6)} ${pad('士気', 4)} ${pad('最小', 4)} ${pad('逃走', 5)} ${pad('部隊', 4)} ${pad('徴兵可', 5)} ${pad('徴兵日', 5)} ${pad('徴兵数', 5)} ${pad('人口0', 4)} ${pad('人口28', 5)} alive`);
       for (const r of rows) {
-        log(`${padE(r.seed, 5)} ${pad(r.net1, 6)} ${pad(r.flow1, 6)} ${pad(r.actual1, 6)} ${pad(r.firstDeficit, 5)} ${pad(r.foodOut, 7)} ${pad(r.starveDays, 4)} ${pad(r.troops1, 5)} ${pad(r.troops28, 5)} ${pad(r.moraleAvg, 4)} ${pad(r.moraleMin, 4)} ${pad(r.deserted, 5)} ${pad(r.squadsAlive, 4)} ${r.alive}`);
+        log(`${padE(r.seed, 5)} ${pad(r.net1, 6)} ${pad(r.flow1, 6)} ${pad(r.actual1, 6)} ${pad(r.firstDeficit, 5)} ${pad(r.foodOut, 7)} ${pad(r.starveDays, 4)} ${pad(r.troops1, 5)} ${pad(r.troops28, 5)} ${pad(r.muster28, 6)} ${pad(r.moraleAvg, 4)} ${pad(r.moraleMin, 4)} ${pad(r.deserted, 5)} ${pad(r.squadsAlive, 4)} ${pad(r.canDraftDays, 5)} ${pad(r.draftDays, 5)} ${pad(r.drafted, 5)} ${pad(r.popZeroDays, 4)} ${pad(r.pop28, 5)} ${r.alive}`);
       }
     }
     const outs = rows.map((r) => r.foodOut);
@@ -69,15 +70,18 @@ if (player) {
       morale28: avg(rows.map((r) => r.moraleAvg ?? 0)),
       deserted: avg(rows.map((r) => r.deserted)),
       wiped: rows.filter((r) => r.squadsAlive === 0 || !r.alive).length,
+      canDraftDays: avg(rows.map((r) => r.canDraftDays)),
+      draftDays: avg(rows.map((r) => r.draftDays)),
+      popZeroDays: avg(rows.map((r) => r.popZeroDays)),
     };
   }
   if (json) {
     console.log(JSON.stringify({ tuning: TUNING, seed0, runs, player: summary }));
   } else {
     log(`\n== 要約（${runs} シード、seed ${seed0}..${seed0 + runs - 1}）。差引 = UI の「このあと」、流れ = 上限で止めない産出 + 農作 − 消費`);
-    log(`${padE('方針', 11)} ${pad('差引1 平均', 10)} ${pad('最小', 5)} ${pad('最大', 5)} ${pad('流れ1 平均', 10)} ${pad('尽きた日 最早', 12)} ${pad('尽きない', 6)} ${pad('兵28', 6)} ${pad('士気28', 6)} ${pad('逃走', 6)} 全滅  赤字になった日 / 尽きた日`);
+    log(`${padE('方針', 11)} ${pad('差引1 平均', 10)} ${pad('最小', 5)} ${pad('最大', 5)} ${pad('流れ1 平均', 10)} ${pad('尽きた日 最早', 12)} ${pad('尽きない', 6)} ${pad('兵28', 6)} ${pad('士気28', 6)} ${pad('逃走', 6)} 全滅 ${pad('徴兵可', 5)} ${pad('徴兵日', 5)} ${pad('人口0', 5)}  赤字になった日 / 尽きた日`);
     for (const [p, s] of Object.entries(summary)) {
-      log(`${padE(p, 11)} ${pad(s.net1.avg.toFixed(1), 10)} ${pad(s.net1.min, 5)} ${pad(s.net1.max, 5)} ${pad(s.flow1.avg.toFixed(1), 10)} ${pad(s.foodOutMin, 12)} ${pad(s.neverOut, 6)} ${pad(s.troops28.toFixed(0), 6)} ${pad(s.morale28.toFixed(0), 6)} ${pad(s.deserted.toFixed(0), 6)} ${pad(s.wiped, 4)}  ${s.firstDeficit.map((x) => x ?? '-').join(',')} / ${s.foodOut.map((x) => x ?? '-').join(',')}`);
+      log(`${padE(p, 11)} ${pad(s.net1.avg.toFixed(1), 10)} ${pad(s.net1.min, 5)} ${pad(s.net1.max, 5)} ${pad(s.flow1.avg.toFixed(1), 10)} ${pad(s.foodOutMin, 12)} ${pad(s.neverOut, 6)} ${pad(s.troops28.toFixed(0), 6)} ${pad(s.morale28.toFixed(0), 6)} ${pad(s.deserted.toFixed(0), 6)} ${pad(s.wiped, 4)} ${pad(s.canDraftDays.toFixed(1), 5)} ${pad(s.draftDays.toFixed(1), 5)} ${pad(s.popZeroDays.toFixed(1), 5)}  ${s.firstDeficit.map((x) => x ?? '-').join(',')} / ${s.foodOut.map((x) => x ?? '-').join(',')}`);
     }
     log('目標（SPEC-113 §5）: none 食料 6 日以上（尽きた日 7 以上）・全滅なし / farm1 差引1 −10〜+5 / farmMax 差引1 +10 以上 / conscript2 4〜8 日目に赤字');
   }

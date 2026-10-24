@@ -22,9 +22,9 @@
 
 import { within, distance, neighbors } from './hex.js';
 import { findPath, reachable, stepCost } from './pathfind.js';
-import { troopCap, rangeOf } from './heroes.js';
+import { troopCap, musterCap, musteredOf, rangeOf } from './heroes.js';
 import { queue, projectedTile } from './orders.js';
-import { canBuild, yields, upkeep, caps, troopFood, previewRation, setRation, canReward } from './economy.js';
+import { canBuild, yields, upkeep, caps, troopFood, previewRation, setRation, canReward, canConscript } from './economy.js';
 import { moraleOf } from './morale.js';
 import { farmAmount } from './tuning.js';
 import { power, inRange } from './battle.js';
@@ -34,7 +34,7 @@ const ENEMY_LAND = 'enemy';
 /** 砦の選び方：path のコストからこれを引く（大きいほど遠くても選ぶ） */
 export const FORT_BONUS = { rare: 0, epic: 6, legendary: 10 };
 /** その砦を狙ってよい兵の下限 */
-export const FORT_MIN_TROOPS = { rare: 0, epic: 200, legendary: 550 };
+export const FORT_MIN_TROOPS = { rare: 0, epic: 120, legendary: 550 };
 /** 他ランドの砦は、エネミーの砦よりこれだけ遠く見る */
 const OWNED_PENALTY = 12;
 /** 建築のあとに残しておく GUM */
@@ -135,7 +135,6 @@ function domesticNeed(state, db, squad, hero) {
   const r = land.res;
   const net = yields(state, db, squad.land).food - upkeep(state, db, squad.land).food;
   if (r.food < 80 || net < 0) return 'farm';
-  if (squad.troops < troopCap(hero, squad, db) * 0.5 && r.pop >= 40 && net > 6) return 'conscript';
   if (r.gum < 50) return 'trade';
   if (r.mat < 30) return 'craft';
   return null;
@@ -193,10 +192,10 @@ function goFort(state, db, squad, hero, ctx) {
       best = c;
       break;
     }
-    // 兵が足りない：本拠地で休んでから向かう。兵を増やすと食料を食うので、1 日に 1 体まで。
-    // 兵の増加は人口を消費する（SPEC-113 §2）ので、人口が無ければ休んでも増えない。そのときは戻らない
-    const pop = Math.max(0, Math.floor(state.lands[squad.land].res.pop || 0));
-    const gain = Math.min(cap, squad.troops + hero.params.lead * 5, squad.troops + pop) - squad.troops;
+    // 兵が足りない：本拠地で休む・徴兵してから向かう。兵を増やすと食料を食うので、1 日に 1 体まで。
+    // 兵の増加は人口を消費する（SPEC-113 §2）ので、人口が無ければ戻らない。休息で戻せるのは定員まで、
+    // 定員を超えて増やせるのは徴兵だけ（SPEC-113 §2.1）
+    const gain = refitGain(state, db, squad, hero);
     const more = extraFood(state, db, squad.land, gain);
     if (!ctx.refit && gain > 0 && more <= ctx.foodRoom) {
       ctx.refit = true;
@@ -214,7 +213,21 @@ function goFort(state, db, squad, hero, ctx) {
   return true;
 }
 
-/** 本拠地へ戻って休む（兵を増やしてから大きな砦へ向かう） */
+/**
+ * 本拠地へ戻って兵を増やしたら、いくつ増えるかの見込み（休息 1 回 + 徴兵 1 回。人口を超えない）。
+ * 休息は定員まで、徴兵は兵の上限まで（SPEC-113 §2.1）
+ */
+function refitGain(state, db, squad, hero) {
+  let pop = Math.max(0, Math.floor(state.lands[squad.land].res.pop || 0));
+  const t = Math.max(0, squad.troops || 0);
+  const draft = Math.max(0, Math.min(Math.floor(pop * 0.3), troopCap(hero, squad, db) - t));
+  pop -= draft;
+  const mustered = Math.max(musteredOf(squad) + draft, t + draft);
+  const heal = Math.max(0, Math.min(Math.min(troopCap(hero, squad, db), mustered) - t - draft, hero.params.lead * 4, pop));
+  return draft + heal;
+}
+
+/** 本拠地へ戻って兵を増やす（定員より少なければ休息、定員に届いていれば徴兵。大きな砦へ向かう前に） */
 function refit(state, db, squad, hero) {
   const land = state.lands[squad.land];
   const here = projectedTile(squad);
@@ -225,6 +238,8 @@ function refit(state, db, squad, hero) {
     if (prefix.length === 0 || !queue(state, db, squad.id, { type: 'move', path: prefix }).ok) return false;
     if (prefix[prefix.length - 1] !== land.home) return true;
   }
+  // 徴兵は 1 回まで（人口を使い切ると、戦いで減った兵を夜に戻せなくなる）
+  if (squad.ap >= 2 && canConscript(state, db, squad).ok) queue(state, db, squad.id, { type: 'domestic', kind: 'conscript' });
   if (squad.ap > 0) queue(state, db, squad.id, { type: 'rest' });
   return true;
 }
@@ -380,12 +395,19 @@ function plannedGrowth(state, db, landId) {
     const hero = heroOf(db, s);
     if (!hero) continue;
     const cap = troopCap(hero, s, db);
+    // 休息は定員まで、徴兵は上限まで（徴兵は定員も増やす。SPEC-113 §2.1）
+    let mustered = musteredOf(s);
     let t = s.troops;
     for (const o of s.orders) {
       let add = 0;
-      if (o.type === 'rest') add = hero.params.lead * 2 * (projectedTile(s) === land.home ? 2 : 1);
-      else if (o.type === 'domestic' && o.kind === 'conscript') add = Math.floor(pop * 0.3);
-      add = Math.max(0, Math.min(add, cap - t, pop));
+      if (o.type === 'rest') {
+        add = hero.params.lead * 2 * (projectedTile(s) === land.home ? 2 : 1);
+        add = Math.min(add, Math.min(cap, mustered) - t);
+      } else if (o.type === 'domestic' && o.kind === 'conscript') {
+        add = Math.min(Math.floor(pop * 0.3), cap - t);
+        mustered = Math.max(mustered + Math.max(0, add), t + Math.max(0, add));
+      }
+      add = Math.max(0, Math.min(add, pop));
       t += add;
       pop -= add;
     }
@@ -459,7 +481,8 @@ function steward(state, db, squad, hero, land, budget, plan) {
   }
   const r = land.res;
   maybeReward(state, db, squad, land);
-  const lowTroops = squad.troops < troopCap(hero, squad, db) * 0.3;
+  // 夜の回復で戻せるのは定員まで（SPEC-113 §2.1）。定員の 6 割に満たなければ本拠地で夜を越す
+  const lowTroops = squad.troops < musterCap(hero, squad, db) * 0.6 && land.res.pop > 0;
   if (squad.ap >= 4 && r.gum < 80) queue(state, db, squad.id, { type: 'domestic', kind: 'trade' });
   if (squad.ap >= 4 && r.mat < 40) queue(state, db, squad.id, { type: 'domestic', kind: 'craft' });
   if (lowTroops) return; // 兵が少なければ本拠地で夜を越して回復する

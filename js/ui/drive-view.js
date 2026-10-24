@@ -23,7 +23,8 @@
 
 import { h, heroImg, imgEl, landAssetPath, toast } from './h.js';
 import { uiText, say } from '../engine/lines.js';
-import { effectiveParams, troopCap, rangeOf, PARAM_KEYS } from '../engine/heroes.js';
+import { effectiveParams, troopCap, musterCap, rangeOf, PARAM_KEYS } from '../engine/heroes.js';
+import { REGROUP_RATE } from '../engine/turn.js';
 import { breakdown, previewDomestic, totalTroops } from '../engine/economy.js';
 import { planNight, moraleOf, moraleMult, rationOf, MORALE_SHAKEN, MORALE_DELTA, RATIONS, DESERT_RATE, REWARD_BASE, REWARD_PER_TROOPS } from '../engine/morale.js';
 import { TROOPS_PER_FOOD } from '../engine/tuning.js';
@@ -84,8 +85,9 @@ function termItems(app) {
 }
 
 /** 士気まわりの用語（SPEC-114 §8）。文の中の数はエンジンの定数から差し込む */
-const MORALE_TERMS = ['morale', 'foodCost', 'ration', 'reward', 'desert'];
+const MORALE_TERMS = ['muster', 'morale', 'foodCost', 'ration', 'reward', 'desert'];
 const MORALE_TERM_FALLBACK = {
+  muster: ['定員', '部隊が集めた兵の数。戦いで減った兵は、本拠地の夜の回復・休息・回復スキル・敗走明けの集め直し（定員の {regroup}%）で、定員まで戻ります（人口 1 につき兵 1）。定員を超えて兵を増やせるのは徴兵だけで、徴兵すると定員も増えます（上限は統率力 × 10）。逃げた兵の分は定員からも減ります'],
   morale: ['士気', '部隊ごとの 0〜100。攻撃と防御に掛かります（0 で ×{m0}、50 で ×{m50}、100 で ×{m100}）。{shaken} 未満は動揺。食料が足りた夜は {fed}、本拠地で夜を越すと {home}、食料が尽きた夜は全部隊が {starve}'],
   foodCost: ['食費', 'その部隊の兵が 1 日に食べる食料。兵 {d} 人で 1（配給で増減）。人口の分は別に引かれます'],
   ration: ['配給', 'ランドの方針。節約は兵の食料 ×{saveFood} で士気が毎日 {saveMorale}、増量は ×{feastFood} で毎日 {feastMorale}。AP を使わずに、内訳シートの食料のタブで切り替えます'],
@@ -98,7 +100,7 @@ function moraleTermVars() {
     m0: moraleMult(0).toFixed(2), m50: moraleMult(50).toFixed(2), m100: moraleMult(100).toFixed(2), shaken: MORALE_SHAKEN,
     fed: signed(MORALE_DELTA.fed), home: signed(MORALE_DELTA.home), starve: signed(MORALE_DELTA.starve), reward: signed(MORALE_DELTA.reward),
     d: TROOPS_PER_FOOD, saveFood: RATIONS.save.food, saveMorale: signed(RATIONS.save.morale), feastFood: RATIONS.feast.food, feastMorale: signed(RATIONS.feast.morale),
-    rewardBase: REWARD_BASE, rewardPer: REWARD_PER_TROOPS, pct: Math.round(DESERT_RATE * 100),
+    rewardBase: REWARD_BASE, rewardPer: REWARD_PER_TROOPS, pct: Math.round(DESERT_RATE * 100), regroup: Math.round(REGROUP_RATE * 100),
   };
 }
 
@@ -293,8 +295,10 @@ function heroCard(app, squad, i, mc) {
   const m = moraleOf(squad);
   const food = mc.food.get(squad.id) || 0;
   const cap = troopCap(hero, squad, db);
+  // 兵の帯は定員に対して（夜の回復・休息で戻せるのは定員まで。上限は徴兵でしか届かない。SPEC-113 §2.1）
+  const muster = musterCap(hero, squad, db);
   const ext = squad.equip ? db.extensions[squad.equip] : null;
-  const pct = cap ? Math.max(0, Math.min(100, (squad.troops / cap) * 100)) : 0;
+  const pct = muster ? Math.max(0, Math.min(100, (squad.troops / muster) * 100)) : 0;
   const open = !!openSet(app)[squad.id];
   const bodyId = `hero-body-${squad.id}`;
   const s = hero.skill;
@@ -318,9 +322,10 @@ function heroCard(app, squad, i, mc) {
     ms ? h('span', { class: ['mor-tag', `is-${ms.level}`] }, ms.text) : null),
   h('span', { class: 'hero-card__name', role: 'heading', 'aria-level': '3' }, hero.name),
   h('span', { class: 'hero-card__sum num' },
-    h('span', { class: 'stat' },
+    h('span', { class: 'stat', title: fill(tx(app, 'driveP3.troopsAria', '兵 {n}、定員 {muster}、上限 {cap}'), { n: squad.troops, muster, cap }) },
       h('span', { class: 'stat__label' }, t(app, 'param.troops')),
-      h('span', { class: 'stat__val' }, h('b', null, String(squad.troops)), h('small', null, ` / ${cap}`)),
+      h('span', { class: 'stat__val' }, h('b', null, String(squad.troops)), h('small', null, ` / ${muster}`),
+        h('small', { class: 'stat__cap' }, ` ${fill(tx(app, 'driveP3.capOf', '上限 {n}'), { n: cap })}`)),
       h('span', { class: 'stat__bar', 'aria-hidden': 'true' }, h('span', { class: 'stat__fill', style: { width: `${pct}%` } }))),
     // 士気（ゲージと数字）と食費（−N/日）
     h('span', { class: 'hero-card__mor' },

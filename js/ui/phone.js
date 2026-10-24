@@ -1242,7 +1242,8 @@ function resRow(app, land, ol) {
 }
 
 /**
- * 5 つ目のウィジェット: 兵と士気の平均（SPEC-114 §2.2）。上限は内訳シート（人口 0 では届かない上限なので、ここには出さない）。
+ * 5 つ目のウィジェット: 兵と士気の平均（SPEC-114 §2.2）。兵は「兵 / 定員」（定員の合計 = forecast().troops.muster。
+ * 夜の回復・休息で戻せるのは定員まで。SPEC-113 §2.1）。上限（統率力 × 10。徴兵でしか届かない）は内訳シートに出す。
  * 逃走のチップは、士気 0 の部隊がいま居る日は「逃走中」、今夜 0 になる見込みだけの日は「今夜から逃走」。
  * 数は積んだ指示のあとの夜（ol.night = planNight）の全部隊の合計と部隊の数（今日のやることと同じ数）。
  */
@@ -1258,12 +1259,13 @@ function troopsBar(app, ol) {
   else if (fc.morale.shaken > 0) chip = { level: 'warn', text: L(app, 'home.w.shaken', { n: fc.morale.shaken }) };
   return h('button', {
     class: ['troops-w', chip ? `is-${chip.level}` : null], type: 'button', dataset: { res: 'troops' },
-    'aria-label': `${L(app, 'morning.troops')} ${fc.troops.total}、${L(app, 'ledger.moraleAvg')} ${fc.morale.avg == null ? '-' : fc.morale.avg}${chip ? `、${chip.text}` : ''}。${L(app, 'home.w.open')}`,
+    'aria-label': `${L(app, 'morning.troops')} ${fc.troops.total}、${L(app, 'home.w.musterAria', { n: fc.troops.muster })}、${L(app, 'ledger.moraleAvg')} ${fc.morale.avg == null ? '-' : fc.morale.avg}${chip ? `、${chip.text}` : ''}。${L(app, 'home.w.open')}`,
     onClick: () => openLedger(app, 'troops'),
   },
   h('span', { class: 'troops-w__icon', 'aria-hidden': 'true' }),
   h('span', { class: 'troops-w__label' }, L(app, 'morning.troops')),
   h('span', { class: 'troops-w__val num', dataset: { to: fc.troops.total } }, fmt(fc.troops.total)),
+  h('span', { class: 'troops-w__cap num', 'aria-hidden': 'true' }, L(app, 'home.w.cap', { n: fmt(fc.troops.muster) })),
   h('span', { class: 'troops-w__sep', 'aria-hidden': 'true' }),
   h('span', { class: 'troops-w__label' }, L(app, 'ledger.morale')),
   fc.morale.avg == null ? h('span', { class: 'num' }, '-') : moraleGauge(app, fc.morale.avg, { cls: 'morale--w' }),

@@ -787,3 +787,7 @@
 .chat-head__stats .chat-head__food { flex: 0 0 auto; }
 /* 士気 0 でも今夜は逃げない（食料が足りて上がる）ときは、黄色で点滅させない */
 .chat-mor--zero .chat-mor__word.is-hold { color: var(--warn); animation: none; }
+
+/* 見出しの帯の「兵 / 定員」（SPEC-113 §2.1。定員まで戻っていなければ少し強調） */
+.chat-head__troops { flex: 0 0 auto; color: var(--text-hi); font-weight: 800; }
+.chat-head__troops.is-low { color: #ffd27a; }

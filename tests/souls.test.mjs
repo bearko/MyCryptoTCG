@@ -107,7 +107,8 @@ test("accept: 本拠地に部隊ができ、pending と souls から外れる", 
   const squad = accept(state, db, "ocean", pending, cands[1]);
   const hero = db.heroes[cands[1]];
   assert.deepEqual(squad, {
-    id: "s1", heroId: hero.id, land: "ocean", tile: 1234, troops: hero.params.lead * START_TROOPS_PER_LEAD, ap: 0,
+    id: "s1", heroId: hero.id, land: "ocean", tile: 1234, troops: hero.params.lead * START_TROOPS_PER_LEAD,
+    mustered: hero.params.lead * START_TROOPS_PER_LEAD, ap: 0, // SPEC-113 §2.1：定員 = 初期の兵
     orders: [], policy: "ask", status: "ok", equip: null, ambushed: false, morale: 60, // SPEC-113：士気 60 で始まる
   });
   assert.equal(state.squads.s1, squad);

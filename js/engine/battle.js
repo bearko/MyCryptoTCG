@@ -8,7 +8,7 @@
 // 実際の resolve の結果を必ず含む。
 
 import { distance, neighbors } from "./hex.js";
-import { effectiveParams, subMods, visionOf, rangeOf, troopCap, musterCap } from "./heroes.js";
+import { effectiveParams, subMods, visionOf, rangeOf, musterCap } from "./heroes.js";
 import { candidates, accept, extensionCandidates, acceptExtension } from "./souls.js";
 import { pick } from "./rng.js";
 import {

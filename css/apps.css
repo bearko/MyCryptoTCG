@@ -1233,3 +1233,6 @@ html[data-motion="reduce"] .swipe__timer { animation: none !important; }
 .cal-next__day b { font-size: .95rem; color: var(--text-hi); }
 .cal-next__day small { font-size: .52rem; color: var(--muted); font-weight: 700; white-space: nowrap; }
 .cal-next__text { min-width: 0; }
+
+/* ヒーローのカードの兵：「320 / 400 上限 770」の上限（SPEC-113 §2.1） */
+.stat__val small.stat__cap { opacity: .75; font-size: 10px; }

@@ -14,10 +14,10 @@ import { queue, validate } from '../js/engine/orders.js';
 import { neighbors, within } from '../js/engine/hex.js';
 import {
   upkeep, applyDaily, domestic, troopFood, setRation, breakdown, forecast, previewDomestic, previewRation,
-  moraleMult, DOMESTIC_KINDS, rewardCost,
+  moraleMult, DOMESTIC_KINDS, rewardCost, rest,
 } from '../js/engine/economy.js';
 import { applyNight, planNight, MORALE_START, DESERT_RATE } from '../js/engine/morale.js';
-import { troopCap } from '../js/engine/heroes.js';
+import { troopCap, musterCap } from '../js/engine/heroes.js';
 import { TUNING, START_TROOPS_PER_LEAD, TROOPS_PER_FOOD, FARM_PER_GOV } from '../js/engine/tuning.js';
 
 const D = TROOPS_PER_FOOD;
@@ -275,6 +275,121 @@ test('applyNight は planNight の計画どおりに反映する', () => {
   const m = plan0.morale[0];
   assert.equal(st.squads.u1.morale, m.value);
   assert.equal(st.squads.u1.troops, 100 - plan0.desert[0].amount + plan0.recover.reduce((a, r) => a + r.amount, 0));
+});
+
+// ---------------------------------------------------------------- 定員（§2.1）
+//
+// 定員（Squad.mustered）= その部隊が集めた兵の数。夜の回復・休息・回復スキル・敗走明けの集め直しは定員まで
+// （戦いで減った兵を戻すだけ）。定員を超えて兵を増やせるのは徴兵だけ。逃げた兵の分は定員からも減る。
+// 定員が無かったころは、兵の上限（統率力 × 10）が初期の兵（統率力 × 2）よりずっと大きいため、
+// 本拠地の夜の回復が初日に人口 100 を使い切り、以後人口 0 のまま徴兵が一切できなかった（人口の罠）。
+
+test('定員：newGame は初期の兵と同じ。古いセーブ（mustered 無し・数でない）は今の兵で補う', () => {
+  const st = newGame({ seed: 5, playerLand: 'ocean', db: realDb });
+  for (const s of Object.values(st.squads)) {
+    assert.equal(s.mustered, s.troops, s.id);
+    assert.equal(musterCap(realDb.heroes[s.heroId], s, realDb), s.troops);
+    assert.ok(troopCap(realDb.heroes[s.heroId], s, realDb) > s.mustered, '上限は定員より大きい（回復が上限までだと人口の罠になる）');
+  }
+  const old = JSON.parse(serialize(st));
+  const ids = Object.keys(old.squads);
+  for (const s of Object.values(old.squads)) delete s.mustered;
+  old.squads[ids[0]].troops = 37;
+  old.squads[ids[1]].mustered = 'x';
+  old.squads[ids[2]].mustered = 250; // あるものは残す
+  const back = deserialize(JSON.stringify(old));
+  assert.equal(back.squads[ids[0]].mustered, 37);
+  assert.equal(back.squads[ids[1]].mustered, back.squads[ids[1]].troops);
+  assert.equal(back.squads[ids[2]].mustered, 250);
+  for (const s of Object.values(back.squads)) assert.ok(Number.isFinite(s.mustered) && s.mustered >= 0);
+});
+
+test('定員：徴兵は兵と定員を両方増やす（定員を超えて兵を増やせるのは徴兵だけ）', () => {
+  const st = makeState();
+  const u1 = add(st, 'u1', 1, C, { troops: 50, mustered: 50 });
+  assert.equal(domestic(st, db, u1, 'conscript').amount, 30); // floor(100 × 0.3)
+  assert.deepEqual([u1.troops, u1.mustered, st.lands.ocean.res.pop], [80, 80, 70]);
+  // 戦いで減っていた部隊（兵 50・定員 120）：徴兵した分だけ定員も増える
+  const st2 = makeState();
+  const u2 = add(st2, 'u2', 1, C, { troops: 50, mustered: 120 });
+  assert.equal(domestic(st2, db, u2, 'conscript').amount, 30);
+  assert.deepEqual([u2.troops, u2.mustered], [80, 150]);
+  // 徴兵は兵の上限（統率力 20 × 10 = 200）で止まる。定員も上限を超えない
+  const st3 = makeState();
+  const u3 = add(st3, 'u3', 1, C, { troops: 190, mustered: 190 });
+  assert.equal(domestic(st3, db, u3, 'conscript').amount, 10);
+  assert.deepEqual([u3.troops, u3.mustered], [200, 200]);
+  assert.equal(musterCap(db.heroes[1], u3, db), 200);
+});
+
+test('定員：積んだ徴兵のあとの休息は、増えた定員まで戻す見込み（previewDomestic と実行が一致）', () => {
+  const st = makeState();
+  const u1 = add(st, 'u1', 1, C, { troops: 100, mustered: 160 });
+  assert.ok(queue(st, db, 'u1', { type: 'domestic', kind: 'conscript' }).ok);
+  assert.ok(queue(st, db, 'u1', { type: 'rest' }).ok);
+  // 徴兵 +30（兵 130・定員 190）→ 休息は本拠地で 統率力 × 4 = 80 だが定員まで 60 → 兵 190。恩賞の費用は 10 + ceil(190 ÷ 20)
+  const p = previewDomestic(st, db, u1, 'reward');
+  assert.equal(p.delta.gum, -(10 + Math.ceil(190 / 20)));
+  const real = makeState();
+  const r1 = add(real, 'u1', 1, C, { troops: 100, mustered: 160 });
+  domestic(real, db, r1, 'conscript');
+  rest(real, db, r1);
+  assert.deepEqual([r1.troops, r1.mustered, real.lands.ocean.res.pop], [190, 190, 10]);
+});
+
+test('定員：夜の回復は、上限（統率力 × 10）に余裕があっても定員を超えない', () => {
+  const st = makeState();
+  add(st, 'u1', 1, C, { troops: 50, mustered: 55 });
+  add(st, 'u2', 1, C, { troops: 60, mustered: 60 });
+  const plan0 = planNight(st, db, 'ocean', false, 100);
+  assert.deepEqual(plan0.recover, [{ squad: 'u1', amount: 5 }]);
+  assert.equal(plan0.popUsed, 5);
+  finishDay(st, db);
+  assert.equal(st.squads.u1.troops, 55);
+  assert.equal(st.squads.u2.troops, 60, '定員いっぱいの部隊は人口を使わない');
+  assert.ok(st.lands.ocean.res.pop >= 95, `人口 ${st.lands.ocean.res.pop}`);
+  // 何日たっても定員のまま（人口は減らない）
+  for (let d = 0; d < 3; d++) finishDay(st, db);
+  assert.equal(st.squads.u1.troops, 55);
+  assert.equal(st.squads.u2.troops, 60);
+});
+
+test('定員：逃走で減った兵の分は定員からも減る（取り戻すには徴兵し直す）', () => {
+  const st = makeState();
+  st.lands.ocean.res.food = 0;
+  add(st, 'u1', 1, FAR, { morale: 10, troops: 101, mustered: 150 });
+  add(st, 'u2', 1, FAR, { morale: 10, troops: 101 }); // mustered 無し：今の兵が定員
+  finishDay(st, db);
+  assert.deepEqual([st.squads.u1.troops, st.squads.u1.mustered], [92, 141]); // 逃走 ceil(8.08) = 9
+  assert.deepEqual([st.squads.u2.troops, st.squads.u2.mustered], [92, 92]);
+  // 本拠地へ戻って食料が足りても、回復は減った定員（141）まで
+  const u1 = st.squads.u1;
+  u1.tile = C;
+  u1.morale = 50;
+  u1.troops = 135;
+  st.lands.ocean.res.food = 150;
+  st.lands.ocean.res.pop = 100;
+  finishDay(st, db);
+  assert.equal(u1.troops, 141);
+});
+
+test('人口の罠が起きない：指示なしで 6 日回しても、本拠地の人口は 0 に張り付かず、毎朝徴兵できる', () => {
+  for (const seed of [1, 2, 3]) {
+    const st = newGame({ seed, playerLand: 'ocean', db: realDb });
+    const me = st.playerLand;
+    const rng = makeRng(seed);
+    let canDraft = 0;
+    for (let day = 0; day < 6 && !st.ended; day++) {
+      const land = st.lands[me];
+      const mine = Object.values(st.squads).filter((s) => s.land === me && s.status !== 'routed' && s.tile === land.home);
+      if (mine.some((s) => previewDomestic(st, realDb, s, 'conscript').ok)) canDraft++;
+      [...execute(st, realDb, rng)];
+      if (day === 0) assert.ok(land.res.pop >= 90, `seed ${seed}: 1 日目の夜のあとの人口 ${land.res.pop}（定員まで戻すだけなので減らない）`);
+      if (!st.ended) beginTurn(st, realDb);
+    }
+    assert.equal(canDraft, 6, `seed ${seed}: 徴兵できた朝 ${canDraft} / 6`);
+    assert.ok(st.lands[me].res.pop > 0, `seed ${seed}: 6 日目の人口 ${st.lands[me].res.pop}`);
+  }
 });
 
 // ---------------------------------------------------------------- 配給（§3）

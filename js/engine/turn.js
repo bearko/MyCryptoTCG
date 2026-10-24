@@ -18,8 +18,7 @@
 import { neighbors, within } from './hex.js';
 import { shuffle } from './rng.js';
 import { stepCost } from './pathfind.js';
-import { visionOf, effectiveParams, troopCap, musterCap } from './heroes.js';
-import { startTroops } from './tuning.js';
+import { visionOf, musterCap } from './heroes.js';
 import { applyDaily, tickBuilds, startBuild, domestic, rest } from './economy.js';
 import { applyNight, rewardCost, MORALE_SHAKEN } from './morale.js';
 import { apMax, AP_COST } from './orders.js';
@@ -50,17 +49,17 @@ export function isShielded(state, fort) {
   return typeof fort.fallenDay === 'number' && state.day - fort.fallenDay <= FORT_SHIELD_DAYS;
 }
 
+/** 敗走明けに集め直す兵の割合（定員に対して。SPEC-113 §2.1） */
+export const REGROUP_RATE = 0.3;
+
 /**
  * 敗走明けの部隊が本拠地で集め直せる兵（state は変えない）。
- * 目安は初期の兵と同じ 統率力 × k（tuning.startTroops）で、兵の上限で止める。
+ * 目安は定員（heroes.musterCap。兵の上限で切った値）の REGROUP_RATE（切り上げ）。残りは夜の回復・休息で定員まで戻す。
  * SPEC-113 §2「すべての兵の増加は人口を消費する」に従い、増える兵 1 人につき人口 1。
- * 人口が足りなければ足りる分だけ（人口 0 なら兵 0 のまま復帰する）。
+ * 人口が足りなければ足りる分だけ（人口 0 なら兵 0 のまま復帰する）。集め直しは定員を変えない。
  * @param {number} pop 使える人口
  * @returns {number} 増える兵
  */
-/** 敗走明けに集め直す兵の割合（定員に対して） */
-export const REGROUP_RATE = 0.3;
-
 export function regroupTroops(db, squad, pop) {
   const hero = heroOf(db, squad);
   if (!hero) return 0;

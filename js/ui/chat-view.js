@@ -37,10 +37,10 @@ import { queue, validate, clearOrders, undoLast, apMax, apCost, projectedTile } 
 import { canBuild, DOMESTIC_KINDS, previewDomestic, breakdown, troopFood, caps, rest as restOn } from '../engine/economy.js';
 import { moraleOf, planNight, MORALE_SHAKEN, MORALE_MAX } from '../engine/morale.js';
 import { within, neighbors } from '../engine/hex.js';
-import { rangeOf, troopCap } from '../engine/heroes.js';
+import { rangeOf, troopCap, musterCap } from '../engine/heroes.js';
 import { plannedState } from './ledger-view.js';
 import { stepCost } from '../engine/pathfind.js';
-import { targetAt, isShielded } from '../engine/turn.js';
+import { targetAt, isShielded, REGROUP_RATE } from '../engine/turn.js';
 import { save } from '../state.js';
 import { go, render as rerender, pendingApp, endTurn } from '../main.js';
 import { orderStatus, setOrderDone, naviPath } from './phone.js';
@@ -212,7 +212,7 @@ const DOMESTIC_RES = { conscript: 'param.troops', farm: 'res.food', trade: 'res.
 
 /**
  * 内政・休息の結果の 1 行（イベントの値をそのまま。「徴兵：兵 +12」「徴兵：人口が足りないので、兵は増えなかった」）。
- * 0 のときの理由は、いまの state で見られるもの（兵が上限か）だけ確かめ、残りは人口・倉庫と書く。
+ * 0 のときの理由は、いまの state で見られるもの（兵が上限か・休息なら定員か）だけ確かめ、残りは人口・倉庫と書く。
  */
 function resultLine(app, squad, ev) {
   const hero = heroOf(app, squad);
@@ -221,8 +221,10 @@ function resultLine(app, squad, ev) {
     const kind = t(app, 'cmd.rest');
     const morale = ev.morale ? ev.morale.delta : 0;
     if (ev.amount > 0) return cx(app, 'fix.report.rest', { kind, n: signed(ev.amount), m: signed(morale) }, '{kind}：兵 {n}・士気 {m}');
-    return cx(app, full ? 'fix.report.restFull' : 'fix.report.restPop', { kind, m: signed(morale) },
-      full ? '{kind}：兵は上限なので増えなかった・士気 {m}' : '{kind}：人口が 0 なので兵は増えなかった・士気 {m}');
+    // 休息で戻せるのは定員まで（SPEC-113 §2.1）
+    const atMuster = hero ? (squad.troops || 0) >= musterCap(hero, squad, app.db) : false;
+    if (atMuster) return cx(app, 'fix.report.restMuster', { kind, m: signed(morale) }, '{kind}：兵は定員まで戻っているので増えなかった（定員を超えるには徴兵）・士気 {m}');
+    return cx(app, 'fix.report.restPop', { kind, m: signed(morale) }, '{kind}：人口が 0 なので兵は増えなかった・士気 {m}');
   }
   const kind = domName(app, ev.kind);
   if (ev.kind === 'reward') {
@@ -414,6 +416,7 @@ function openChatHelp(app) {
       { id: 'after', term: cx(app, 'after', {}, 'このあと'), text: cx(app, 'fix.help.after', {}, '積んだ内政を足したあとの食料の増減（ランド全体）。農作は今夜 1 回だけ入る量なので「今夜 +N（1 回きり）」、毎日続く分は「明日から −N/日」と分けて出します') },
       { id: 'morale', term: cx(app, 'morale', {}, '士気'), text: cx(app, 'help.morale', {}, '0〜100。高いほど戦闘で強い。20 未満は「動揺」、0 になると兵が逃げ始めます。恩賞と休息で上がります') },
       { id: 'food', term: cx(app, 'troopFood', {}, '食費'), text: cx(app, 'help.food', {}, 'そのヒーローの兵が 1 日に食べる食料。兵が増えるほど増えます') },
+      { id: 'muster', term: cx(app, 'muster', {}, '定員'), text: cx(app, 'help.muster', { regroup: Math.round(REGROUP_RATE * 100) }, '部隊が集めた兵の数。戦いで減った兵は、夜の回復・休息などで定員まで戻ります。定員を超えて増やせるのは徴兵だけです') },
       { id: 'undo', term: cx(app, 'undo', {}, '1 手戻す'), text: cx(app, 'help.undo', {}, '最後に積んだ指示を 1 つだけ外し、AP を戻します。全部やめるときはメニューの「取り消し」') },
     ],
   });
@@ -700,6 +703,11 @@ function headStats(app, squad) {
   const food = row ? row.value : 0;
   const moraleLabel = cx(app, 'morale', {}, '士気');
   const foodLabel = cx(app, 'troopFood', {}, '食費');
+  // 兵 / 定員（夜の回復・休息で戻せるのは定員まで。上限は徴兵でしか届かない。SPEC-113 §2.1）
+  const hero = heroOf(app, squad);
+  const troops = Math.max(0, squad.troops || 0);
+  const muster = hero ? musterCap(hero, squad, app.db) : troops;
+  const cap = hero ? troopCap(hero, squad, app.db) : troops;
   const perDay = (n) => cx(app, 'perDay', { n }, '{n}/日');
   return h('span', { class: 'chat-head__stats' },
     h('span', {
@@ -710,6 +718,10 @@ function headStats(app, squad) {
     h('span', { class: 'chat-mor__bar', 'aria-hidden': 'true' }, h('i', { style: { '--v': (Math.max(0, Math.min(100, m)) / 100).toFixed(2) } })),
     h('b', { class: 'chat-mor__n num', 'aria-hidden': 'true' }, String(m)),
     word ? h('span', { class: ['chat-mor__word', level === 'zero' && des <= 0 ? 'is-hold' : null], 'aria-hidden': 'true' }, word) : null),
+    h('span', {
+      class: ['chat-head__troops', 'num', troops < muster ? 'is-low' : null], dataset: { troops, muster },
+      title: cx(app, 'troopsAria', { n: troops, muster, cap }, '兵 {n}、定員 {muster}（上限 {cap}）'),
+    }, cx(app, 'troopsOf', { n: troops, muster }, '兵 {n}/{muster}')),
     h('span', { class: ['chat-head__food', 'num', food > 0 ? 'is-minus' : 'is-zero'], dataset: { food } },
       h('span', { class: 'chat-head__food-label' }, foodLabel), ` ${perDay(signed(-food))}`));
 }
@@ -1339,7 +1351,11 @@ function plannedCtx(app, squad) {
   const s = sim.squads[squad.id] || squad;
   const hero = heroOf(app, squad);
   const land = sim.lands[squad.land];
-  return { sim, s, pop: land ? land.res.pop || 0 : 0, troops: s.troops || 0, cap: hero ? troopCap(hero, s, app.db) : 0 };
+  return {
+    sim, s, pop: land ? land.res.pop || 0 : 0, troops: s.troops || 0,
+    cap: hero ? troopCap(hero, s, app.db) : 0,
+    muster: hero ? musterCap(hero, s, app.db) : 0, // 休息で戻せるのは定員まで（SPEC-113 §2.1）
+  };
 }
 
 /**
@@ -1456,19 +1472,20 @@ function pickDomestic(app, squad, kind, name) {
 
 /**
  * 休息を積んだらどうなるか: 積んだ指示のあとの写し（plannedCtx）に、エンジンの economy.rest をそのまま当てて読む。
+ * full は兵が定員まで戻っている（休息で戻せるのは定員まで。SPEC-113 §2.1）。
  * @returns {{troops:number, morale:number, pop:number, full:boolean}}
  */
 function restPreview(app, squad) {
   const ctx = plannedCtx(app, squad);
-  const full = ctx.cap > 0 && ctx.troops >= ctx.cap;
+  const full = ctx.muster > 0 ? ctx.troops >= ctx.muster : ctx.cap > 0 && ctx.troops >= ctx.cap;
   const ev = restOn(ctx.sim, app.db, ctx.s);
   return { troops: ev.amount, morale: ev.morale ? ev.morale.delta : 0, pop: ctx.pop, full };
 }
 
-/** 休息で増える兵の書き方。0 のときは理由を添える（「+0（人口 0）」「+0（上限）」） */
+/** 休息で増える兵の書き方。0 のときは理由を添える（「+0（人口 0）」「+0（定員）」） */
 function restTroopsText(app, r) {
   if (r.troops > 0) return signed(r.troops);
-  return r.full ? cx(app, 'fix.rest.full', { n: signed(0) }, '{n}（上限）') : cx(app, 'fix.rest.pop0', { n: signed(0) }, '{n}（人口 0）');
+  return r.full ? cx(app, 'fix.rest.muster', { n: signed(0) }, '{n}（定員）') : cx(app, 'fix.rest.pop0', { n: signed(0) }, '{n}（人口 0）');
 }
 
 // 休息：押す前に見込み（兵・士気・AP 全部）を出す。押したら積んで閉じる
@@ -1495,7 +1512,7 @@ function restMenu(app, squad) {
   h('span', { class: 'chat-opt__name', 'aria-hidden': 'true' }, name),
   h('span', { class: 'chat-dom__eff', 'aria-hidden': 'true' }, effects),
   warn ? h('span', { class: 'chat-dom__foot is-ng', 'aria-hidden': 'true' },
-    r.full ? cx(app, 'fix.rest.noteFull', {}, '兵は上限。上がるのは士気だけ') : cx(app, 'fix.rest.notePop', {}, '人口が 0 なので兵は増えない。上がるのは士気だけ')) : null);
+    r.full ? cx(app, 'fix.rest.noteMuster', {}, '兵は定員まで戻っている。上がるのは士気だけ（定員を超えて増やすには徴兵）') : cx(app, 'fix.rest.notePop', {}, '人口が 0 なので兵は増えない。上がるのは士気だけ')) : null);
   return subPanel(app, 'chat114.fix.rest.title', btn,
     h('span', { class: 'muted chat-sub__now' }, cx(app, 'fix.rest.hint', {}, '兵の回復は人口を使う（兵 1 人に人口 1）')));
 }

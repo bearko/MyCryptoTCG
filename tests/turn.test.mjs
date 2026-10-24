@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadDbFromFs } from '../js/data.js';
 import { newGame, serialize, deserialize, save, load } from '../js/state.js';
-import { beginTurn, planCpu, execute, finishDay, revealFog, noticesFrom, targetAt } from '../js/engine/turn.js';
+import { beginTurn, planCpu, execute, finishDay, revealFog, noticesFrom, targetAt, regroupTroops, REGROUP_RATE } from '../js/engine/turn.js';
+import { troopCap } from '../js/engine/heroes.js';
 import { plan } from '../js/engine/ai.js';
 import { makeRng } from '../js/engine/rng.js';
 import { neighbors } from '../js/engine/hex.js';
@@ -125,29 +126,38 @@ test('execute: 本拠地にいない内政は blocked(home)、AP 不足は block
   assert.ok(events.some((e) => e.t === 'blocked' && e.squad === me.id && e.reason === 'home'));
 });
 
-test('beginTurn: 敗走した部隊は AP 0 で、兵を 統率力 × k まで人口から集め直す（SPEC-113 §2）。奇襲は AP 半分', () => {
+test('beginTurn: 敗走した部隊は AP 0 で、兵を 定員 × REGROUP_RATE まで人口から集め直す（SPEC-113 §2.1）。奇襲は AP 半分', () => {
   const st = newGame({ seed: 7, playerLand: 'ocean', db });
   const [a, b] = Object.values(st.squads).filter((s) => s.land === 'ocean');
   const land = st.lands.ocean;
   const full = a.ap;
+  const hero = db.heroes[a.heroId];
   a.status = 'routed';
   a.troops = 0;
+  a.mustered = startTroops(hero.params.lead) + 50; // 徴兵で定員を 50 増やしていた部隊
   a.tile = b.tile;
   b.ambushed = true;
   const fullB = b.ap;
-  land.res.pop = 500; // 上限を超えて足りる人口
-  const goal = startTroops(db.heroes[a.heroId].params.lead);
+  land.res.pop = 500; // 足りる人口
+  assert.equal(REGROUP_RATE, 0.3);
+  const goal = Math.ceil(Math.min(troopCap(hero, a, db), a.mustered) * REGROUP_RATE);
+  assert.ok(goal > 0 && goal < a.mustered);
   const evs = beginTurn(st, db);
   assert.equal(a.ap, 0);
   assert.equal(a.status, 'ok');
   assert.equal(a.tile, land.home);
-  assert.equal(a.troops, goal, '統率力 × k（lead × 3 ではない）');
+  assert.equal(a.troops, goal, '定員の 3 割（切り上げ）');
+  assert.equal(a.mustered, startTroops(hero.params.lead) + 50, '集め直しは定員を変えない（残りは夜の回復・休息で定員まで戻す）');
   assert.equal(land.res.pop, 500 - goal, '集め直した兵の分だけ人口を使う');
   assert.deepEqual(evs, [{ t: 'regroup', squad: a.id, land: 'ocean', amount: goal }]);
   assert.equal(b.ap, Math.ceil(fullB / 2));
   assert.equal(b.ambushed, false);
   assert.deepEqual(beginTurn(st, db), [], '敗走していなければ何も起きない');
   assert.equal(a.ap, full);
+  // 定員が上限より大きくても、上限の 3 割まで
+  assert.equal(regroupTroops(db, { ...a, troops: 0, mustered: 99999 }, 99999), Math.ceil(troopCap(hero, a, db) * REGROUP_RATE));
+  // すでに 3 割より多く残っていれば集め直さない
+  assert.equal(regroupTroops(db, { ...a, troops: goal + 5 }, 500), 0);
 });
 
 test('beginTurn: 敗走明けの兵は人口が足りる分だけ。人口 0 なら兵 0 のまま復帰し、兵も人口も増えない', () => {

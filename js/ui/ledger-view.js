@@ -13,7 +13,8 @@ import { h, clear, heroImg } from './h.js';
 import { uiText } from '../engine/lines.js';
 import { breakdown, forecast, previewDomestic, previewRation, setRation, domestic, rest, RATION_KINDS } from '../engine/economy.js';
 import { planNight, moraleOf, rationOf, moraleMult, MORALE_SHAKEN, MORALE_DELTA, RATIONS, DESERT_RATE } from '../engine/morale.js';
-import { troopCap } from '../engine/heroes.js';
+import { troopCap, musterCap } from '../engine/heroes.js';
+import { REGROUP_RATE } from '../engine/turn.js';
 import { openPopup, closePopup, go, render, getApp } from '../main.js';
 import * as fx from './fx.js';
 
@@ -350,11 +351,15 @@ function placeText(app, s) {
   return t && t.owner === st.playerLand ? L(app, 'ledger.place.own') : L(app, 'ledger.place.away');
 }
 
-/** 「上限 1,910・いま増やせる 0（人口）」。人口が上限までの空きより少ないときだけ、増やせる数を添える */
+/**
+ * 「定員 400（上限 1,910）・いま戻せる 0（人口）」（SPEC-113 §2.1）。夜の回復・休息で戻せるのは定員まで、
+ * 上限（統率力 × 10 の合計）までは徴兵でしか増えない。人口が定員までの空きより少ないときだけ、いま戻せる数を添える
+ */
 function capText(app, troops, pop) {
-  const room = Math.max(0, troops.cap - troops.total);
+  const room = Math.max(0, troops.muster - troops.total);
   const p = Math.max(0, Math.floor(pop || 0));
-  return p < room ? L(app, 'homeF.ledger.capPop', { cap: fmt(troops.cap), n: fmt(p) }) : L(app, 'homeF.ledger.cap', { cap: fmt(troops.cap) });
+  const v = { muster: fmt(troops.muster), cap: fmt(troops.cap), n: fmt(p) };
+  return p < room ? L(app, 'homeF.ledger.musterPop', v) : L(app, 'homeF.ledger.muster', v);
 }
 
 function troopsTab(app) {
@@ -375,7 +380,7 @@ function troopsTab(app) {
     h('div', { class: 'ledger-head__stock' },
       h('span', { class: 'ledger-head__label' }, L(app, 'ledger.troops')),
       h('strong', { class: 'ledger-head__val num' }, fmt(fc.troops.total)),
-      // 上限（統率力 × 10 の合計）と、いま増やせる数。兵は人口 1 につき 1 しか増えないので、人口が足りなければ上限に届かない
+      // 定員と上限（統率力 × 10 の合計）と、いま戻せる数。兵は人口 1 につき 1 しか戻らないので、人口が足りなければ定員に届かない
       h('span', { class: 'ledger-head__cap num' }, capText(app, fc.troops, st.lands[me].res.pop))),
     h('div', { class: 'ledger-head__net' },
       h('span', { class: 'ledger-head__label' }, L(app, 'ledger.moraleAvg')),
@@ -386,6 +391,7 @@ function troopsTab(app) {
   const rows = mySquads(app).map((s) => {
     const hero = heroOf(app, s);
     const cap = hero ? troopCap(hero, s, app.db) : 0;
+    const muster = hero ? musterCap(hero, s, app.db) : 0;
     const m = moraleOf(s);
     const tm = tonightMorale.get(s.id);
     const des = tonightDesert.get(s.id) || 0;
@@ -403,7 +409,7 @@ function troopsTab(app) {
             h('span', { class: 'ledger-squad__name' }, hero ? hero.name : s.id),
             state ? h('span', { class: ['ledger-squad__state', state.cls] }, state.text) : null),
           h('span', { class: 'ledger-squad__nums' },
-            h('span', { class: 'num' }, L(app, 'ledger.troopsOf', { n: fmt(s.troops || 0), cap: fmt(cap) })),
+            h('span', { class: 'num' }, L(app, 'ledger.troopsMuster', { n: fmt(s.troops || 0), muster: fmt(muster), cap: fmt(cap) })),
             h('span', { class: 'num ledger-squad__food' }, L(app, 'ledger.foodOf', { v: signed(-food) }))),
           h('span', { class: 'ledger-squad__mor' },
             moraleGauge(app, m),
@@ -416,7 +422,7 @@ function troopsTab(app) {
   return h('div', { class: 'ledger ledger--troops', dataset: { tab: 'troops' } },
     head,
     h('ul', { class: 'ledger-squads' }, rows),
-    terms(app, ['morale', 'desert', 'reward']));
+    terms(app, ['muster', 'morale', 'desert', 'reward']));
 }
 
 /** 用語の文に差し込む値（エンジンの定数。文の中に数を書き写さない） */
@@ -425,10 +431,11 @@ function termVars() {
     shaken: MORALE_SHAKEN, starve: signed(MORALE_DELTA.starve), reward: signed(MORALE_DELTA.reward),
     saveFood: RATIONS.save.food, saveMorale: signed(RATIONS.save.morale), feastFood: RATIONS.feast.food, feastMorale: signed(RATIONS.feast.morale),
     m0: moraleMult(0).toFixed(2), m50: moraleMult(50).toFixed(2), m100: moraleMult(100).toFixed(2), pct: Math.round(DESERT_RATE * 100),
+    regroup: Math.round(REGROUP_RATE * 100),
   };
 }
 
-/** 用語（士気・配給・恩賞・逃走。SPEC-114 §8） */
+/** 用語（定員・士気・配給・恩賞・逃走。SPEC-114 §8・SPEC-113 §2.1） */
 function terms(app, ids) {
   return h('details', { class: 'ledger-terms' },
     h('summary', null, L(app, 'ledger.terms')),
