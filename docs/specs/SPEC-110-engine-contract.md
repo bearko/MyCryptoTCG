@@ -34,6 +34,7 @@ js/
   engine/
     rng.js  hex.js  worldgen.js  pathfind.js  heroes.js  economy.js
     orders.js  battle.js  ai.js  turn.js  season.js  souls.js  lines.js
+    morale.js  tuning.js     （SPEC-113：士気・配給・夜の処理 / 数値のつまみ）
   ui/
     h.js           DOM ヘルパ（h, clear, on）
     phone.js       スマホの外枠・ステータスバー・ホーム・通知
@@ -166,7 +167,8 @@ Land = { id, cpu: boolean, alive: boolean,
          souls: Soul[],               // 未使用の SOUL
          extensions: extId[],         // 未装備のエクステンション
          fortPoints: 0,
-         points: { week1: 0, week2: 0, week3: 0, week4: 0 } }
+         points: { week1: 0, week2: 0, week3: 0, week4: 0 },
+         ration: "save"|"normal"|"feast" }   // 配給（SPEC-113 §3）。既定 "normal"
 
 Soul = { role: "front"|"mid"|"back", rarity: 3|4|5, from: fortId }
 
@@ -175,13 +177,16 @@ Squad = { id: "s1", heroId: 1001, land: landId, tile: tileIdx,
          orders: Order[], policy: "ignore"|"fight"|"ask",
          status: "ok"|"routed",                // routed: 敗走中（翌ターン AP 0）
          equip: extId|null,
-         ambushed: false }                      // 奇襲された（翌ターン AP 半分）
+         ambushed: false,                       // 奇襲された（翌ターン AP 半分）
+         morale: 60,                            // 士気 0..100 の整数（SPEC-113 §1）。既定 60
+         mustered: 50 }                         // 定員：この部隊が集めた兵の数（SPEC-113 §2.1）。回復はここまで。
+                                                //   徴兵で増え、逃走で減る。無ければ troops として読む
 
 Order = { type: "move", path: tileIdx[] }           // path[0] は今いるタイルを含まない
       | { type: "claim" }
       | { type: "build", kind: facilityId, rush: number }   // rush: 短縮に使う余りの AP
       | { type: "attack", target: tileIdx }
-      | { type: "domestic", kind: "conscript"|"farm"|"trade"|"craft" }
+      | { type: "domestic", kind: "conscript"|"farm"|"trade"|"craft"|"reward" }   // reward：恩賞（SPEC-113 §4）
       | { type: "rest" }
 // queue は積んだ指示に、実際に引いた AP を `ap` として書き添える（{ ...order, ap }）
 
@@ -193,7 +198,7 @@ Fort = { id: "f1", rank: "rare"|"epic"|"legendary", tile: tileIdx, owner: landId
 Build = { tileIdx, kind: facilityId, land: landId, daysLeft: 2, toRank: 1|2|3 }
 
 Event = { t: "move", squad: squadId, from: tileIdx, to: tileIdx }
-      | { t: "blocked", squad, at: tileIdx, reason: "ap"|"enemy"|"terrain"|"build"|"home"|"claim"|"target"|"range" }
+      | { t: "blocked", squad, at: tileIdx, reason: "ap"|"enemy"|"terrain"|"build"|"home"|"claim"|"target"|"range"|"gum" }
       | { t: "claim", squad, tile: tileIdx, land }
       | { t: "build_start", squad, tile, kind, days }
       | { t: "build_done", tile, kind, rank, land }
@@ -208,10 +213,13 @@ Event = { t: "move", squad: squadId, from: tileIdx, to: tileIdx }
       | { t: "soul", land, soul: Soul }
       | { t: "extension_offer", land, fort: fortId }
       | { t: "ask", squad, at: tileIdx, enemy: squadId|fortId }
-      | { t: "domestic", squad, kind, amount }
-      | { t: "rest", squad, amount }
+      | { t: "domestic", squad, kind, amount, cost?, morale? }   // reward は amount = 士気の増えた量、cost = 払った GUM、morale = morale イベント|null
+      | { t: "rest", squad, amount, morale }                   // morale = morale イベント|null（士気 +10）
       | { t: "yield", land, res: { pop, food, gum, mat } }
-      | { t: "starve", land }
+      | { t: "starve", land, shortfall }                       // shortfall：足りなかった食料
+      | { t: "morale", squad, delta, reason: "starve"|"fed"|"home"|"ration"|"commander"|"rest"|"reward"|"win"|"lose"|"ambushed"|"routed"|"fort"|"skill"|"surrender", value }
+      | { t: "morale_day", land, starved: boolean, changes: [{ squad, delta, reasons: string[], value }] }   // 1 日の終わりの士気のまとめ（ランドごと）
+      | { t: "desert", squad, amount, left }                   // 士気 0 で逃げた兵（left は逃げたあとの兵）
       | { t: "week_end", week: 1|2|3|4, points: { [landId]: number } }
       | { t: "clear", land }
       | { t: "season_end", winner: landId|null }
@@ -271,7 +279,9 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - `skillKindOf(passiveTextJa: string) → "damage"|"heal"|"buff"|"debuff"`
 - `toneOf(attributes: string[], faction: number) → tone`
 - `effectiveParams(hero, squad, db) → params`（装備の加算込み）
-- `troopCap(hero, squad, db) → number`（`lead × 10 + 装備`）
+- `troopCap(hero, squad, db) → number`（`lead × 10 + 装備`。兵の上限。徴兵で増やせるのはここまで）
+- `musterCap(hero, squad, db) → number`（`min(troopCap, mustered)`。回復で戻せる上限。SPEC-113 §2.1）
+- `musteredOf(squad) → number`（`squad.mustered`。無い・数でなければ `troops`。上限では切らない）
 - `visionOf(hero, squad, db) → number`（2。scout 3。装備で +）
 - `rangeOf(hero) → number`（front 1 / mid 2 / back 3。caster・support・healer は 2）
 - `subMods(sub) → { atk, def, actDelta, skillMult, healAdj }`（§spec 5.2 の係数）
@@ -280,28 +290,53 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 ### `economy.js`
 - `caps(state, db, landId) → { pop, food, mat }`
 - `yields(state, db, landId) → { pop, food, gum, mat }`（占領タイル + 施設 + 街の隣接補正 + 自然増）
-- `upkeep(state, db, landId) → { food }`（人口÷10 + 兵÷5）
-- `applyDaily(state, db, landId) → Event[]`（**mutates**。産出 → 消費 → 上限 → 飢え。`yield` と `starve` のイベント）
+- `upkeep(state, db, landId) → { food }`（floor(人口÷10) + floor(兵 × 配給 ÷ d)。d は tuning.js。SPEC-113 §3）
+- `applyDaily(state, db, landId) → Event[]`（**mutates**。産出 → 消費 → 飢え → 上限。`yield` と `starve` のイベント。
+  飢えは食料を 0 にして `starve{shortfall}`、その日は人口の自然増なし。兵・人口の即時の罰は無い（士気は turn.finishDay）。SPEC-113 §2）
 - `canBuild(state, db, landId, tileIdx, kind, squad = null) → { ok: boolean, reason: string|null, cost: { gum, mat }, days: number, toRank: 1|2|3 }`
 - `startBuild(state, db, squad, kind, rush) → Event`（**mutates**。費用を引き、`state.builds` に積む）
 - `tickBuilds(state, db) → Event[]`（**mutates**。daysLeft を減らし、0 で施設に）
-- `domestic(state, db, squad, kind) → Event`（**mutates**。§spec 6.5）
-- `rest(state, db, squad) → Event`（**mutates**）
+- `domestic(state, db, squad, kind) → Event`（**mutates**。§spec 6.5。徴兵は兵と定員（`mustered`）を両方増やす（兵の上限まで）。農作は 10 + 統治力 × m。恩賞 `reward` は GUM 10 + ceil(兵 ÷ 20) で士気 +20）
+- `rest(state, db, squad) → Event`（**mutates**。定員（`musterCap`）まで。増えた兵 1 人につき人口 1 を消費。士気 +10）
+- `moraleMult(morale) → number`（0.75 + 0.005 × 士気。morale.js の再 export）
+- `setRation(state, landId, ration) → { ok, reason }`（**mutates**。AP を使わない）
+- `troopFood(state, db, landId, opt?) → { total, rows: [{ squad, value }] }`（兵の食料の消費を部隊ごとに分ける。行の合計は total）
+- `breakdown(state, db, landId) → { food, gum, mat, pop }`。各資源 `{ income: Row[], expense: Row[], net, stock, cap, daysLeft }`、
+  `Row = { key, label, value, squad? }`（value は正）。行の合計（収入 − 支出）は必ず `net`。`daysLeft` は net < 0 のときだけ `floor(stock / −net) + 1`
+- `forecast(state, db, landId) → { food: { net, daysLeft }, gum, mat, pop, troops: { total, muster, cap }, morale: { avg, min, shaken, deserting, desertTonight } }`（deserting はいま士気 0 の部隊の数、desertTonight は指示なしで今夜逃げる兵の数。troops.muster は定員（`musterCap`）の合計、troops.cap は兵の上限の合計）
+- `previewDomestic(state, db, squad, kind) → { ok, reason, delta: { food, gum, mat, pop, troops, morale }, perDay: { food }, repeat }`
+- `previewRation(state, db, landId, ration) → { perDay: { food }, delta: { food }, moralePerDay }`
+- `canReward(state, db, squad) → { ok, cost, gum }`（積んだ恩賞・開拓の GUM を引いた残りで払えるか）
+- `DOMESTIC_KINDS = ['conscript','farm','trade','craft','reward']`
 
 ### `orders.js`
 - `apCost(state, db, squad, order) → number`（move は path の合計。claim 1、build 2 + rush、attack 2、domestic 2、rest は残り全部）
-- `validate(state, db, squad, order) → { ok, reason }`（本拠地にいるか、射程内か、建てられるか…）
+- `validate(state, db, squad, order) → { ok, reason }`（本拠地にいるか、射程内か、建てられるか…。恩賞の GUM 不足は `gum`）
 - `queue(state, db, squadId, order) → { ok, reason }`（**mutates**。validate が ok なら `squad.orders` に積み、`squad.ap` から引く）
 - `clearOrders(state, squadId)`（**mutates**。AP を戻す）
+- `undoLast(state, squadId) → { ok, reason, order?, ap? }`（**mutates**。最後に積んだ指示を 1 つだけ外し、その指示の `ap` を戻す。reason は `squad` / `none`。SPEC-114 §4「1 手戻す」）
 - `plannedAp(state, db, squad) → number`（積んだ指示の合計 AP）
 - `apMax(hero, squad, db) → number`（act + 小分類の増減 + 装備。routed なら 0。ambushed なら半分）
 
 ### `battle.js`
-- `power(state, db, squad) → { atk, def }`
-- `fortPower(state, db, fort) → { atk, def }`
+- `power(state, db, squad) → { atk, def }`（士気係数を掛ける）
+- `fortPower(state, db, fort) → { atk, def }`（士気 60 扱いの係数を掛ける。`homePower` も同じ）
 - `isAmbush(state, db, attacker, defenderSquadOrFort) → boolean`（防御側の視界に攻撃側がいないか）
 - `resolve(state, db, rng, attackerSquad, target) → Event(t:"battle")`（**mutates**。target は Squad か Fort か本拠地タイル `{ home: landId }`。§spec 7.2 の順で解決し、敗走・陥落まで state に反映する。陥落時は `fort_fallen` / `home_fallen` / `soul` / `extension_offer` のイベントを `event.followups: Event[]` に入れて返す）
 - `inRange(state, db, squad, targetTile) → boolean`
+- `predict(state, db, attacker, target) → { attacker: { before, min, max }, defender: { before, min, max }, label, excludes, ... }`
+  （state を変えない・rng を使わない。label は "overwhelm"|"advantage"|"even"|"disadvantage"|"hopeless"。SPEC-113 §6.3。詳細は §7.7）
+- `resolve` は士気の変化（SPEC-113 §1.1・§1.2）を `morale` イベントとして followups に入れる
+
+### `morale.js`（SPEC-113）
+- 定数：`MORALE_START`(60) `MORALE_SHAKEN`(20) `DESERT_RATE`(0.08) `MORALE_DELTA` `SKILL_MORALE` `RATIONS` `RATION_KINDS` `STRUCTURE_MORALE`(60)
+- `moraleOf(squad)`（無ければ 60）/ `moraleMult(morale)` / `rationOf(land)`（無ければ "normal"）/ `rewardCost(squad)`
+- `changeMorale(squad, delta, reason) → Event|null` / `setMorale(squad, value, reason) → Event|null`（**mutates**。0〜100 で切る）
+- `planNight(state, db, landId, starved, popAvail) → { morale[], desert[], recover[], popUsed }`（計算だけ）
+- `applyNight(state, db, landId, starved) → Event[]`（**mutates**。士気の毎日の変化 → 士気 0 の逃走 → 兵の回復（人口を消費））
+
+### `tuning.js`（SPEC-113 §5 のつまみ。ここ 1 か所だけで変える）
+- `START_TROOPS_PER_LEAD`(k = 2) `TROOPS_PER_FOOD`(d = 9) `FARM_PER_GOV`(m = 1) `TUNING`、`startTroops(lead)` `farmAmount(gov)`
 
 ### `ai.js`
 - `plan(state, db, rng, landId)`（**mutates**。そのランドの全部隊に `orders.queue` で指示を積む。§spec 7.3）
@@ -310,7 +345,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - `beginTurn(state, db)`（**mutates**。`phase = "orders"`、各部隊の `ap = apMax`、`orders = []`、`ambushed` を消費、`routed` の復帰、`log = []`）
 - `planCpu(state, db, rng)`（**mutates**。CPU の全ランドに `ai.plan`）
 - `execute(state, db, rng) → Generator<Event>`（**mutates**。`phase = "execute"`。ラウンド制で 1 歩ずつ yield。最後に `applyDaily`・`tickBuilds`・霧・回復・日曜の集計・終了判定。`state.log` にも全イベントを積む）
-- `finishDay(state, db) → Event[]`（execute の末尾が呼ぶ。単体でもテストできるように分ける）
+- `finishDay(state, db) → Event[]`（execute の末尾が呼ぶ。単体でもテストできるように分ける。順番は §7.7）
 - `revealFog(state, db, landId)`（**mutates**。全部隊の視界 + 本拠地の周囲 3 + 占領タイルの周囲 1）
 - `noticesFrom(state, db, events) → Notice[]`（プレイヤーのランドに関係するものだけ日本語に）
 
@@ -324,7 +359,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 
 ### `souls.js`
 - `candidates(rng, db, soul, usedHeroIds: Set) → heroId[3]`（soul.role の大分類・soul.rarity。10% で +1 段。足りなければ隣のレアリティで埋める）
-- `accept(state, db, landId, pending, heroId) → Squad`（**mutates**。本拠地に部隊を作る。兵は lead × 3。`state.pending` から外す）
+- `accept(state, db, landId, pending, heroId) → Squad`（**mutates**。本拠地に部隊を作る。兵は lead × k（tuning.js）、定員も同じ、士気 60。`state.pending` から外す）
 - `extensionCandidates(rng, db, land) → extId[8]`
 - `acceptExtension(state, db, landId, pending, liked: extId[]) → extId`（**mutates**。liked からランダム。空なら candidates からランダム。`land.extensions` に足す）
 - `equip(state, db, squadId, extId|null)`（**mutates**。付け替え。外したものは `land.extensions` へ戻る）
@@ -334,7 +369,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 
 ### `state.js`
 - `newGame({ seed, playerLand, db }) → state`（worldgen → 9 ランド → starter 3 体ずつ → 砦 → 霧 → `beginTurn`）
-- `serialize(state) → string` / `deserialize(json) → state`
+- `serialize(state) → string` / `deserialize(json) → state`（`morale` / `ration` / `mustered` が無ければ既定値を入れる。`mustered` の既定は今の兵。`withDefaults(state)` も export）
 - `save(state)` / `load() → state|null`（ここだけ `localStorage` を触ってよい。engine からは呼ばない）
 
 ---
@@ -358,7 +393,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 |---|---|
 | map 班 | `js/engine/hex.js` `worldgen.js` `pathfind.js` `tests/hex.test.mjs` `tests/worldgen.test.mjs` `tests/pathfind.test.mjs` |
 | heroes 班 | `js/engine/rng.js` `heroes.js` `souls.js` `tools/build-data.mjs` `data/heroes.json` `data/enemies.json` `data/extensions.json` `tests/heroes.test.mjs` `tests/souls.test.mjs` |
-| economy 班 | `js/engine/economy.js` `orders.js` `tests/economy.test.mjs` `tests/orders.test.mjs` |
+| economy 班 | `js/engine/economy.js` `orders.js` `morale.js` `tuning.js` `tests/economy.test.mjs` `tests/orders.test.mjs` `tests/morale.test.mjs` |
 | battle 班 | `js/engine/battle.js` `tests/battle.test.mjs` |
 | turn 班 | `js/engine/ai.js` `turn.js` `season.js` `js/state.js` `js/data.js` `tests/turn.test.mjs` `tests/season.test.mjs` |
 | lines 班 | `js/engine/lines.js` `data/messages.json` `tests/lines.test.mjs` |
@@ -421,10 +456,12 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - CPU のランドが砦を落としたときは `state.pending` を作らず、その場で受け取る（SOUL は候補の先頭、エクステンションはおまかせ）。`soul` / `extension_offer` のイベントは followups に入る
 - 本拠地を攻めたとき、守備部隊がいなければ `defender` は landId（`target: "home"` で見分ける）
 - Legendary が落ちると followups に `clear` が入る。`state.ended` を付けるのは turn.js（season.checkEnd）
+- `regroupTroops(db, squad, pop) → number`（敗走明けに集め直す兵：`ceil(musterCap × REGROUP_RATE)` までの不足を、人口の範囲で。SPEC-113 §2.1）
+- `REGROUP_RATE = 0.3`（敗走明けに集め直す兵の割合。定員に対して）
 - 追加の export：`ENEMY_LAND` `FORT_LEAD` `HOME_MAX_DURABILITY` `HOME_LEAD` `homePower`
 
 ### 7.4 turn（実行フェーズ）
-- `beginTurn`：全部隊の `orders = []`、`ap = apMax`。routed の部隊はこの日 AP 0 で、`status = "ok"`・兵 lead × 3 に戻る。`ambushed` はこの日の AP を半分にして消す
+- `beginTurn`：全部隊の `orders = []`、`ap = apMax`。routed の部隊はこの日 AP 0 で、`status = "ok"`・兵を定員の 3 割（`regroupTroops`。人口を消費）まで集め直す。`ambushed` はこの日の AP を半分にして消す
 - `execute` の始めに全部隊の `ap` を **その日の AP**（残りの `ap` ＋ 積んだ指示の `ap` の合計。`apMax` で頭打ち）に戻し、実行中は実際のコストを引く（AP が足りなければ blocked(ap) で残りの指示を捨てる）。
   `apMax` を呼び直してはいけない：beginTurn が `ambushed` と `routed` をもう消しているので、奇襲された部隊（AP 半分）と敗走明けの部隊（AP 0）が満タンで動いてしまう（検証班が修正。`tests/verify.test.mjs`）
 - ラウンドごとに部隊の順番を rng で混ぜ、各部隊の `orders[0]` を 1 歩進める。move は 1 タイル、ほかの指示は 1 回で終わる。上限は `MAX_ROUNDS = 120`。最後に残った指示は捨てる
@@ -438,7 +475,7 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 - 体力減の地形に入ると兵が減る：季節が合えば −3%、always は −1%（兵が 1 以上なら 1 は残す）
 - battle の `followups` は、battle イベントのあとに 1 つずつ yield し、`state.log` にも積む（battle イベントの中にも残る）
 - Legendary の攻略・プレイヤーの本拠地の陥落で、ラウンドの途中でも止めて `season_end` を出す（finishDay はしない）
-- `finishDay`：applyDaily（各ランド）→ tickBuilds → 回復（support / healer の隣の同じランドの部隊は 兵の上限 × healAdj、本拠地にいる部隊は +lead。上限まで）→ revealFog → 日曜なら tallyWeek → `day += 1` → checkEnd。終わったら `state.ended`・`phase = "ended"`・`day` は 28 に留める
+- `finishDay`：（SPEC-113 で改めた。§7.7）applyDaily（各ランド）→ 夜の士気・逃走・回復（morale.applyNight。各ランド）→ tickBuilds → revealFog → 日曜なら tallyWeek → `day += 1` → checkEnd。終わったら `state.ended`・`phase = "ended"`・`day` は 28 に留める
 - `noticesFrom` は battle の followups を見ない（execute が別に流すので二重になる）。占領はまとめて「n タイルを占領しました」。Notice の id は `state.notices` の最大 + 1 から
 
 ### 7.5 season
@@ -451,11 +488,66 @@ db = { terrain: { [id]: Terrain }, facilities: { [id]: Facility }, lands: Land�
 ### 7.6 ai
 - **留守番**：食料の収支（産出 − 消費。今日の休息・徴兵で増える兵も見込む）が足りなければ、本拠地に近い部隊（AP 4 以上。同じ距離なら攻撃力の低いもの）から、明日の不足を農作で埋められるまで留守番にする。最低 1 体は外に残す。
   留守番は戦わず、本拠地へ戻って農作（食料の上限まで）→ GUM・素材が乏しければ商業・工作 → 本拠地の隣に農地（ランクの上がるもの・草原を先に）か、上限が足りなければ食料庫を建てて、そのタイルで夜を越す。
-  本拠地で夜を越すと兵が lead 回復して消費が増えるため（兵が上限の 3 割未満のときだけ本拠地に残る）。SPEC-109 §4 の数値は変えていない
+  本拠地で夜を越すと兵が lead 回復して消費が増えるため（兵が定員の 6 割未満で人口があるときだけ本拠地に残る。§7.9）。SPEC-109 §4 の数値は変えていない
 - **砦の守り**：自ランドの砦に立っている部隊は動かない（1 砦 1 体）。守り手のいない砦には、4 以内の部隊が入る（砦を落とした攻め手がそのまま入る）。全員が張り付いたら、いちばん兵の多い守り手を攻めに出す
 - **攻め手**：残りの上位（3 体以上なら半分、それ未満は 1 体）。いちばん近い（経路のコスト）未所有の砦へ向かい、射程内なら攻める。
-  Epic・Legendary は距離を割り引いて選び（`FORT_BONUS`：Epic 6 / Legendary 10）、兵が下限（`FORT_MIN_TROOPS`：Epic 200 / Legendary 550）に満たなければ、本拠地に戻って休息で兵を増やしてから向かう（1 日に 1 体まで。増える兵の消費が食料の上限に収まるときだけ）。
+  Epic・Legendary は距離を割り引いて選び（`FORT_BONUS`：Epic 6 / Legendary 10）、兵が下限（`FORT_MIN_TROOPS`：Epic 120 / Legendary 550。§7.9）に満たなければ、本拠地に戻って徴兵 1 回と休息で兵を増やしてから向かう（1 日に 1 体まで。増える兵の消費が食料の上限に収まるときだけ）。
   他ランドの砦は 12 遠く見て、落ちたばかりのもの（`isShielded`）と、守り手の兵が自分の 1/1.5 を超えるものは狙わない
 - 砦に立っている部隊は「射程内の弱い敵」として撃たない（撃つと砦への攻撃になるため。砦は上の基準で選ぶ）
 - CPU は本拠地に立っている部隊を攻めない（本拠地の攻略になり、ランドを脱落させてしまうため）。MVP では CPU が本拠地を狙うことは無い
 
+### 7.7 SPEC-113（士気と食料）の実装で決めたこと
+- **つまみ**：k / d / m は `js/engine/tuning.js` の 1 か所（いまの値 k = 2・d = 9・m = 1。決め方は SPEC-113 §5 の「決めた値」）。newGame・SOUL の兵、economy の兵の消費・農作、ai の見込みはここから読む。
+  敗走明けの兵は §7.9（定員の 3 割まで、人口を消費）
+- **士気のファイル**：定数・係数・夜の処理は `js/engine/morale.js`。economy は `moraleMult` などを再 export する（契約の `economy.moraleMult`）
+- **finishDay の順番**：全ランドの applyDaily（産出 → 消費（配給）→ 飢え → 上限。飢えた日は人口の自然増なし）→ ランドごとに applyNight
+  （士気の毎日の変化：飢え −15 / 足りた +2、本拠地 +3、配給 ±4、指揮が隣 +2、指揮の部隊そのもの +2。回復・支援の隣は飢えと節約の減りを半分（切り捨て）
+  → 士気 0 の部隊から兵の 8%（切り上げ）が逃げる → 兵の回復）→ tickBuilds → 霧 → 日曜の集計 → 終了判定。
+  敗走中の部隊は夜の士気・逃走・回復の対象にしない。士気 0 でも、その夜の変化で 0 より上に戻れば逃げない
+- **兵の回復と人口**：支援 / 回復の隣（上限 × healAdj）と本拠地（+統率力。飢えた日は無し）の合計を、定員（`musterCap`。§7.9）まで・人口 1 につき兵 1 で、部隊の並び順（`state.squads` の挿入順）に配る。
+  使える人口は、その日の産出と上限のあとの人口。休息（economy.rest）も同じく人口を使う。徴兵は今までどおり
+- **morale イベント**：戦闘の中（スキル・奇襲・勝ち負け・敗走・砦・降伏）と、恩賞・休息の実行は 1 件ずつの `morale`。
+  1 日の終わりはランドごとに `morale_day` 1 件（変化のあった部隊だけ。1 件も無ければ出さない）。逃走は `desert`（部隊ごと）。
+  恩賞・休息は domestic / rest イベントの `morale` にも同じものを入れ、execute はそのあとに morale イベントとして yield する
+- **戦闘の士気**：スキルの士気はスキルが発動したその打撃のときに動く（反撃の攻防に効く）。奇襲 −15 は最初の打撃のあと（反撃の前）。
+  勝ち = 相手を敗走させた・砦 / 本拠地を落とした。負け = 受けた兵 > 与えた兵（兵は部隊と砦の守備兵。耐久は数えない）。
+  敗走した部隊は勝ち負けの対象にせず、士気 30。砦を落とすと攻め手のランドの全部隊（敗走中を除く）+5（攻め手は勝ち +8 と合わせて +13）
+- **predict**：resolve と同じ処理（`fight`）を、回避・スキルの「起きる / 起きない」4 つの組み合わせ（攻め手の打撃の回避・スキル、反撃の回避・スキル）16 通りで、
+  戦闘が書き換える部分だけ写した state の上で回す（陥落の後始末はしない）。だから実際の resolve の結果は必ず幅に入る（テストで 200 回確かめる）。
+  確率が 0 以下・100 以上のものは固定（起きない / 必ず起きる）。返す値：`attacker` / `defender`（兵）・`label`・`excludes`（数えていないもの：
+  `other_battles` `movement` `night`）・`target` `defenderId` `ambush` `counter`・`dealt` / `taken`（与える / 受ける見込み。与えるは兵 + 耐久）・
+  `fall`（"none"|"maybe"|"sure"）・砦なら `fort: { troops, durability }`、本拠地なら `home: { durability }`・`chances`（%）。
+  砦・本拠地の値は陥落の直前のもの（実際の resolve は落ちたあと守備兵 30・耐久半分に戻す）。ラベルは中央の比が 2.5 / 1.4 / 0.7 / 0.4 以上で区切る（受ける見込みが 0 なら、与える見込みがあれば overwhelm）
+- **breakdown**：積んである指示は含まない（今夜の「何もしなければ」の見込み）。内政の見込みは UI が `previewDomestic(...).perDay` を足す。
+  行の key：収入 `terrain`（占領地の地形）`facility.<kind>`（施設の種類ごと）`town`（街の隣接）`growth`（人口の自然増）、
+  支出 `pop`（人口の食料）`troops`（部隊ごと。`squad` 付き）`cap`（上限を超えて捨てる分）`recover`（兵の回復に使う人口。部隊ごと）。0 の行は入れない。
+  兵の消費はランド全体で floor(兵の合計 × 配給 ÷ d) を出し、部隊ごとの切り捨ての余りを端数の大きい部隊から配る（行の合計が必ず合う）。
+  指示のない夜なら、資源の実際の増減は net と一致する（食料は 0 で止まる）。テストで 3 シード × 10 日を確かめる
+- **previewDomestic**：すでに積んである内政・休息・開拓（費用）を先に数えた値の上で、もう 1 回ぶんを見る。恩賞は GUM が足りないときも払えたときの delta を返す（ok = false・reason "gum"）。
+  `perDay.food` は農作なら増える食料、徴兵なら 増える兵の消費のマイナス + 減る人口の消費（人口 ÷ 10）のプラス、ほかは 0。`repeat` は floor(AP ÷ 2)（恩賞は GUM でも頭打ち）。reason は kind / home / ap / gum
+- **恩賞の GUM**：validate は、同じランドの積んである恩賞・開拓の GUM を引いた残りで見る。実行のときの兵で費用を数え直し、足りなければ blocked(gum) でその指示だけ捨てる
+- **ai**：毎ターンの始めに配給を選ぶ（通常の配給で 3 日以内に尽きるなら save、士気の平均 < 40 で食料 80 以上・増量でも 10 日以上もつなら feast、ほかは normal）。
+  本拠地にいる士気 40 未満の部隊に、恩賞のあと GUM が 40 残るなら恩賞。士気 0 の部隊はほかの役目より先に本拠地へ戻り、着いたら恩賞（GUM があれば）と休息。
+  食料の見込み（留守番・休息の兵）の「兵 ÷ 5」は troopFood（配給・d 込み）に、農作の量は farmAmount（m 込み）にした。
+  兵の増加は人口を使うので、攻め手が本拠地へ戻って休む（refit）のは人口があるときだけ（人口 0 で戻ると兵が増えないまま 1 日を失うため）。
+  今日の休息・徴兵で増える兵の見込み（plannedGrowth）も人口で頭打ちにする（バランス班）
+- **セーブ**：`deserialize` が `withDefaults` で `morale`（60）・`ration`（"normal"）を埋める。`STATE_VERSION` は 1 のまま（古いセーブを捨てない）
+
+### 7.8 SPEC-114（情報の見せ方）の実装で決めたこと
+- **undoLast**（`orders.js`。Chat 班）：Chat の「1 手戻す」。外せるのは最後に積んだ指示だけ（指示は積んだ順に実行され、検証も前の指示を終えた位置で行うので、
+  途中を外すと後ろの指示の前提が崩れる）。戻す AP は queue が書き添えた `ap`（無ければ 0）。指示が無ければ `{ ok:false, reason:"none" }` で state を変えない
+
+### 7.9 SPEC-113 §2.1（定員）の実装で決めたこと
+- **定員** `Squad.mustered`：その部隊が集めた兵の数。newGame・SOUL（`accept`）で初期の兵と同じ。読み込み（`withDefaults`）で無い・数でなければ今の兵。
+  上限（`troopCap`）では切らずに持ち、使うときに `musterCap = min(troopCap, mustered)` で切る（装備を外して上限が下がっても、付け直せば戻る）
+- **定員まで**：夜の回復（`morale.planNight`。本拠地・支援 / 回復の隣）・休息（`economy.rest`）・回復スキル（`battle.resolve`）・敗走明けの集め直し（`turn.regroupTroops`）。
+  回復スキルで定員より多い兵を削ることはしない（`min` で止めるだけ）
+- **徴兵**（`economy.domestic` の conscript）：兵を増やし、定員を `max(定員 + 増えた兵, 兵)` にする。徴兵の量そのもの（`min(floor(人口 × 0.3), 上限 − 兵)`）は変えない
+- **逃走**（`morale.applyNight`）：逃げた数を定員からも引く（兵を下回らない）。戦闘で減った兵は定員から引かない（夜・休息で戻せる）
+- **見込み**：`queuedSim`（previewDomestic・canConscript・canReward の土台）は積んだ徴兵で増える定員も数え、そのあとの休息を増えた定員まで戻す（実行と一致。テストあり）。
+  `forecast().troops.muster` は定員（`musterCap`）の合計
+- **敗走明け**：`REGROUP_RATE = 0.3`。`ceil(musterCap × 0.3)` に足りない分を人口から集め直す（人口が無ければ 0 のまま復帰）。集め直しは定員を変えない
+- **ai**（バランス班）：攻め手の refit は、本拠地で徴兵 1 回（`canConscript` が ok なら）→ 休息。refit で増える兵の見込み（`refitGain`）は徴兵 1 回 + 休息（定員まで）。
+  今日の休息・徴兵で増える兵の見込み（plannedGrowth）は、休息を定員まで・徴兵で定員が増えるとして数える。留守番が本拠地で夜を越すのは兵が定員の 6 割未満で人口があるとき。
+  Epic を狙う兵の下限 `FORT_MIN_TROOPS.epic` は 200 → **120**（Epic 砦の守備兵 120 と同じ。兵が徴兵でしか定員を超えて増えなくなり、初期の兵 統率力 × 2 ≒ 100〜180 のままでは 200 に届かず、
+  Epic がほとんど攻められなかった。SPEC-113 §5 の表）

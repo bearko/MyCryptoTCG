@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import {
   caps, yields, upkeep, applyDaily, canBuild, startBuild, tickBuilds, domestic, rest, terrainYield,
 } from '../js/engine/economy.js';
+import { TROOPS_PER_FOOD as D } from '../js/engine/tuning.js';
 
 const read = (p) => JSON.parse(fs.readFileSync(new URL(p, import.meta.url), 'utf8'));
 const terrainList = read('../data/terrain.json');
@@ -121,11 +122,16 @@ test('yields: town は gum +4 と、隣接する街以外の施設の産出 +1',
   assert.equal(y.pop, 2);
 });
 
-test('upkeep: floor(人口 / 10) + floor(兵 / 5)', () => {
+test('upkeep: floor(人口 / 10) + floor(兵 / d)（d は tuning.js のつまみ）', () => {
   const s = makeState();
   s.lands.ocean.res.pop = 95;
   s.squads.u1.troops = 52;
-  assert.deepEqual(upkeep(s, db, 'ocean'), { food: 9 + 10 });
+  assert.deepEqual(upkeep(s, db, 'ocean'), { food: 9 + Math.floor(52 / D) });
+  // 兵が d の倍数をまたぐところで 1 増える
+  s.squads.u1.troops = 5 * D - 1;
+  assert.equal(upkeep(s, db, 'ocean').food, 9 + 4);
+  s.squads.u1.troops = 5 * D;
+  assert.equal(upkeep(s, db, 'ocean').food, 9 + 5);
 });
 
 test('applyDaily: 産出 → 消費 → 上限、yield は実際の増減', () => {
@@ -134,25 +140,32 @@ test('applyDaily: 産出 → 消費 → 上限、yield は実際の増減', () =
   s.lands.ocean.res = { pop: 100, food: 150, gum: 120, mat: 99 };
   s.map.tiles[C].facility = { kind: 'mine', rank: 1 };
   const ev = applyDaily(s, db, 'ocean');
-  // pop は上限 100 で止まる。food 150 + 1 − (10 + 10) = 131。gum +1。mat 99 + 3 → 100 で止まる
-  assert.deepEqual(s.lands.ocean.res, { pop: 100, food: 131, gum: 121, mat: 100 });
+  // pop は上限 100 で止まる。food 150 + 1 − (10 + floor(50 / d))。gum +1。mat 99 + 3 → 100 で止まる
+  const eat = 10 + Math.floor(50 / D);
+  assert.deepEqual(s.lands.ocean.res, { pop: 100, food: 151 - eat, gum: 121, mat: 100 });
   assert.equal(ev.length, 1);
-  assert.deepEqual(ev[0], { t: 'yield', land: 'ocean', res: { pop: 0, food: -19, gum: 1, mat: 1 } });
+  assert.deepEqual(ev[0], { t: 'yield', land: 'ocean', res: { pop: 0, food: 1 - eat, gum: 1, mat: 1 } });
 });
 
-test('applyDaily: 食料が足りないと 0 にして兵 −10%・人口 −5%、starve', () => {
+test('applyDaily: 食料が足りないと 0 にして starve（shortfall つき）。兵は減らさず、人口の自然増もない（SPEC-113 §2）', () => {
   const s = makeState();
-  s.lands.ocean.res = { pop: 100, food: 5, gum: 0, mat: 0 };
+  s.lands.ocean.res = { pop: 90, food: 5, gum: 0, mat: 0 };
   s.squads.u1.troops = 55;
   s.squads.u2 = { ...s.squads.u1, id: 'u2', troops: 9 };
   s.squads.r1 = { ...s.squads.u1, id: 'r1', land: 'ruby', troops: 40 };
   const ev = applyDaily(s, db, 'ocean');
+  // 消費 floor(90 / 10) + floor(64 / d)。足りない量は 消費 − 5
+  const short = 9 + Math.floor(64 / D) - 5;
+  assert.ok(short > 0, '足りなくなる前提');
   assert.equal(s.lands.ocean.res.food, 0);
-  assert.equal(s.squads.u1.troops, 49); // floor(55 × 0.9)
-  assert.equal(s.squads.u2.troops, 8); // floor(9 × 0.9)
-  assert.equal(s.squads.r1.troops, 40); // 他ランドは減らない
-  assert.equal(s.lands.ocean.res.pop, 95); // 100 + 1 は上限 100 → floor(100 × 0.95)
-  assert.deepEqual(ev.map((e) => e.t), ['yield', 'starve']);
+  assert.equal(s.squads.u1.troops, 55); // 即時の罰（兵 × 0.9）はやめた
+  assert.equal(s.squads.u2.troops, 9);
+  assert.equal(s.squads.r1.troops, 40);
+  assert.equal(s.lands.ocean.res.pop, 90); // 自然増 +1 は無し・人口 × 0.95 もしない
+  assert.deepEqual(ev, [
+    { t: 'yield', land: 'ocean', res: { pop: 0, food: -5, gum: 0, mat: 0 } },
+    { t: 'starve', land: 'ocean', shortfall: short },
+  ]);
 });
 
 test('canBuild: 自ランドの占領地・建てられる地形・費用', () => {
@@ -280,12 +293,52 @@ test('domestic: farm / trade / craft（food・mat は上限で止まる）', () 
   assert.equal(s.lands.ocean.res.mat, 78);
 });
 
-test('rest: 統率力 × 2、本拠地なら ×2、上限で止まる', () => {
+test('rest: 統率力 × 2、本拠地なら ×2、定員で止まる。増えた兵の分だけ人口を使い、士気 +10', () => {
   const s = makeState();
+  // 定員（集めた兵）190・上限（統率力 20 × 10）200。休息は戦いで減った兵を定員まで戻すだけ（SPEC-113 §2.1）
   s.squads.u1.troops = 100;
-  assert.deepEqual(rest(s, db, s.squads.u1), { t: 'rest', squad: 'u1', amount: 80 });
+  s.squads.u1.mustered = 190;
+  s.squads.u1.morale = 60;
+  assert.deepEqual(rest(s, db, s.squads.u1), {
+    t: 'rest', squad: 'u1', amount: 80,
+    morale: { t: 'morale', squad: 'u1', delta: 10, reason: 'rest', value: 70 },
+  });
+  assert.equal(s.lands.ocean.res.pop, 20); // 100 − 80
   s.squads.u1.tile = 20;
-  assert.equal(rest(s, db, s.squads.u1).amount, 20);
+  // 本拠地の外：統率力 × 2 = 40 だが、定員まで 10 しか空いていない
+  assert.equal(rest(s, db, s.squads.u1).amount, 10);
+  assert.equal(s.squads.u1.troops, 190);
+  assert.equal(s.lands.ocean.res.pop, 10, '定員で止まった分の人口は残る');
+  assert.equal(rest(s, db, s.squads.u1).amount, 0, '定員に届いたら上限（200）に余裕があっても増えない');
+  assert.equal(s.squads.u1.troops, 190);
+  assert.equal(s.squads.u1.mustered, 190, '休息は定員を変えない');
+  assert.equal(s.lands.ocean.res.pop, 10);
+  assert.equal(s.squads.u1.morale, 90);
+});
+
+test('rest: 定員が上限より大きければ上限で止まる。mustered の無い部隊は今の兵が定員', () => {
+  const s = makeState();
+  s.squads.u1.troops = 150;
+  s.squads.u1.mustered = 400; // 装備を外したなどで上限（200）が定員より小さい
+  assert.equal(rest(s, db, s.squads.u1).amount, 50);
   assert.equal(s.squads.u1.troops, 200);
   assert.equal(rest(s, db, s.squads.u1).amount, 0);
+  // 古い state（mustered なし）：今の兵を定員とみなすので増えない
+  const t = makeState();
+  t.squads.u1.troops = 100;
+  delete t.squads.u1.mustered;
+  assert.equal(rest(t, db, t.squads.u1).amount, 0);
+  assert.equal(t.lands.ocean.res.pop, 100);
+});
+
+test('rest: 人口が足りなければ足りる分だけ、人口 0 なら増えない', () => {
+  const s = makeState();
+  s.squads.u1.troops = 100;
+  s.squads.u1.mustered = 200;
+  s.lands.ocean.res.pop = 30;
+  assert.equal(rest(s, db, s.squads.u1).amount, 30);
+  assert.equal(s.squads.u1.troops, 130);
+  assert.equal(s.lands.ocean.res.pop, 0);
+  assert.equal(rest(s, db, s.squads.u1).amount, 0);
+  assert.equal(s.squads.u1.troops, 130);
 });

@@ -154,7 +154,7 @@ if (input && !input.value) input.value = getPlayerName();
   #activityReportTitle
   #activityReportHero          ← .report-hero__inner[data-faction]
   #activityReportStages        ← .report-stage[] (= flex column)
-    .report-stage__head        — name + ⏱/💀/Lv
+    .report-stage__head        — name + 時間 / 撃破数 / Lv
     .report-stage__exts        — .report-ext[] (= 38px icon + Lv バッジ)
   #activityReportTotals
     .report-meta-row           — レギュ / 時間 / kill の 1 行

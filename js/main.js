@@ -102,6 +102,9 @@ function resetUiForState() {
   app.ui.mapCam = { x: 0, y: 0, zoom: 1 };
   app.ui.seen = {};
   app.ui.lastBatch = 0;
+  // 朝の報告（SPEC-114 §2.1）は state.morning に保存する（再読み込みしても消えない）。ここは実行前の控えだけ
+  app.ui.morningBase = null;
+  app.ui.starveAck = null;
   if (st) {
     const m = maxNoticeId();
     for (const k of Object.keys(VIEWS)) app.ui.seen[k] = m;
@@ -446,6 +449,8 @@ export function endTurn() {
     go(pa);
     return;
   }
+  // 朝の報告のために、実行前の自ランドの様子を控える（SPEC-114 §2.1）
+  try { app.ui.morningBase = phone.morningSnapshot(app); } catch (e) { console.error(e); app.ui.morningBase = null; }
   // 2. CPU の指示 → 3. 実行
   const rng = rngFor(st);
   app.rng = rng;
@@ -604,6 +609,14 @@ function finishExecute() {
     return;
   }
   beginTurn(st, app.db);
+  // 朝の報告: 実行フェーズのイベントと実行前の控えから 1 度だけ作り、state に保存する（再読み込みしても消えない）
+  try {
+    st.morning = phone.buildMorning(app, app.ui.morningBase || null, events, st.morning || null);
+  } catch (e) {
+    console.error(e);
+    st.morning = null;
+  }
+  app.ui.morningBase = null;
   app.rng = rngFor(st);
   save(st);
   // 新しい通知は各アプリの既読より id が大きいので、アプリを開くまでバッジが付く

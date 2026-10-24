@@ -91,7 +91,7 @@ test('ai.plan：食料が足りなければ、本拠地の部隊が戦わずに�
   const st = newGame({ seed: 7, playerLand: 'ocean', db });
   const land = st.lands.ruby;
   land.res.food = 0;
-  // 消費が産出を大きく上回っている（初期の兵 lead × 3 が 3 体）
+  // 消費が産出を大きく上回っている（初期の兵 統率力 × k が 3 体）
   assert.ok(upkeep(st, db, 'ruby').food > yields(st, db, 'ruby').food);
   plan(st, db, makeRng(4), 'ruby');
   const mine = Object.values(st.squads).filter((s) => s.land === 'ruby');
@@ -149,4 +149,67 @@ test('通し（2 シード × 28 日、全ランド CPU）：飢えと砦の行�
     assert.ok(fallen <= 50, `seed ${seed}: 落ちた砦 ${fallen}`);
     assert.equal(quick, 0, `seed ${seed}: 落ちた翌日までに取り返された砦がある`);
   }
+});
+
+// ---------------------------------------------------------------- SPEC-113 §5 の目標（2 シード・範囲を少し緩めて）
+//
+// プレイヤーのランド（ocean）を決め打ちの方針で 28 日、ほかは CPU（tools/sim-lib.mjs の runPlayer / runCpu。
+// tools/sim.mjs --player と同じもの）。決めた値（k / d / m）と、その根拠の数字は SPEC-113 §5 の末尾の表。
+// 「何もしない」の「食料 6 日以上」は、ほかの目標と同時には満たせない（理由は SPEC-113 §5 の表の下）。
+// ここでは決めた値で実際に出る「4 日以上」と「全滅しない」を確かめる。
+
+import { runPlayer, runCpu } from '../tools/sim-lib.mjs';
+import { TUNING } from '../js/engine/tuning.js';
+
+const GOAL_SEEDS = [3, 4];
+
+test('SPEC-113 §5：つまみは調整の範囲の中', () => {
+  assert.ok(TUNING.k >= 1 && TUNING.k <= 3, `k ${TUNING.k}`);
+  assert.ok(TUNING.d >= 5 && TUNING.d <= 12, `d ${TUNING.d}`);
+  assert.ok(TUNING.m >= 1 && TUNING.m <= 2, `m ${TUNING.m}`);
+});
+
+test('SPEC-113 §5 何もしない：食料は 4 日以上もち、尽きても 28 日目まで部隊が全滅しない', () => {
+  for (const seed of GOAL_SEEDS) {
+    const r = runPlayer(db, seed, 'none');
+    assert.ok(r.foodOut === null || r.foodOut >= 4, `seed ${seed}: 食料が尽きた日 ${r.foodOut}`);
+    assert.ok(r.alive && r.squadsAlive >= 1, `seed ${seed}: 全滅（兵のいる部隊 ${r.squadsAlive}）`);
+  }
+});
+
+test('SPEC-113 §5 毎日 1 人だけ農作を 1 回：1 日目の差し引きが −15〜+10/日（目標 −10〜+5）', () => {
+  for (const seed of GOAL_SEEDS) {
+    const r = runPlayer(db, seed, 'farm1');
+    assert.ok(r.flow1 >= -15 && r.flow1 <= 10, `seed ${seed}: 差し引き ${r.flow1}`);
+    assert.equal(r.flow1, r.net1, `seed ${seed}: 上限に届かないので「このあと」と流れは同じ`);
+  }
+});
+
+test('SPEC-113 §5 毎日 1 人が農作を AP いっぱい：差し引き +10/日 以上で、食料が尽きない', () => {
+  for (const seed of GOAL_SEEDS) {
+    const r = runPlayer(db, seed, 'farmMax');
+    assert.ok(r.flow1 >= 10, `seed ${seed}: 流れ ${r.flow1}`);
+    assert.ok(r.net1 >= 0, `seed ${seed}: 「このあと」${r.net1}（食料の上限で止まっても赤字にはならない）`);
+    assert.equal(r.foodOut, null, `seed ${seed}: 食料が尽きた（${r.foodOut} 日目）`);
+  }
+});
+
+test('SPEC-113 §5 毎日 2 回ずつ徴兵：3〜10 日目に食料が尽きる（目標 4〜8 日目）', () => {
+  for (const seed of GOAL_SEEDS) {
+    const r = runPlayer(db, seed, 'conscript2');
+    assert.ok(r.foodOut !== null && r.foodOut >= 3 && r.foodOut <= 10, `seed ${seed}: 食料が尽きた日 ${r.foodOut}`);
+  }
+});
+
+test('SPEC-113 §5 全ランド CPU：4 シードで、飢え 40 以下・逃走で兵 0 の部隊 2 以下（シードごと）、落ちた砦は平均で 12〜45（目標 30 / 1 / 平均 15〜40）', () => {
+  // 落ちた砦はシードごとのぶれが大きい（seed 1〜20 で 9〜29）。SPEC-113 §5 の目標は「1 シード平均」なので平均で見る
+  const fallen = [];
+  for (const seed of [...GOAL_SEEDS, 5, 6]) {
+    const r = runCpu(db, seed);
+    fallen.push(r.fallen);
+    assert.ok(r.starves <= 40, `seed ${seed}: 飢え ${r.starves}`);
+    assert.ok(r.zeroed <= 2, `seed ${seed}: 逃走で兵 0 の部隊 ${r.zeroed}`);
+  }
+  const avg = fallen.reduce((a, b) => a + b, 0) / fallen.length;
+  assert.ok(avg >= 12 && avg <= 45, `落ちた砦 平均 ${avg}（${fallen.join(', ')}）`);
 });

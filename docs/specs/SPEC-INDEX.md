@@ -30,6 +30,8 @@ YAML frontmatter から再生成する。 **`<!-- BEGIN AUTO-INDEX -->` ...
 | SPEC-110 | エンジンの契約（state の形・純粋関数・ファイルの持ち主） (Phase 1) | Implementing | Phase 1 | ccr-3032454b-n1cx4z |
 | SPEC-111 | スマホ UI（ホーム + MCH Map / Chat / Calendar / Drive / Photo）と実行フェーズの演出 (Phase 2) | Implementing | Phase 2 | ccr-3032454b-n1cx4z |
 | SPEC-112 | UI の作り込み（手触り・質感・動き・色の優先度）と分かりやすさ (Phase 2B) | Implementing | Phase 2B | ccr-3032454b-n1cx4z |
+| SPEC-113 | 士気と食料の見直し（飢え → 士気 → 逃走、兵はただで増えない、配給と恩賞） (Phase 3A) | Implementing | Phase 3A | ccr-3032454b-n1cx4z |
+| SPEC-114 | 情報の見せ方と 1 日の流れ（収支・あと何日・内訳・見込み・朝の報告・戦力差・士気） (Phase 3B) | Implementing | Phase 3B | ccr-3032454b-n1cx4z |
 <!-- END AUTO-INDEX -->
 
 ## 命名規則

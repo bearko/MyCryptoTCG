@@ -3,6 +3,8 @@
 // 契約: docs/specs/SPEC-110-engine-contract.md §3 souls.js。
 
 import { makeRng, pick, shuffle, hashStr } from "./rng.js";
+import { startTroops } from "./tuning.js";
+import { MORALE_START } from "./morale.js";
 
 function heroListOf(db) {
   if (db.heroList) return db.heroList;
@@ -64,7 +66,7 @@ function removePending(state, pending) {
 
 /**
  * SOUL を使ってヒーローを仲間にする（mutates）。
- * 本拠地に部隊を作る。兵は lead × 3。`state.pending` と `land.souls` からその SOUL を外す。
+ * 本拠地に部隊を作る。兵は lead × k（tuning.js の START_TROOPS_PER_LEAD）、士気 60。`state.pending` と `land.souls` からその SOUL を外す。
  * @param {object} state
  * @param {object} db
  * @param {string} landId
@@ -84,13 +86,15 @@ export function accept(state, db, landId, pending, heroId) {
     heroId: hero.id,
     land: landId,
     tile: land.home,
-    troops: hero.params.lead * 3,
+    troops: startTroops(hero.params.lead),
+    mustered: startTroops(hero.params.lead),
     ap: 0,
     orders: [],
     policy: "ask",
     status: "ok",
     equip: null,
     ambushed: false,
+    morale: MORALE_START,
   };
   state.squads[id] = squad;
 

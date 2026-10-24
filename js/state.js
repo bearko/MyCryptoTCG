@@ -9,6 +9,8 @@ import { makeRng, hashStr } from './engine/rng.js';
 import { generateWorld } from './engine/worldgen.js';
 import { starterHeroes } from './engine/heroes.js';
 import { beginTurn, revealFog } from './engine/turn.js';
+import { startTroops } from './engine/tuning.js';
+import { MORALE_START, DEFAULT_RATION, RATIONS, clampMorale } from './engine/morale.js';
 
 export const STATE_VERSION = 1;
 export const ENEMY_LAND = 'enemy';
@@ -26,6 +28,7 @@ function newLand(id, cpu, home) {
     extensions: [],
     fortPoints: 0,
     points: { week1: 0, week2: 0, week3: 0, week4: 0 },
+    ration: DEFAULT_RATION,
   };
 }
 
@@ -75,13 +78,15 @@ export function newGame({ seed, playerLand, db }) {
         heroId,
         land: landId,
         tile: land.home,
-        troops: hero.params.lead * 3,
+        troops: startTroops(hero.params.lead),
+        mustered: startTroops(hero.params.lead),
         ap: 0,
         orders: [],
         policy: land.cpu ? 'fight' : 'ask',
         status: 'ok',
         equip: null,
         ambushed: false,
+        morale: MORALE_START,
       };
     }
   });
@@ -96,10 +101,31 @@ export function serialize(state) {
   return JSON.stringify(state);
 }
 
+/**
+ * 読み込み。SPEC-113 より前のセーブには Squad.morale / Land.ration が無いので、既定値（60 / "normal"）を入れる
+ * （保存の形は変わったが、古いセーブを捨てない。SPEC-113 §6.4）。
+ */
 export function deserialize(json) {
   const s = typeof json === 'string' ? JSON.parse(json) : json;
   if (!s || s.version !== STATE_VERSION || !s.map || !s.lands || !s.squads) {
     throw new Error('セーブデータの形が違う');
+  }
+  return withDefaults(s);
+}
+
+/**
+ * mutates。morale / ration の欠けを既定値で埋める（古いセーブ・テストで手書きした state 用）。
+ * 範囲の外・小数の士気（手で書き換えたセーブなど）は 0〜100 の整数に切る。そのままだと、
+ * 夜の処理で切られるまでの 1 日、表示と戦闘の係数が食い違う。
+ */
+export function withDefaults(s) {
+  for (const sq of Object.values(s.squads)) {
+    if (typeof sq.morale !== 'number' || !Number.isFinite(sq.morale)) sq.morale = MORALE_START;
+    else sq.morale = clampMorale(sq.morale);
+    if (typeof sq.mustered !== 'number' || !Number.isFinite(sq.mustered)) sq.mustered = Math.max(0, sq.troops || 0);
+  }
+  for (const l of Object.values(s.lands)) {
+    if (!RATIONS[l.ration]) l.ration = DEFAULT_RATION;
   }
   return s;
 }

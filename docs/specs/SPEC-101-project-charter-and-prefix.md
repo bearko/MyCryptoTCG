@@ -58,11 +58,11 @@ kind: Changed
 -export const ASSET_BASE = "https://raw.githubusercontent.com/<user>/<asset-repo>/main/";
 +export const ASSET_BASE = "https://raw.githubusercontent.com/bearko/mycryptotcg/main/assets/";
 
--export const LS_PREFIX = "<prefix>";   // ⚠ プロジェクトごとに置換
+-export const LS_PREFIX = "<prefix>";   // （警告の記号 U+26A0）プロジェクトごとに置換
 +export const LS_PREFIX = "mctcg";
 ```
 
-`// ⚠` コメントは絵文字扱いではないが、 役割を終えたので削除する。
+警告の記号 (U+26A0) のコメントは絵文字扱いではないが、 役割を終えたので削除する。
 
 ### 3-2. `docs/charters/PROJECT_CHARTER.md`
 

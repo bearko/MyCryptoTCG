@@ -91,7 +91,7 @@ phase としては `preStart` → `action` の 2 段階のみ。
     - target の currentHp が 0 以下なら field[slot] = null
 
 [endTurn]
-  - battle.turn = (player ↔ cpu) で交代
+  - battle.turn = (player と cpu) で交代
   - battle.phase = "preStart"
   - (= 次の startTurn 呼び出しで先頭から)
 ```
