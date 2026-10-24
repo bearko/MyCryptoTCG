@@ -158,7 +158,8 @@ async function handlePending(page, tag) {
     }
     results.pendingSeen.add(pa);
     if (pa === 'drive') {
-      await waitFor(page, '.soul-card');
+      // 裏向きの 3 枚が順にめくれ終わってから選ぶ（SPEC-112 §5。裏向きのうちに押すと全部めくれるだけ）
+      await waitFor(page, '.soul.is-ready .soul-card');
       await shot(page, `${tag}-drive-soul`);
       await screenOk(page, 'Drive SOUL');
       await page.click('.soul-card');
@@ -519,6 +520,70 @@ async function main() {
     }
     check('砦を落として SOUL（Drive）とエクステンション（Photo）の選択を通れた', results.pendingSeen.has('drive') && results.pendingSeen.has('photo'), [...results.pendingSeen].join(','));
     await context.close();
+
+    // ---------- 対象 → 指示 → 指示終了 の流れ（SPEC-112 §7.5.3） ----------
+    // ロスターと主役ボタン（指示を終える → 次のヒーローへ）だけで全員に指示し、ターン終了まで行けるか
+    {
+      const flow = await newPage(browser, { width: 390, height: 844 }, server.url);
+      const fp = flow.page;
+      await pickLand(fp, 'f');
+      await fp.click('.app-icon[data-app="chat"]');
+      await fp.waitForSelector('.chat--list, .chat--talk', { timeout: 10000 });
+      if (await fp.$('.chat--list')) {
+        await fp.click('.chat-primary');
+        await waitFor(fp, '.chat--talk');
+      }
+      const total = await fp.$$eval('.chat-roster__btn', (els) => els.length);
+      check('flow: Chat のトークにロスターが出る', total >= 3, `${total} 人`);
+      const visited = new Set();
+      let reachedEnd = false;
+      for (let k = 0; k < total + 2; k++) {
+        const cur = await fp.$eval('.chat-roster__btn.is-current', (e) => e.dataset.squad).catch(() => null);
+        if (!cur) break;
+        visited.add(cur);
+        // 本拠地にいるので内政（農作）を 1 つ積む → 主役ボタンが「指示を終える」になる
+        await fp.click('.chat-menu__btn[data-cmd="domestic"]');
+        await fp.waitForSelector('.chat-opt[data-kind="farm"]', { timeout: 5000 });
+        await fp.click('.chat-opt[data-kind="farm"]');
+        await fp.waitForTimeout(250);
+        const act = await fp.$eval('.chat-dock .chat-primary', (e) => e.dataset.act).catch(() => null);
+        if (k === 0) await shot(fp, 'f-finish');
+        if (act === 'end') { reachedEnd = true; break; }
+        check(`flow: ${k + 1} 人目に指示を積むと主役が「指示を終える」`, act === 'finish', String(act));
+        await fp.click('.chat-dock .chat-primary');
+        await fp.waitForTimeout(800);
+        const next = await fp.$eval('.chat-roster__btn.is-current', (e) => e.dataset.squad).catch(() => null);
+        if (next === cur || !next) {
+          // 最後の 1 人は「指示を終える」で完了になり、主役が「ターン終了」に変わる
+          const after = await fp.$eval('.chat-dock .chat-primary', (e) => e.dataset.act).catch(() => null);
+          reachedEnd = after === 'end';
+          break;
+        }
+      }
+      check('flow: 「次のヒーローへ」で全員を順に回れた', visited.size === total, `${visited.size}/${total}`);
+      check('flow: 全員の指示が終わると主役が「ターン終了」になる', reachedEnd);
+      await shot(fp, 'f-alldone');
+      // 戻る: トーク → 一覧 → ホーム
+      await fp.click('.chat-head__back');
+      await fp.waitForSelector('.chat--list', { timeout: 5000 });
+      check('flow: トークの「戻る」で一覧へ', true);
+      await fp.click('.chat--list .app-head__back');
+      await fp.waitForTimeout(500);
+      check('flow: 一覧の「戻る」でホームへ', (await currentApp(fp)) === 'home', String(await currentApp(fp)));
+      if (reachedEnd) {
+        await fp.evaluate(async () => (await import('/js/main.js')).go('chat'));
+        await fp.waitForTimeout(400);
+        // 全員済みなら、一覧の主役ボタンも「ターン終了」になっている
+        const before = await fp.evaluate(async () => (await import('/js/main.js')).getApp().state.day);
+        await fp.click('.chat-primary[data-act="end"]');
+        await fp.waitForTimeout(300);
+        if (await fp.$('.execbar__skip')) await fp.click('.execbar__skip');
+        await fp.waitForSelector('.home, .soul-card, .swipe', { timeout: 20000 });
+        const after = await fp.evaluate(async () => (await import('/js/main.js')).getApp().state.day);
+        check('flow: 「ターン終了」で次の日へ進む', after === before + 1, `${before} -> ${after}`);
+      }
+      await flow.context.close();
+    }
 
     // ---------- 1280x800 ----------
     const wide = await newPage(browser, { width: 1280, height: 800 }, server.url);

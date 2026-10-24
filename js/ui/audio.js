@@ -1,7 +1,8 @@
 // audio.js — BGM / SE（SPEC-111 §10。既定 OFF）
 //
-// 設定は localStorage の "mcw.settings"（{ sound: boolean }）。
+// 設定は localStorage の "mcw.settings"（{ sound: boolean, reduceMotion: boolean, ... }）。
 // 鳴らしても鳴らさなくてもゲームの結果は変わらない。自動では鳴らさない（設定で ON にしたときだけ）。
+// 設定の読み書き（getSetting / setSetting）もここに置く（h.js の「動きを減らす」もここを読む）。
 
 import { audioUrl, LS_SETTINGS } from '../constants.js';
 
@@ -11,17 +12,23 @@ const BGM = {
 };
 
 // SE は控えめに（音量も小さく、同じものは間をあける）
+// SPEC-112 §1: タップ・開く・閉じる・確定・攻撃・陥落に MCH の SE を割り当てる（[パス, 音量]）
 const SE = {
-  hit: 'Audio/SE/Battle/1_single_damage.mp3',
-  build: 'Audio/SE/Actions/production.mp3',
-  fort: 'Audio/SE/Jingles/win.mp3',
-  win: 'Audio/SE/Jingles/win.mp3',
-  lose: 'Audio/SE/Jingles/lose.mp3',
-  tap: 'Audio/SE/Battle/4_buff.mp3',
+  tap: ['Audio/SE/Battle/4_buff.mp3', 0.12],
+  open: ['Audio/SE/Actions/open_treasure.mp3', 0.22],
+  close: ['Audio/SE/Actions/insp.mp3', 0.14],
+  confirm: ['Audio/SE/Actions/production.mp3', 0.25],
+  attack: ['Audio/SE/Battle/1_single_damage.mp3', 0.3],
+  fall: ['Audio/SE/Jingles/win.mp3', 0.3],
+  // 以前からの名前（各班が使っている）
+  hit: ['Audio/SE/Battle/1_single_damage.mp3', 0.3],
+  build: ['Audio/SE/Actions/production.mp3', 0.3],
+  fort: ['Audio/SE/Jingles/win.mp3', 0.3],
+  win: ['Audio/SE/Jingles/win.mp3', 0.3],
+  lose: ['Audio/SE/Jingles/lose.mp3', 0.3],
 };
 
 const BGM_VOLUME = 0.35;
-const SE_VOLUME = 0.3;
 const SE_GAP_MS = 250;
 
 let settings = null;
@@ -55,6 +62,19 @@ function writeSettings() {
 
 export function getSettings() {
   return { ...readSettings() };
+}
+
+/** 設定の 1 項目（無ければ def） */
+export function getSetting(key, def = undefined) {
+  const s = readSettings();
+  return key in s ? s[key] : def;
+}
+
+/** 設定の 1 項目を保存する（sound は setSound を使う） */
+export function setSetting(key, value) {
+  readSettings();
+  settings[key] = value;
+  writeSettings();
 }
 
 export function isSoundOn() {
@@ -105,17 +125,18 @@ export function playBgm(name) {
   startBgm(name);
 }
 
-/** SE を 1 回鳴らす（"hit" | "build" | "fort" | "win" | "lose" | "tap"） */
+/** SE を 1 回鳴らす（"tap" | "open" | "close" | "confirm" | "attack" | "fall" | "hit" | "build" | "fort" | "win" | "lose"） */
 export function playSe(name) {
   if (!isSoundOn()) return;
-  const src = SE[name];
-  if (!src) return;
+  const se = SE[name];
+  if (!se) return;
+  const [src, vol] = se;
   const now = performance.now();
   if (lastSe[name] && now - lastSe[name] < SE_GAP_MS) return;
   lastSe[name] = now;
   try {
     const a = new Audio(audioUrl(src));
-    a.volume = SE_VOLUME;
+    a.volume = vol;
     const p = a.play();
     if (p && p.catch) p.catch(() => {});
   } catch {
