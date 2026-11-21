@@ -37,6 +37,9 @@ let bgmName = null;
 let bgmLoaded = null;
 const lastSe = {};
 
+// 画面が隠れている（ほかのアプリやタブへ移った・画面を消した・ブラウザを閉じた）
+const pageHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
+
 function readSettings() {
   if (settings) return settings;
   settings = { sound: false };
@@ -121,13 +124,13 @@ export function playBgm(name) {
     if (bgmEl) bgmEl.pause();
     return;
   }
-  if (!isSoundOn()) return;
+  if (!isSoundOn() || pageHidden()) return; // 隠れているあいだは、戻ったときに流す
   startBgm(name);
 }
 
 /** SE を 1 回鳴らす（"tap" | "open" | "close" | "confirm" | "attack" | "fall" | "hit" | "build" | "fort" | "win" | "lose"） */
 export function playSe(name) {
-  if (!isSoundOn()) return;
+  if (!isSoundOn() || pageHidden()) return;
   const se = SE[name];
   if (!se) return;
   const [src, vol] = se;
@@ -142,4 +145,21 @@ export function playSe(name) {
   } catch {
     /* 何もしない */
   }
+}
+
+// 画面が隠れたら BGM を止め、戻ったら音が ON なら続きから流す。ブラウザやアプリの外枠は、裏に回ったことを
+// ページの音までは伝えてくれない（HTML の Audio は鳴り続ける）ので、ここで自分で止める
+if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+  const hide = () => {
+    if (bgmEl) bgmEl.pause();
+  };
+  const show = () => {
+    if (!pageHidden() && bgmName && isSoundOn()) startBgm(bgmName);
+  };
+  document.addEventListener('visibilitychange', () => (pageHidden() ? hide() : show()));
+  window.addEventListener('pagehide', hide);
+  // 戻る・進むで同じページに戻ってきたとき（bfcache）は visibilitychange が来ないことがある
+  window.addEventListener('pageshow', (e) => {
+    if (e.persisted) show();
+  });
 }

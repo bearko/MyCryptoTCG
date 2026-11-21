@@ -127,6 +127,7 @@ SPEC-109 §8 の画面を実装する。 エンジンの契約は SPEC-110。 **
 - **絵文字を使わない**。 アイコンは文字・単色の図形・MCH の画像（`Image/BattleIcons/*` など）
 - **UI 文言は `lines.uiText(db, key)`**（`data/messages.json` の `ui`）か、 `data/i18n/ui.json` の `ja`。 MVP は日本語のみ
 - **音は既定 OFF**（設定で ON）。 BGM は `Audio/BGM/land.mp3`、 戦闘中は `land-battle.mp3`。 鳴らしても結果は変わらない
+- **画面が隠れたら BGM を止める**（ほかのアプリやタブへ移った・画面を消した・ブラウザを閉じた）。 戻ったら音が ON なら続きから流す。 隠れているあいだは SE も鳴らさない（`js/ui/audio.js` の `visibilitychange`・`pagehide`・`pageshow`。 2026-11-21 追記：スマホで裏に回しても鳴り続けていた）
 - `prefers-reduced-motion` のときは滑る・転がる演出を省く
 - **ゲームのルールを UI に書かない**。 AP の計算・建てられるか・射程・報酬は全部エンジンに聞く
 
